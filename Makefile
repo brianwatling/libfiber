@@ -5,6 +5,8 @@ VPATH += src test
 
 CFILES = \
     fiber_context.c \
+    fiber_manager.c \
+    fiber.c \
 
 #your compiler will pick the architecture by default
 ARCH ?= 
@@ -24,9 +26,9 @@ CFLAGS += -Werror -Wall -Iinclude
 
 TESTS= \
     test_context \
+    test_context_speed \
 
-#TODO: remove this?
-#CC = /usr/bin/c99
+CC ?= /usr/bin/c99
 
 OBJS = $(patsubst %.c,bin/%.o,$(CFILES))
 PICOBJS = $(patsubst %.c,bin/%.pic.o,$(CFILES))

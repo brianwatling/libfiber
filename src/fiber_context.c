@@ -135,7 +135,8 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
      "memory"
     );
 
-    //TODO: insert memory barrier to flush all writes
+    /* make any pending writes available to other processors */
+    __sync_synchronize();
 }
 
 #elif defined(__x86_64__) && defined(FIBER_FAST_SWITCHING)
@@ -240,6 +241,9 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
         : "+D" (from_sp), "+S" (to_sp) :
         : "rax", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory", "cc"
     );
+
+    /* make any pending writes available to other processors */
+    __sync_synchronize();
 }
 
 #else
