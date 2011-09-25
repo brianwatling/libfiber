@@ -8,6 +8,7 @@ typedef struct fiber_manager
 {
     fiber_t* volatile current_fiber;
     fiber_t* thread_fiber;
+    fiber_t* volatile to_schedule;
     wsd_work_stealing_deque_t* queue_one;
     wsd_work_stealing_deque_t* queue_two;
     wsd_work_stealing_deque_t* volatile schedule_from;

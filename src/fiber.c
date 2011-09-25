@@ -4,18 +4,30 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <unistd.h>
 
 static void fiber_go_function(void* param)
 {
     fiber_t* the_fiber = (fiber_t*)param;
+    fiber_manager_t* manager = fiber_manager_get();
+
+    /* check if anything needs to be scheduled - this is usually done after fiber_swap_context, but we do it here since we aren't going to execute that code. */
+    //TODO: re-factor this into "fiber_manager_do_maintenance() or something
+    if(manager->to_schedule) {
+        wsd_work_stealing_deque_push_bottom(manager->store_to, manager->to_schedule);
+        manager->to_schedule = NULL;
+    }
 
     the_fiber->run_function(the_fiber->param);
 
     the_fiber->state = FIBER_STATE_DONE;
 
-    fiber_manager_t* const manager = fiber_manager_get();
+    manager = fiber_manager_get();
     wsd_work_stealing_deque_push_bottom(manager->done_fibers, the_fiber);
-    fiber_manager_yield(manager);
+    while(1) { /* yield() may actually not switch to anything else if there's nothing else to schedule - loop here until yield() doesn't return */
+        fiber_manager_yield(manager);
+        usleep(1);/* be a bit nicer */
+    }
 }
 
 fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void* param)

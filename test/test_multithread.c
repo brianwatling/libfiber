@@ -1,9 +1,9 @@
 #include "fiber_manager.h"
 #include "test_helper.h"
 
-#define PER_FIBER_COUNT 10
-#define NUM_FIBERS 10
-#define NUM_THREADS 2
+#define PER_FIBER_COUNT 100
+#define NUM_FIBERS 100
+#define NUM_THREADS 10
 int per_thread_count[NUM_THREADS];
 int switch_count = 0;
 
@@ -29,7 +29,7 @@ int main()
     fiber_t* fibers[NUM_FIBERS] = {};
     int i;
     for(i = 0; i < NUM_FIBERS; ++i) {
-        fibers[i] = fiber_create(20000, &run_function, NULL);
+        fibers[i] = fiber_create(100000, &run_function, NULL);
     }
 
     for(i = 0; i < NUM_FIBERS; ++i) {
@@ -42,7 +42,9 @@ int main()
     }
     printf("switch_count: %d\n", switch_count);
     fflush(stdout);
-
-    exit(0);
+    printf("time to exit in 1 second\n");
+    sleep(1);
+    printf("byebye\n");
+    _exit(0);
     return 0;
 }

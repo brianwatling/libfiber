@@ -20,7 +20,6 @@ typedef struct fiber
     void* param;
     uint64_t volatile id;/* not unique globally, only within this fiber instance. used for joining */
     fiber_context_t context;
-    struct fiber_manager* manager;
 } fiber_t;
 
 #ifdef __cplusplus

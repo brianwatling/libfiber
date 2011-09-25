@@ -76,7 +76,6 @@ void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber)
 {
     assert(manager);
     assert(the_fiber);
-    the_fiber->manager = manager;
     wsd_work_stealing_deque_push_bottom(manager->schedule_from, the_fiber);
 }
 
@@ -101,8 +100,6 @@ static void fiber_load_balance(fiber_manager_t* manager)
                 break;
             }
             assert(stolen->state == FIBER_STATE_READY);
-            assert(stolen->manager != manager);
-            stolen->manager = manager;
             wsd_work_stealing_deque_push_bottom(manager->schedule_from, stolen);
             --remote_count;
             ++local_count;
@@ -135,11 +132,18 @@ void fiber_manager_yield(fiber_manager_t* manager)
             fiber_t* const old_fiber = manager->current_fiber;
             if(old_fiber->state == FIBER_STATE_RUNNING) {
                 old_fiber->state = FIBER_STATE_READY;
-                wsd_work_stealing_deque_push_bottom(manager->store_to, old_fiber);
+                manager->to_schedule = old_fiber;/* must schedule it *after* fiber_swap_context, else another thread can start executing an invalid context */
             }
             manager->current_fiber = new_fiber;
             new_fiber->state = FIBER_STATE_RUNNING;
             fiber_swap_context(&old_fiber->context, &new_fiber->context);
+
+            //TODO: re-factor this into "fiber_manager_do_maintenance() or something
+            manager = fiber_manager_get();
+            if(manager->to_schedule) {
+                wsd_work_stealing_deque_push_bottom(manager->store_to, manager->to_schedule);
+                manager->to_schedule = NULL;
+            }
         }
     }
 }
@@ -157,11 +161,13 @@ fiber_manager_t* fiber_manager_get()
 
 static void* fiber_manager_thread_func(void* param)
 {
-    fiber_manager_t* const manager = (fiber_manager_t*)param;
-    fiber_the_manager = manager;
+    /* set the thread local, then start running fibers */
+    fiber_the_manager = (fiber_manager_t*)param;
+    __sync_synchronize();
 
     while(1) {
-        fiber_manager_yield(manager);
+        /* always call fiber_manager_get(), because this *thread* fiber will actually switch threads */
+        fiber_manager_yield(fiber_manager_get());
     }
     return 0;
 }
