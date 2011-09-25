@@ -80,7 +80,6 @@ void fiber_destroy_context(fiber_context_t* context)
     if(context && context->ctx_stack) {
         STACK_DEREGISTER(context);
         munmap(context->ctx_stack, context->ctx_stack_size);
-        memset(context, 0, sizeof(*context));
     }
 }
 
@@ -206,7 +205,6 @@ void fiber_destroy_context(fiber_context_t* context)
         /* this context was created from a thread */
         free(context->ctx_stack_pointer);
     }
-    memset(context, 0, sizeof(*context));
 }
 
 void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context)
@@ -318,12 +316,14 @@ void fiber_destroy_context(fiber_context_t* context)
         /* this context was created from a thread */
         free(context->ctx_stack_pointer);
     }
-    memset(context, 0, sizeof(*context));
 }
 
 void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context)
 {
     swapcontext((ucontext_t*)from_context->ctx_stack_pointer, (ucontext_t*)to_context->ctx_stack_pointer);
+
+    /* make any pending writes available to other processors */
+    __sync_synchronize();
 }
 
 #endif

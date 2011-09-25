@@ -7,6 +7,7 @@ CFILES = \
     fiber_context.c \
     fiber_manager.c \
     fiber.c \
+    work_stealing_deque.c \
 
 #your compiler will pick the architecture by default
 ARCH ?= 
@@ -22,11 +23,12 @@ ifeq ($(FAST_SWITCHING),1)
 CFLAGS += -DFIBER_FAST_SWITCHING
 endif
 
-CFLAGS += -Werror -Wall -Iinclude
+CFLAGS += -Werror -Wall -Iinclude -ggdb -O0
 
 TESTS= \
     test_context \
     test_context_speed \
+    test_basic \
 
 CC ?= /usr/bin/c99
 
