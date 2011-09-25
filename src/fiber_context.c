@@ -29,7 +29,7 @@ static size_t fiber_round_to_page_size(size_t size)
         fiberPageSize -= 50;//account for overhead for page info strucures (i don't know the actual size, this is a guess)
     }
     //minimum of 2 pages, we'll use one as a sentinel
-    const size_t numPages = size / fiberPageSize;
+    const size_t numPages = size / fiberPageSize + 1;
     const size_t numPagesAfterMin = numPages >= 2 ? numPages : 2;
     return fiberPageSize * numPagesAfterMin;
 }
@@ -62,6 +62,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
 
     STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
+    context->is_thread = 0;
     return FIBER_SUCCESS;
 }
 
@@ -72,12 +73,13 @@ int fiber_make_context_from_thread(fiber_context_t* context)
         return FIBER_ERROR;
     }
     memset(context, 0, sizeof(*context));
+    context->is_thread = 1;
     return FIBER_SUCCESS;
 }
 
 void fiber_destroy_context(fiber_context_t* context)
 {
-    if(context && context->ctx_stack) {
+    if(context && !context->is_thread) {
         STACK_DEREGISTER(context);
         munmap(context->ctx_stack, context->ctx_stack_size);
     }
@@ -175,6 +177,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
 
     STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
+    context->is_thread = 0;
     return FIBER_SUCCESS;
 }
 
@@ -190,6 +193,7 @@ int fiber_make_context_from_thread(fiber_context_t* context)
         errno = ENOMEM;
         return FIBER_ERROR;
     }
+    context->is_thread = 1;
     return FIBER_SUCCESS;
 }
 
@@ -198,11 +202,10 @@ void fiber_destroy_context(fiber_context_t* context)
     if(!context) {
         return;
     }
-    if(context->ctx_stack) {
+    if(!context->is_thread) {
         STACK_DEREGISTER(context);
         munmap(context->ctx_stack, context->ctx_stack_size);
     } else if(context->ctx_stack_pointer) {
-        /* this context was created from a thread */
         free(context->ctx_stack_pointer);
     }
 }
@@ -285,6 +288,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
 
     STACK_REGISTER(context, uctx->uc_stack.ss_sp, context->ctx_stack_size);
 
+    context->is_thread = 0;
     return FIBER_SUCCESS;
 }
 
@@ -301,6 +305,7 @@ int fiber_make_context_from_thread(fiber_context_t* context)
         return FIBER_ERROR;
     }
     getcontext((ucontext_t*)context->ctx_stack_pointer);
+    context->is_thread = 1;
     return FIBER_SUCCESS;
 }
 
@@ -309,11 +314,11 @@ void fiber_destroy_context(fiber_context_t* context)
     if(!context) {
         return;
     }
-    if(context->ctx_stack_pointer) {
+    if(!context->is_thread) {
         free(context->ctx_stack_pointer);
         STACK_DEREGISTER(context);
         munmap(context->ctx_stack, context->ctx_stack_size);
-    } else if(context->ctx_stack_pointer) {
+    } else {
         /* this context was created from a thread */
         free(context->ctx_stack_pointer);
     }

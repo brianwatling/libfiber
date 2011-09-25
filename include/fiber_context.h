@@ -14,6 +14,7 @@ typedef struct fiber_context
     size_t ctx_stack_size;
     void** ctx_stack_pointer;
     unsigned int ctx_stack_id;
+    int is_thread;
 } fiber_context_t;
 
 #ifdef __cplusplus

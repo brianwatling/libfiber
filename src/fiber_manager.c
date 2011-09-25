@@ -9,6 +9,7 @@ static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
 static int fiber_manager_num_threads = 0;
 static wsd_work_stealing_deque_t** fiber_mananger_thread_queues = NULL;
 static pthread_t* fiber_manager_threads = NULL;
+static fiber_manager_t** fiber_managers = NULL;
 
 void fiber_destroy(fiber_t* f)
 {
@@ -156,11 +157,9 @@ fiber_manager_t* fiber_manager_get()
 
 static void* fiber_manager_thread_func(void* param)
 {
-    const intptr_t id = (intptr_t)param;
-    fiber_manager_t* const manager = fiber_manager_get();
-    fiber_mananger_thread_queues[2 * id] = manager->queue_one;
-    fiber_mananger_thread_queues[2 * id + 1] = manager->queue_two;
-    manager->id = id;
+    fiber_manager_t* const manager = (fiber_manager_t*)param;
+    fiber_the_manager = manager;
+
     while(1) {
         fiber_manager_yield(manager);
     }
@@ -181,22 +180,37 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
     assert(fiber_manager_threads);
     memset(fiber_manager_threads, 0, num_threads * sizeof(pthread_t));
     fiber_manager_num_threads = num_threads;
+    fiber_managers = malloc(num_threads * sizeof(fiber_manager_t*));
+    assert(fiber_managers);
+    memset(fiber_managers, 0, num_threads * sizeof(fiber_manager_t*));
 
     fiber_manager_t* const main_manager = fiber_manager_get();
     fiber_mananger_thread_queues[0] = main_manager->queue_one;
     fiber_mananger_thread_queues[1] = main_manager->queue_two;
+    fiber_managers[0] = main_manager;
 
     fiber_manager_state = FIBER_MANAGER_STATE_STARTED;
-    __sync_synchronize();
 
     size_t i;
     for(i = 1; i < num_threads; ++i) {
-        if(pthread_create(&fiber_manager_threads[i], NULL, &fiber_manager_thread_func, (void*)(intptr_t)i)) {
+        fiber_manager_t* const new_manager = fiber_manager_create();
+        assert(new_manager);
+        fiber_mananger_thread_queues[2 * i] = new_manager->queue_one;
+        fiber_mananger_thread_queues[2 * i + 1] = new_manager->queue_two;
+        new_manager->id = i;
+        fiber_managers[i] = new_manager;
+    }
+
+    __sync_synchronize();
+
+    for(i = 1; i < num_threads; ++i) {
+        if(pthread_create(&fiber_manager_threads[i], NULL, &fiber_manager_thread_func, fiber_managers[i])) {
             assert(0 && "failed to create kernel thread");
             fiber_manager_state = FIBER_MANAGER_STATE_ERROR;
             return 0;
         }
     }
+
     return FIBER_SUCCESS;
 }
 
