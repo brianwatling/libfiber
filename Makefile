@@ -15,7 +15,7 @@ ifeq ($(ARCH),x86_64)
 CFLAGS += -m64
 endif
 ifeq ($(ARCH),x86)
-CFLAGS += -m32
+CFLAGS += -m32 -march=i686
 endif
 
 FAST_SWITCHING ?= 1
@@ -23,12 +23,15 @@ ifeq ($(FAST_SWITCHING),1)
 CFLAGS += -DFIBER_FAST_SWITCHING
 endif
 
-CFLAGS += -Werror -Wall -Iinclude -ggdb -O0
+CFLAGS += -Werror -Wall -Iinclude -ggdb -O0 -DUSE_VALGRIND
+
+LDFLAGS += -lpthread
 
 TESTS= \
     test_context \
     test_context_speed \
     test_basic \
+    test_multithread \
 
 CC ?= /usr/bin/c99
 

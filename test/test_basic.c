@@ -11,6 +11,7 @@ void run_function(void* param)
 
 int main()
 {
+    fiber_manager_set_total_kernel_threads(1);
     int volatile value = 0;
     fiber_t* fiber1 = fiber_create(20000, &run_function, (void*)&value);
 

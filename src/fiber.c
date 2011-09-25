@@ -34,7 +34,7 @@ fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void
         fiber_destroy_context(&ret->context);
     }
 
-    ret->state = FIBER_STATE_RUNNING;
+    ret->state = FIBER_STATE_READY;
     ret->run_function = run_function;
     ret->param = param;
     ret->id += 1;

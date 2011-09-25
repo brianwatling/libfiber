@@ -6,9 +6,12 @@
 
 typedef int fiber_state_t;
 
+struct fiber_manager;
+
 #define FIBER_STATE_RUNNING (1)
-#define FIBER_STATE_WAITING (2)
-#define FIBER_STATE_DONE (3)
+#define FIBER_STATE_READY (2)
+#define FIBER_STATE_WAITING (3)
+#define FIBER_STATE_DONE (4)
 
 typedef struct fiber
 {
@@ -17,6 +20,7 @@ typedef struct fiber
     void* param;
     uint64_t volatile id;/* not unique globally, only within this fiber instance. used for joining */
     fiber_context_t context;
+    struct fiber_manager* manager;
 } fiber_t;
 
 #ifdef __cplusplus

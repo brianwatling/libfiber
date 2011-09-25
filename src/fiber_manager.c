@@ -3,6 +3,12 @@
 #include <errno.h>
 #include <string.h>
 #include <assert.h>
+#include <pthread.h>
+
+static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
+static int fiber_manager_num_threads = 0;
+static wsd_work_stealing_deque_t** fiber_mananger_thread_queues = NULL;
+static pthread_t* fiber_manager_threads = NULL;
 
 void fiber_destroy(fiber_t* f)
 {
@@ -69,31 +75,76 @@ void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber)
 {
     assert(manager);
     assert(the_fiber);
+    the_fiber->manager = manager;
     wsd_work_stealing_deque_push_bottom(manager->schedule_from, the_fiber);
 }
 
+static void fiber_load_balance(fiber_manager_t* manager)
+{
+    size_t i = 2 * (manager->id + 1);
+    const size_t end = i + 2 * (fiber_manager_num_threads - 1);
+    const size_t mod = 2 * fiber_manager_num_threads;
+    size_t local_count = wsd_work_stealing_deque_size(manager->schedule_from);
+    for(; i < end; ++i) {
+        const size_t index = i % mod;
+        wsd_work_stealing_deque_t* const remote_queue = fiber_mananger_thread_queues[index];
+        assert(remote_queue != manager->queue_one);
+        assert(remote_queue != manager->queue_two);
+        if(!remote_queue) {
+            continue;
+        }
+        size_t remote_count = wsd_work_stealing_deque_size(remote_queue);
+        while(remote_count > local_count) {
+            fiber_t* const stolen = (fiber_t*)wsd_work_stealing_deque_steal(remote_queue);
+            if(stolen == WSD_EMPTY || stolen == WSD_ABORT) {
+                break;
+            }
+            assert(stolen->state == FIBER_STATE_READY);
+            assert(stolen->manager != manager);
+            stolen->manager = manager;
+            wsd_work_stealing_deque_push_bottom(manager->schedule_from, stolen);
+            --remote_count;
+            ++local_count;
+        }
+    }
+}
+
+static int fiber_manager_load_balance_guard = 0;
+
 void fiber_manager_yield(fiber_manager_t* manager)
 {
+    assert(fiber_manager_state == FIBER_MANAGER_STATE_STARTED);
     assert(manager);
     if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
         wsd_work_stealing_deque_t* const temp = manager->schedule_from;
         manager->schedule_from = manager->store_to;
         manager->store_to = temp;
     }
+
+    manager->yield_count += 1;
+    //occasionally steal some work from threads with more load
+    if((manager->yield_count & 1023) == 0 && __sync_bool_compare_and_swap(&fiber_manager_load_balance_guard, 0, 1)) {
+        fiber_load_balance(manager);
+        fiber_manager_load_balance_guard = 0;
+    }
+
     if(wsd_work_stealing_deque_size(manager->schedule_from) > 0) {
         fiber_t* const new_fiber = (fiber_t*)wsd_work_stealing_deque_pop_bottom(manager->schedule_from);
         if(new_fiber != WSD_EMPTY && new_fiber != WSD_ABORT) {
             fiber_t* const old_fiber = manager->current_fiber;
             if(old_fiber->state == FIBER_STATE_RUNNING) {
+                old_fiber->state = FIBER_STATE_READY;
                 wsd_work_stealing_deque_push_bottom(manager->store_to, old_fiber);
             }
             manager->current_fiber = new_fiber;
+            new_fiber->state = FIBER_STATE_RUNNING;
             fiber_swap_context(&old_fiber->context, &new_fiber->context);
         }
     }
 }
 
-static fiber_manager_t* fiber_the_manager = NULL;
+/* here __thread is used -  */
+static __thread fiber_manager_t* fiber_the_manager = NULL;
 fiber_manager_t* fiber_manager_get()
 {
     if(!fiber_the_manager) {
@@ -101,5 +152,61 @@ fiber_manager_t* fiber_manager_get()
         assert(fiber_the_manager);
     }
     return fiber_the_manager;
+}
+
+static void* fiber_manager_thread_func(void* param)
+{
+    const intptr_t id = (intptr_t)param;
+    fiber_manager_t* const manager = fiber_manager_get();
+    fiber_mananger_thread_queues[2 * id] = manager->queue_one;
+    fiber_mananger_thread_queues[2 * id + 1] = manager->queue_two;
+    manager->id = id;
+    while(1) {
+        fiber_manager_yield(manager);
+    }
+    return 0;
+}
+
+int fiber_manager_set_total_kernel_threads(size_t num_threads)
+{
+    if(fiber_manager_get_state() != FIBER_MANAGER_STATE_NONE) {
+        errno = EINVAL;
+        return FIBER_ERROR;
+    }
+
+    fiber_mananger_thread_queues = malloc(2 * num_threads * sizeof(wsd_work_stealing_deque_t*));
+    assert(fiber_mananger_thread_queues);
+    memset(fiber_mananger_thread_queues, 0, 2 * num_threads * sizeof(wsd_work_stealing_deque_t*));
+    fiber_manager_threads = malloc(num_threads * sizeof(pthread_t));
+    assert(fiber_manager_threads);
+    memset(fiber_manager_threads, 0, num_threads * sizeof(pthread_t));
+    fiber_manager_num_threads = num_threads;
+
+    fiber_manager_t* const main_manager = fiber_manager_get();
+    fiber_mananger_thread_queues[0] = main_manager->queue_one;
+    fiber_mananger_thread_queues[1] = main_manager->queue_two;
+
+    fiber_manager_state = FIBER_MANAGER_STATE_STARTED;
+    __sync_synchronize();
+
+    size_t i;
+    for(i = 1; i < num_threads; ++i) {
+        if(pthread_create(&fiber_manager_threads[i], NULL, &fiber_manager_thread_func, (void*)(intptr_t)i)) {
+            assert(0 && "failed to create kernel thread");
+            fiber_manager_state = FIBER_MANAGER_STATE_ERROR;
+            return 0;
+        }
+    }
+    return FIBER_SUCCESS;
+}
+
+int fiber_manager_get_state()
+{
+    return fiber_manager_state;
+}
+
+int fiber_manager_get_kernel_thread_count()
+{
+    return fiber_manager_num_threads;
 }
 

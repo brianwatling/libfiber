@@ -15,7 +15,7 @@
 #define STACK_DEREGISTER(context)                              \
     do {                                                       \
         VALGRIND_STACK_DEREGISTER((context)->ctx_stack_id); \
-    while(0)
+    } while(0)
 #else
 #define STACK_REGISTER(context, stackLoc, stackSize) do {} while(0)
 #define STACK_DEREGISTER(context) do {} while(0)
@@ -60,7 +60,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     *--context->ctx_stack_pointer = 0; /*dummy return address*/
     *--context->ctx_stack_pointer = (void*)run_function;
 
-    STACK_REGISTER(context, context->ctx_tack, context->ctx_stack_size);
+    STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
     return FIBER_SUCCESS;
 }
@@ -173,7 +173,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     context->ctx_stack_pointer[6] = NULL;
     context->ctx_stack_pointer[7] = NULL;
 
-    STACK_REGISTER(context, context->ctx_tack, context->ctx_stack_size);
+    STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
     return FIBER_SUCCESS;
 }
@@ -235,7 +235,8 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
         "movq 24(%1), %%rdi\n\t"
         "movq 16(%1), %%rbp\n\t"
         "movq 8(%1), %%rsp\n\t"
-        "jmpq *(%1)\n" "1:\n"
+        "jmpq *(%1)\n"
+        "1:\n"
         : "+D" (from_sp), "+S" (to_sp) :
         : "rax", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory", "cc"
     );
