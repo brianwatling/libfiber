@@ -32,6 +32,7 @@ TESTS= \
     test_context_speed \
     test_basic \
     test_multithread \
+    test_mpmc \
 
 CC ?= /usr/bin/c99
 
