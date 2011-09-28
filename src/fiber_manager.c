@@ -122,7 +122,7 @@ void fiber_manager_yield(fiber_manager_t* manager)
     manager->yield_count += 1;
     //occasionally steal some work from threads with more load
     //TODO: evaluate whether guarding this is worthwhile
-    if((manager->yield_count & 1023) == 0)// && __sync_bool_compare_and_swap(&fiber_manager_load_balance_guard, 0, 1)) {
+    if((manager->yield_count & 1023) == 0) {// && __sync_bool_compare_and_swap(&fiber_manager_load_balance_guard, 0, 1)) {
         fiber_load_balance(manager);
         //fiber_manager_load_balance_guard = 0;
     }
