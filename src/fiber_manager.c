@@ -107,7 +107,7 @@ static void fiber_load_balance(fiber_manager_t* manager)
     }
 }
 
-static int fiber_manager_load_balance_guard = 0;
+//static int fiber_manager_load_balance_guard = 0;
 
 void fiber_manager_yield(fiber_manager_t* manager)
 {
@@ -121,9 +121,10 @@ void fiber_manager_yield(fiber_manager_t* manager)
 
     manager->yield_count += 1;
     //occasionally steal some work from threads with more load
-    if((manager->yield_count & 1023) == 0 && __sync_bool_compare_and_swap(&fiber_manager_load_balance_guard, 0, 1)) {
+    //TODO: evaluate whether guarding this is worthwhile
+    if((manager->yield_count & 1023) == 0)// && __sync_bool_compare_and_swap(&fiber_manager_load_balance_guard, 0, 1)) {
         fiber_load_balance(manager);
-        fiber_manager_load_balance_guard = 0;
+        //fiber_manager_load_balance_guard = 0;
     }
 
     if(wsd_work_stealing_deque_size(manager->schedule_from) > 0) {
@@ -163,7 +164,6 @@ static void* fiber_manager_thread_func(void* param)
 {
     /* set the thread local, then start running fibers */
     fiber_the_manager = (fiber_manager_t*)param;
-    __sync_synchronize();
 
     while(1) {
         /* always call fiber_manager_get(), because this *thread* fiber will actually switch threads */
@@ -206,8 +206,6 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
         new_manager->id = i;
         fiber_managers[i] = new_manager;
     }
-
-    __sync_synchronize();
 
     for(i = 1; i < num_threads; ++i) {
         if(pthread_create(&fiber_manager_threads[i], NULL, &fiber_manager_thread_func, fiber_managers[i])) {

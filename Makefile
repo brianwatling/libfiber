@@ -10,12 +10,12 @@ CFILES = \
     work_stealing_deque.c \
 
 #your compiler will pick the architecture by default
-ARCH ?= 
+ARCH ?= $(shell uname -m)
 ifeq ($(ARCH),x86_64)
-CFLAGS += -m64
+CFLAGS += -m64 -DARCH_x86_64
 endif
 ifeq ($(ARCH),x86)
-CFLAGS += -m32 -march=i686
+CFLAGS += -m32 -march=i686 -DARCH_x86
 endif
 
 FAST_SWITCHING ?= 1

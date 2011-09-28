@@ -69,6 +69,38 @@ void wsd_work_stealing_deque_destroy(wsd_work_stealing_deque_t* d)
     free(d);
 }
 
+/* this barrier orders writes against other writes */
+static inline void write_barrier()
+{
+#if defined(ARCH_x86) || defined(ARCH_x86_64)
+    __asm__ __volatile__ ("" : : : "memory");
+#else
+    #error please define a write_barrier()
+#endif
+}
+
+/* this barrier orders writes against reads */
+static inline void store_load_barrier()
+{
+#if defined(ARCH_x86)
+    __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory");
+#elif defined(ARCH_x86_64)
+    __asm__ __volatile__ ("lock; addq $0,0(%%rsp)" : : : "memory");
+#else
+    #error please define a store_load_barrier()
+#endif
+}
+
+/* this barrier orders loads against other loads */
+static inline void load_load_barrier()
+{
+#if defined(ARCH_x86) || defined(ARCH_x86_64)
+    __asm__ __volatile__ ("" : : : "memory");
+#else
+    #error please define a load_load_barrier
+#endif
+}
+
 void wsd_work_stealing_deque_push_bottom(wsd_work_stealing_deque_t* d, void* p)
 {
     assert(d);
@@ -83,7 +115,7 @@ void wsd_work_stealing_deque_push_bottom(wsd_work_stealing_deque_t* d, void* p)
         d->underlying_array = a;
     }
     wsd_circular_array_put(a, b, p);
-    __sync_synchronize();
+    write_barrier();
     d->bottom = b + 1;
 }
 
@@ -93,7 +125,7 @@ void* wsd_work_stealing_deque_pop_bottom(wsd_work_stealing_deque_t* d)
     const uint64_t b = d->bottom - 1;
     wsd_circular_array_t* const a = d->underlying_array;
     d->bottom = b;
-    __sync_synchronize();
+    store_load_barrier();
     const uint64_t t = d->top;
     const int64_t size = b - t;
     if(size < 0) {
@@ -117,7 +149,7 @@ void* wsd_work_stealing_deque_steal(wsd_work_stealing_deque_t* d)
 {
     assert(d);
     const uint64_t t = d->top;
-    __sync_synchronize();
+    load_load_barrier();
     const uint64_t b = d->bottom;
     wsd_circular_array_t* const a = d->underlying_array;
     const int64_t size = b - t;
