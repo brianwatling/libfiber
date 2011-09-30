@@ -57,7 +57,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
 
     context->ctx_stack_pointer = (void**)((char*)context->ctx_stack + context->ctx_stack_size) - 1;
     *--context->ctx_stack_pointer = param;
-    *--context->ctx_stack_pointer = 0; /*dummy return address*/
+    *--context->ctx_stack_pointer = NULL; /*dummy return address*/
     *--context->ctx_stack_pointer = (void*)run_function;
 
     STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);

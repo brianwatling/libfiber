@@ -34,7 +34,7 @@ void* pop_func(void* p)
     intptr_t last = 0;
     intptr_t counter = 0;
     while(!done[thr]) {
-        mpmc_queue_node_t* head = 0;
+        mpmc_queue_node_t* head = NULL;
         while(MPMC_RETRY == mpmc_queue_fifo_flush_timeout(&the_q, &head, 10)) {
             sched_yield();
         }

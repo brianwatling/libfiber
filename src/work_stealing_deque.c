@@ -6,7 +6,7 @@
 wsd_circular_array_t* wsd_circular_array_create(size_t log_size)
 {
     const size_t data_size = 1 << log_size;
-    wsd_circular_array_t* a = 0;
+    wsd_circular_array_t* a = NULL;
     const int ret = posix_memalign((void**)&a, WSD_CACHE_SIZE, sizeof(*a) + data_size * sizeof(wsd_circular_array_elem_t));
     if(ret) {
         errno = ret;
@@ -45,7 +45,7 @@ wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a, uint64_t 
 
 wsd_work_stealing_deque_t* wsd_work_stealing_deque_create()
 {
-    wsd_work_stealing_deque_t* d = 0;
+    wsd_work_stealing_deque_t* d = NULL;
     const int ret = posix_memalign((void**)&d, WSD_CACHE_SIZE, sizeof(*d));
     if(ret) {
         errno = ret;

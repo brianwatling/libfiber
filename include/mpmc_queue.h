@@ -20,7 +20,7 @@ typedef struct mpmc_queue
 static inline void mpmc_queue_init(mpmc_queue_t* q)
 {
     assert(q);
-    q->head = 0;
+    q->head = NULL;
 }
 
 static inline void mpmc_queue_node_init(mpmc_queue_node_t* n, void* data)
@@ -90,7 +90,7 @@ static inline int mpmc_queue_lifo_flush_timeout(mpmc_queue_t* q, mpmc_queue_node
 
 static inline mpmc_queue_node_t* mpmc_queue_reverse(mpmc_queue_node_t* head)
 {
-    mpmc_queue_node_t* fifo = 0;
+    mpmc_queue_node_t* fifo = NULL;
     while(head) {
         mpmc_queue_node_t* const next = head->next;
         head->next = fifo;
