@@ -33,6 +33,8 @@ TESTS= \
     test_basic \
     test_multithread \
     test_mpmc \
+    test_spsc \
+    test_mpsc \
 
 CC ?= /usr/bin/c99
 

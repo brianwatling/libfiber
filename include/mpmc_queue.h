@@ -3,10 +3,7 @@
 
 #include <assert.h>
 #include <stddef.h>
-
-#ifndef MPMC_CACHE_SIZE
-#define MPMC_CACHE_SIZE (64)
-#endif
+#include "machine_specific.h"
 
 typedef struct mpmc_queue_node
 {
@@ -17,7 +14,7 @@ typedef struct mpmc_queue_node
 typedef struct mpmc_queue
 {
     mpmc_queue_node_t* volatile head;
-    char _cache_padding[MPMC_CACHE_SIZE - sizeof(mpmc_queue_node_t*)];
+    char _cache_padding[CACHE_SIZE - sizeof(mpmc_queue_node_t*)];
 } mpmc_queue_t;
 
 static inline void mpmc_queue_init(mpmc_queue_t* q)
