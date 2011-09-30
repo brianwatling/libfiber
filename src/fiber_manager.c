@@ -169,7 +169,7 @@ static void* fiber_manager_thread_func(void* param)
         /* always call fiber_manager_get(), because this *thread* fiber will actually switch threads */
         fiber_manager_yield(fiber_manager_get());
     }
-    return 0;
+    return NULL;
 }
 
 int fiber_manager_set_total_kernel_threads(size_t num_threads)
@@ -211,7 +211,7 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
         if(pthread_create(&fiber_manager_threads[i], NULL, &fiber_manager_thread_func, fiber_managers[i])) {
             assert(0 && "failed to create kernel thread");
             fiber_manager_state = FIBER_MANAGER_STATE_ERROR;
-            return 0;
+            return FIBER_ERROR;
         }
     }
 

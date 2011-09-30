@@ -19,7 +19,7 @@ void* push_func(void* p)
         node->data = (void*)i;
         mpsc_fifo_push(fifo, thread_id, node);
     }
-    return 0;
+    return NULL;
 }
 
 int main()

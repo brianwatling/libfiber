@@ -35,6 +35,7 @@ TESTS= \
     test_mpmc \
     test_spsc \
     test_mpsc \
+    test_wsd \
 
 CC ?= /usr/bin/c99
 

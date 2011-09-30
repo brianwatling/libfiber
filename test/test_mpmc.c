@@ -25,7 +25,7 @@ void* push_func(void* p)
             sched_yield();
         }
     }
-    return 0;
+    return NULL;
 }
 
 void* pop_func(void* p)
@@ -56,7 +56,7 @@ void* pop_func(void* p)
             free(old);
         }
     }
-    return 0;
+    return NULL;
 }
 
 int main()

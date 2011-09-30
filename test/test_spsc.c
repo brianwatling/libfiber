@@ -17,7 +17,7 @@ void* pop_func(void* p)
         test_assert((intptr_t)node->data == i);
         free(node);
     }
-    return 0;
+    return NULL;
 }
 
 int main()

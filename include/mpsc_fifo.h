@@ -29,7 +29,7 @@ static inline mpsc_fifo_t* mpsc_fifo_create(size_t num_producers)
     assert(num_producers > 0);
     mpsc_fifo_t* const ret = malloc(sizeof(mpsc_fifo_t) + num_producers * sizeof(spsc_fifo_t));
     if(!ret) {
-        return 0;
+        return NULL;
     }
     ret->counter = 0;
     ret->num_producers = num_producers;
@@ -41,7 +41,7 @@ static inline mpsc_fifo_t* mpsc_fifo_create(size_t num_producers)
                 spsc_fifo_cleaup(&ret->fifos[j]);
             }
             free(ret);
-            return 0;
+            return NULL;
         }
     }
     return ret;

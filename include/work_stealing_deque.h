@@ -13,22 +13,12 @@
 #include <stdint.h>
 #include <assert.h>
 
-#ifndef WSD_CACHE_SIZE
-#define WSD_CACHE_SIZE (64)
-#endif
-
-#define WSD_ALIGNED __attribute__ ((aligned (WSD_CACHE_SIZE)))
-
-#ifdef WSD_ALL_ALIGNED
-#define WSD_CIRCULAR_ARRAY_ELEM_ALIGN __attribute__ ((aligned (WSD_CACHE_SIZE)))
-#else
-#define WSD_CIRCULAR_ARRAY_ELEM_ALIGN
-#endif
+#include "machine_specific.h"
 
 typedef struct wsd_circular_array_elem
 {
     void* data;
-} WSD_CIRCULAR_ARRAY_ELEM_ALIGN wsd_circular_array_elem_t;
+} wsd_circular_array_elem_t;
 
 typedef struct wsd_circular_array
 {
@@ -45,9 +35,12 @@ typedef struct wsd_circular_array
 
 typedef struct wsd_work_stealing_deque
 {
-    WSD_ALIGNED volatile uint64_t top;
-    WSD_ALIGNED volatile uint64_t bottom;
-    WSD_ALIGNED wsd_circular_array_t* volatile underlying_array;
+    volatile uint64_t top;
+    char _cache_padding1[CACHE_SIZE - sizeof(uint64_t)];
+    volatile uint64_t bottom;
+    char _cache_padding2[CACHE_SIZE - sizeof(uint64_t)];
+    wsd_circular_array_t* volatile underlying_array;
+    char _cache_padding3[CACHE_SIZE - sizeof(wsd_circular_array_t*)];
 } wsd_work_stealing_deque_t;
 
 #ifdef __cplusplus

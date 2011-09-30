@@ -6,10 +6,8 @@
 wsd_circular_array_t* wsd_circular_array_create(size_t log_size)
 {
     const size_t data_size = 1 << log_size;
-    wsd_circular_array_t* a = NULL;
-    const int ret = posix_memalign((void**)&a, WSD_CACHE_SIZE, sizeof(*a) + data_size * sizeof(wsd_circular_array_elem_t));
-    if(ret) {
-        errno = ret;
+    wsd_circular_array_t* a = malloc(sizeof(wsd_circular_array_t) + data_size * sizeof(wsd_circular_array_elem_t));
+    if(!a) {
         return NULL;
     }
 
@@ -45,10 +43,8 @@ wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a, uint64_t 
 
 wsd_work_stealing_deque_t* wsd_work_stealing_deque_create()
 {
-    wsd_work_stealing_deque_t* d = NULL;
-    const int ret = posix_memalign((void**)&d, WSD_CACHE_SIZE, sizeof(*d));
-    if(ret) {
-        errno = ret;
+    wsd_work_stealing_deque_t* d = malloc(sizeof(wsd_work_stealing_deque_t));
+    if(!d) {
         return NULL;
     }
 
@@ -67,38 +63,6 @@ void wsd_work_stealing_deque_destroy(wsd_work_stealing_deque_t* d)
     assert(d);
     wsd_circular_array_destroy(d->underlying_array);
     free(d);
-}
-
-/* this barrier orders writes against other writes */
-static inline void write_barrier()
-{
-#if defined(ARCH_x86) || defined(ARCH_x86_64)
-    __asm__ __volatile__ ("" : : : "memory");
-#else
-    #error please define a write_barrier()
-#endif
-}
-
-/* this barrier orders writes against reads */
-static inline void store_load_barrier()
-{
-#if defined(ARCH_x86)
-    __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory");
-#elif defined(ARCH_x86_64)
-    __asm__ __volatile__ ("lock; addq $0,0(%%rsp)" : : : "memory");
-#else
-    #error please define a store_load_barrier()
-#endif
-}
-
-/* this barrier orders loads against other loads */
-static inline void load_load_barrier()
-{
-#if defined(ARCH_x86) || defined(ARCH_x86_64)
-    __asm__ __volatile__ ("" : : : "memory");
-#else
-    #error please define a load_load_barrier
-#endif
 }
 
 void wsd_work_stealing_deque_push_bottom(wsd_work_stealing_deque_t* d, void* p)
