@@ -139,17 +139,11 @@ void fiber_manager_yield(fiber_manager_t* manager)
             new_fiber->state = FIBER_STATE_RUNNING;
             fiber_swap_context(&old_fiber->context, &new_fiber->context);
 
-            //TODO: re-factor this into "fiber_manager_do_maintenance() or something
-            manager = fiber_manager_get();
-            if(manager->to_schedule) {
-                wsd_work_stealing_deque_push_bottom(manager->store_to, manager->to_schedule);
-                manager->to_schedule = NULL;
-            }
+            fiber_manager_do_maintenance();
         }
     }
 }
 
-/* here __thread is used -  */
 static __thread fiber_manager_t* fiber_the_manager = NULL;
 fiber_manager_t* fiber_manager_get()
 {
@@ -226,5 +220,14 @@ int fiber_manager_get_state()
 int fiber_manager_get_kernel_thread_count()
 {
     return fiber_manager_num_threads;
+}
+
+void fiber_manager_do_maintenance()
+{
+    fiber_manager_t* const manager = fiber_manager_get();
+    if(manager->to_schedule) {
+        wsd_work_stealing_deque_push_bottom(manager->store_to, manager->to_schedule);
+        manager->to_schedule = NULL;
+    }
 }
 

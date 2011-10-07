@@ -6,7 +6,7 @@
 #define FIBER_ERROR 0
 #define FIBER_SUCCESS 1
 
-typedef void (*fiber_run_function_t)(void*);
+typedef void* (*fiber_run_function_t)(void*);
 
 typedef struct fiber_context
 {

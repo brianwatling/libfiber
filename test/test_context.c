@@ -3,11 +3,12 @@
 
 int value = 0;
 
-void switch_to(void* param)
+void* switch_to(void* param)
 {
     fiber_context_t* ctx = (fiber_context_t*)param;
     value = 1;
     fiber_swap_context(&ctx[1], &ctx[0]);
+    return NULL;
 }
 
 int main()

@@ -7,7 +7,7 @@
 int per_thread_count[NUM_THREADS];
 int switch_count = 0;
 
-void run_function(void* param)
+void* run_function(void* param)
 {
     fiber_manager_t* const original_manager = fiber_manager_get();
     int i;
@@ -19,6 +19,7 @@ void run_function(void* param)
         __sync_fetch_and_add(&per_thread_count[current_manager->id], 1);
         fiber_yield();
     }
+    return NULL;
 }
 
 int main()

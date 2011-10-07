@@ -45,6 +45,8 @@ extern int fiber_manager_get_state();
 
 extern int fiber_manager_get_kernel_thread_count();
 
+extern void fiber_manager_do_maintenance();
+
 #ifdef __cplusplus
 }
 #endif

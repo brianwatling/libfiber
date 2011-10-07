@@ -20,17 +20,22 @@ typedef struct fiber
     void* param;
     uint64_t volatile id;/* not unique globally, only within this fiber instance. used for joining */
     fiber_context_t context;
+    int detached;
+    void* result;
 } fiber_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define FIBER_DEFAULT_STACK_SIZE 102400
+#define FIBER_MIN_STACK_SIZE 1024
+
 extern fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run, void* param);
 
 extern fiber_t* fiber_create_from_thread();
 
-extern void fiber_join(fiber_t* f);
+extern int fiber_join(fiber_t* f);
 
 extern void fiber_yield();
 

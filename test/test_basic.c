@@ -1,12 +1,13 @@
 #include "fiber_manager.h"
 #include "test_helper.h"
 
-void run_function(void* param)
+void* run_function(void* param)
 {
     int* value = (int*)param;
     *value += 1;
     fiber_yield();
     *value += 1;
+    return NULL;
 }
 
 int main()
