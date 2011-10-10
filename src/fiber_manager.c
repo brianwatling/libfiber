@@ -144,7 +144,7 @@ void fiber_manager_yield(fiber_manager_t* manager)
     }
 }
 
-#ifdef COMPILER_THREAD_LOCAL
+#ifdef USE_COMPILER_THREAD_LOCAL
 static __thread fiber_manager_t* fiber_the_manager = NULL;
 #else
 static pthread_key_t fiber_manager_key;
@@ -162,7 +162,7 @@ static void fiber_manager_make_key()
 
 fiber_manager_t* fiber_manager_get()
 {
-#ifdef COMPILER_THREAD_LOCAL
+#ifdef USE_COMPILER_THREAD_LOCAL
     if(!fiber_the_manager) {
         fiber_the_manager = fiber_manager_create();
         assert(fiber_the_manager);
@@ -186,7 +186,7 @@ fiber_manager_t* fiber_manager_get()
 static void* fiber_manager_thread_func(void* param)
 {
     /* set the thread local, then start running fibers */
-#ifdef COMPILER_THREAD_LOCAL
+#ifdef USE_COMPILER_THREAD_LOCAL
     fiber_the_manager = (fiber_manager_t*)param;
 #else
     const int ret = pthread_setspecific(fiber_manager_key, param);
