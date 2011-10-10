@@ -51,6 +51,11 @@ ifeq ($(USE_COMPILER_THREAD_LOCAL),1)
 CFLAGS += -DUSE_COMPILER_THREAD_LOCAL
 endif
 
+ifeq ($(OS),SunOS)
+LINKER_SHARED_FLAG ?= -G
+endif
+LINKER_SHARED_FLAG ?= -shared
+
 LDFLAGS += -lpthread
 
 TESTS= \
@@ -72,7 +77,7 @@ INCLUDES = $(wildcard include/*.h)
 TESTINCLUDES = $(wildcard test/*.h)
 
 libfiber2.so: $(PICOBJS)
-	$(CC) -shared $(LDFLAGS) $(CFLAGS) $^ -o $@
+	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@
 
 tests: $(TESTBINARIES)
 
