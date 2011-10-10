@@ -2,8 +2,8 @@
 #include "test_helper.h"
 
 #define PER_FIBER_COUNT 100
-#define NUM_FIBERS 5
-#define NUM_THREADS 1
+#define NUM_FIBERS 100
+#define NUM_THREADS 10
 int per_thread_count[NUM_THREADS];
 int switch_count = 0;
 

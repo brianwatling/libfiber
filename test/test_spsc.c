@@ -15,7 +15,6 @@ void* pop_func(void* p)
     for(i = 0; i < PUSH_COUNT; ++i) {
         while(!spsc_fifo_pop(&fifo, &node)) {};
         test_assert((intptr_t)node->data == i);
-//printf("%d\n", (int)(intptr_t)node->data);
         free(node);
     }
     return NULL;
