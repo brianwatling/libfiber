@@ -79,6 +79,7 @@ int fiber_mutex_unlock(fiber_mutex_t* mutex)
         }
     } while(!out);
 
+    write_barrier();
     mutex->pop_lock = 0;
 
     fiber_t* const to_schedule = (fiber_t*)out->data;

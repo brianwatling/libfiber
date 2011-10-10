@@ -14,7 +14,9 @@ static void* fiber_go_function(void* param)
     fiber_manager_do_maintenance();
 
     the_fiber->result = the_fiber->run_function(the_fiber->param);
+    write_barrier();
     the_fiber->state = FIBER_STATE_DONE;
+    write_barrier();
 
     while(!the_fiber->detached) {
         fiber_manager_yield(fiber_manager_get());
@@ -113,6 +115,7 @@ int fiber_join(fiber_t* f)
         fiber_manager_yield(fiber_manager_get());/* don't cache the manager - we may switch threads */
     }
     f->detached = 1;
+    write_barrier();
     return FIBER_SUCCESS;
 }
 
@@ -127,6 +130,7 @@ int fiber_detach(fiber_t* f)
         return FIBER_ERROR;
     }
     f->detached = 1;
+    write_barrier();
     return FIBER_SUCCESS;
 }
 

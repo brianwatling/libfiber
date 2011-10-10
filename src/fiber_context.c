@@ -141,7 +141,7 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
     );
 
     /* make any pending writes available to other processors */
-    __sync_synchronize();
+    store_load_barrier();
 }
 
 #elif defined(__x86_64__) && defined(FIBER_FAST_SWITCHING)
@@ -249,7 +249,7 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
     );
 
     /* make any pending writes available to other processors */
-    __sync_synchronize();
+    store_load_barrier();
 }
 
 #else
@@ -333,7 +333,7 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
     swapcontext((ucontext_t*)from_context->ctx_stack_pointer, (ucontext_t*)to_context->ctx_stack_pointer);
 
     /* make any pending writes available to other processors */
-    __sync_synchronize();
+    store_load_barrier();
 }
 
 #endif

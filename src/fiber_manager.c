@@ -138,6 +138,7 @@ void fiber_manager_yield(fiber_manager_t* manager)
             }
             manager->current_fiber = new_fiber;
             new_fiber->state = FIBER_STATE_RUNNING;
+            write_barrier();
             fiber_swap_context(&old_fiber->context, &new_fiber->context);
 
             fiber_manager_do_maintenance();
