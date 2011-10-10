@@ -6,6 +6,7 @@ VPATH += src test
 CFILES = \
     fiber_context.c \
     fiber_manager.c \
+    fiber_mutex.c \
     fiber.c \
     work_stealing_deque.c \
 
@@ -68,6 +69,7 @@ TESTS= \
     test_spsc \
     test_mpsc \
     test_wsd \
+    test_mutex \
 
 CC ?= /usr/bin/c99
 

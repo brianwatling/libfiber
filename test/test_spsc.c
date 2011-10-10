@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#define PUSH_COUNT 100000000
+#define PUSH_COUNT 10000000
 
 spsc_fifo_t fifo;
 
@@ -15,6 +15,7 @@ void* pop_func(void* p)
     for(i = 0; i < PUSH_COUNT; ++i) {
         while(!spsc_fifo_pop(&fifo, &node)) {};
         test_assert((intptr_t)node->data == i);
+//printf("%d\n", (int)(intptr_t)node->data);
         free(node);
     }
     return NULL;

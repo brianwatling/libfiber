@@ -18,6 +18,7 @@ static void* fiber_go_function(void* param)
 
     while(!the_fiber->detached) {
         fiber_manager_yield(fiber_manager_get());
+        usleep(1);/* be a bit nicer */
         //TODO: not busy loop here.
     }
 
@@ -40,10 +41,18 @@ fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void
             return NULL;
         }
         memset(ret, 0, sizeof(*ret));
+        ret->spsc_node = malloc(sizeof(spsc_node_t));
+        if(!ret->spsc_node) {
+            free(ret);
+            errno = ENOMEM;
+            return NULL;
+        }
     } else {
         //we got an old fiber for re-use - destroy the old stack
         fiber_destroy_context(&ret->context);
     }
+
+    assert(ret->spsc_node);
 
     ret->run_function = run_function;
     ret->param = param;
@@ -69,6 +78,13 @@ fiber_t* fiber_create_from_thread()
         return NULL;
     }
     memset(ret, 0, sizeof(*ret));
+    ret->spsc_node = malloc(sizeof(spsc_node_t));
+    if(!ret->spsc_node) {
+        free(ret);
+        errno = ENOMEM;
+        return NULL;
+    }
+
     ret->state = FIBER_STATE_RUNNING;
     ret->detached = 0;
     ret->result = NULL;

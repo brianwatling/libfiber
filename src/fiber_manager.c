@@ -76,6 +76,7 @@ void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber)
 {
     assert(manager);
     assert(the_fiber);
+    assert(the_fiber->state == FIBER_STATE_READY);
     wsd_work_stealing_deque_push_bottom(manager->schedule_from, the_fiber);
 }
 
