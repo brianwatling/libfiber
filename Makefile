@@ -53,6 +53,7 @@ endif
 
 ifeq ($(OS),SunOS)
 LINKER_SHARED_FLAG ?= -G
+LDFLAGS += -lrt
 endif
 LINKER_SHARED_FLAG ?= -shared
 
