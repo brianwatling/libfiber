@@ -72,11 +72,9 @@ int fiber_mutex_unlock(fiber_mutex_t* mutex)
     //some other fiber is waiting - pop and schedule another fiber
 
     spsc_node_t* out = NULL;
-    do {
-        if(!mpsc_fifo_pop(mutex->waiters, &out)) {
-            fiber_yield();
-        }
-    } while(!out);
+    while(!mpsc_fifo_pop(mutex->waiters, &out)) {
+        fiber_yield();
+    }
 
     __sync_add_and_fetch(&mutex->counter, 1);
 

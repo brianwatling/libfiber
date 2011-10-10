@@ -80,7 +80,7 @@ void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber)
     wsd_work_stealing_deque_push_bottom(manager->schedule_from, the_fiber);
 }
 
-static void fiber_load_balance(fiber_manager_t* manager)
+static int fiber_load_balance(fiber_manager_t* manager)
 {
     size_t i = 2 * (manager->id + 1);
     const size_t end = i + 2 * (fiber_manager_num_threads - 1);
@@ -106,6 +106,7 @@ static void fiber_load_balance(fiber_manager_t* manager)
             ++local_count;
         }
     }
+    return 1;
 }
 
 //static int fiber_manager_load_balance_guard = 0;
@@ -145,7 +146,7 @@ void fiber_manager_yield(fiber_manager_t* manager)
                 fiber_manager_do_maintenance();
             }
         }
-    } while(FIBER_STATE_RUNNING != manager->current_fiber->state);
+    } while(FIBER_STATE_WAITING == manager->current_fiber->state && fiber_load_balance(manager));
 }
 
 #ifdef USE_COMPILER_THREAD_LOCAL
@@ -268,6 +269,7 @@ void fiber_manager_do_maintenance()
 {
     fiber_manager_t* const manager = fiber_manager_get();
     if(manager->to_schedule) {
+        assert(manager->to_schedule->state == FIBER_STATE_READY);
         wsd_work_stealing_deque_push_bottom(manager->store_to, manager->to_schedule);
         manager->to_schedule = NULL;
     }
