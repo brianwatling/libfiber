@@ -21,7 +21,6 @@
 typedef struct fiber_mutex
 {
     volatile int counter;
-    volatile int pop_lock;
     mpsc_fifo_t* waiters;
 } fiber_mutex_t;
 

@@ -23,7 +23,7 @@ typedef struct fiber
     fiber_context_t context;
     int volatile detached;
     void* volatile result;
-    spsc_node_t* spsc_node;
+    spsc_node_t* volatile spsc_node;
 } fiber_t;
 
 #ifdef __cplusplus
