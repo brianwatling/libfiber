@@ -1,4 +1,5 @@
 #include "fiber_context.h"
+#include "machine_specific.h"
 #include <assert.h>
 #include <unistd.h>
 #include <errno.h>
