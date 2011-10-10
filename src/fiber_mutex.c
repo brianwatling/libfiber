@@ -48,8 +48,7 @@ int fiber_mutex_trylock(fiber_mutex_t* mutex)
 {
     assert(mutex);
 
-    const int val = __sync_sub_and_fetch(&mutex->counter, 1);
-    if(val == 0) {
+    if(__sync_bool_compare_and_swap(&mutex->counter, 1, 0)) {
         //we just got the lock, there was no contention
         return FIBER_SUCCESS;
     }
