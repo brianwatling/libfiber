@@ -18,7 +18,6 @@ static void* fiber_go_function(void* param)
 
     while(!the_fiber->detached) {
         fiber_manager_yield(fiber_manager_get());
-        usleep(1);/* be a bit nicer */
         //TODO: not busy loop here.
     }
 
@@ -104,5 +103,14 @@ int fiber_join(fiber_t* f)
 void fiber_yield()
 {
     fiber_manager_yield(fiber_manager_get());
+}
+
+int fiber_detach(fiber_t* f)
+{
+    if(!f || f->detached) {
+        return FIBER_ERROR;
+    }
+    f->detached = 1;
+    return FIBER_SUCCESS;
 }
 

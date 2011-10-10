@@ -9,8 +9,20 @@ CFILES = \
     fiber.c \
     work_stealing_deque.c \
 
+OS ?= $(shell uname -s)
+
 #your compiler will pick the architecture by default
 ARCH ?= $(shell uname -m)
+ifeq ($(ARCH),i386)
+ARCH=x86
+endif
+ifeq ($(ARCH),i86pc)
+ARCH=x86
+endif
+ifeq ($(ARCH),i686)
+ARCH=x86
+endif
+
 ifeq ($(ARCH),x86_64)
 CFLAGS += -m64 -DARCH_x86_64
 endif
@@ -23,7 +35,21 @@ ifeq ($(FAST_SWITCHING),1)
 CFLAGS += -DFIBER_FAST_SWITCHING
 endif
 
-CFLAGS += -Werror -Wall -Iinclude -ggdb -O0 -DUSE_VALGRIND
+CFLAGS += -Werror -Wall -Iinclude -ggdb -O0
+
+USE_VALGRIND ?= 0
+ifeq ($(USE_VALGRIND),1)
+CLFAGS += -DUSE_VALGRIND
+endif
+
+ifeq ($(OS),Darwin)
+USE_COMPILER_THREAD_LOCAL ?= 0
+endif
+USE_COMPILER_THREAD_LOCAL ?= 1
+
+ifeq ($(USE_COMPILER_THREAD_LOCAL),1)
+CFLAGS += -DUSE_COMPILER_THREAD_LOCAL
+endif
 
 LDFLAGS += -lpthread
 
@@ -51,13 +77,13 @@ libfiber2.so: $(PICOBJS)
 tests: $(TESTBINARIES)
 
 runtests: tests
-	for cur in $(TESTS); do ./bin/$$cur; done
+	for cur in $(TESTS); do echo $$cur; time ./bin/$$cur; done
 
 bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
 	$(CC) $(CFLAGS) -Isrc -c $< -o $@
 
 bin/test_%: bin/test_%.o libfiber2.so
-	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin -lfiber2 $^ -o $@
+	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@
 
 bin/%.o: %.c $(INCLUDES)
 	$(CC) $(CFLAGS) -c $< -o $@

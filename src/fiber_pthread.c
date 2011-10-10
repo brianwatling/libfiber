@@ -197,10 +197,10 @@ int pthread_create(pthread_t * thread, const pthread_attr_t * attr, void *(*star
 int pthread_detach(pthread_t thread)
 {
     fiber_t* const f = (fiber_t*)thread;
-    if(!f || f->detached) {
+    const int ret = fiber_detach(f);
+    if(FIBER_ERROR == ret) {
         return EINVAL;
     }
-    f->detached = 1;
     return 0;
 }
 

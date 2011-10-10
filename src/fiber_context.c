@@ -21,6 +21,10 @@
 #define STACK_DEREGISTER(context) do {} while(0)
 #endif //USE_VALGRIND
 
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 static long fiberPageSize = 0;
 static size_t fiber_round_to_page_size(size_t size)
 {

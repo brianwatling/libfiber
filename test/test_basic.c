@@ -22,7 +22,6 @@ int main()
     test_assert(value == 2);
 
     fiber_t* fiber2 = fiber_create(20000, &run_function, (void*)&value);
-    assert(fiber1 == fiber2);//we know fiber1 has finished - it should be re-used
 
     fiber_yield();
     test_assert(value == 3);
