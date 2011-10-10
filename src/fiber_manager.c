@@ -120,30 +120,32 @@ void fiber_manager_yield(fiber_manager_t* manager)
         manager->store_to = temp;
     }
 
-    manager->yield_count += 1;
-    //occasionally steal some work from threads with more load
-    //TODO: evaluate whether guarding this is worthwhile
-    if((manager->yield_count & 1023) == 0) {// && __sync_bool_compare_and_swap(&fiber_manager_load_balance_guard, 0, 1)) {
-        fiber_load_balance(manager);
-        //fiber_manager_load_balance_guard = 0;
-    }
-
-    if(wsd_work_stealing_deque_size(manager->schedule_from) > 0) {
-        fiber_t* const new_fiber = (fiber_t*)wsd_work_stealing_deque_pop_bottom(manager->schedule_from);
-        if(new_fiber != WSD_EMPTY && new_fiber != WSD_ABORT) {
-            fiber_t* const old_fiber = manager->current_fiber;
-            if(old_fiber->state == FIBER_STATE_RUNNING) {
-                old_fiber->state = FIBER_STATE_READY;
-                manager->to_schedule = old_fiber;/* must schedule it *after* fiber_swap_context, else another thread can start executing an invalid context */
-            }
-            manager->current_fiber = new_fiber;
-            new_fiber->state = FIBER_STATE_RUNNING;
-            write_barrier();
-            fiber_swap_context(&old_fiber->context, &new_fiber->context);
-
-            fiber_manager_do_maintenance();
+    do {
+        manager->yield_count += 1;
+        //occasionally steal some work from threads with more load
+        //TODO: evaluate whether guarding this is worthwhile
+        if((manager->yield_count & 1023) == 0) {// && __sync_bool_compare_and_swap(&fiber_manager_load_balance_guard, 0, 1)) {
+            fiber_load_balance(manager);
+            //fiber_manager_load_balance_guard = 0;
         }
-    }
+
+        if(wsd_work_stealing_deque_size(manager->schedule_from) > 0) {
+            fiber_t* const new_fiber = (fiber_t*)wsd_work_stealing_deque_pop_bottom(manager->schedule_from);
+            if(new_fiber != WSD_EMPTY && new_fiber != WSD_ABORT) {
+                fiber_t* const old_fiber = manager->current_fiber;
+                if(old_fiber->state == FIBER_STATE_RUNNING) {
+                    old_fiber->state = FIBER_STATE_READY;
+                    manager->to_schedule = old_fiber;/* must schedule it *after* fiber_swap_context, else another thread can start executing an invalid context */
+                }
+                manager->current_fiber = new_fiber;
+                new_fiber->state = FIBER_STATE_RUNNING;
+                write_barrier();
+                fiber_swap_context(&old_fiber->context, &new_fiber->context);
+
+                fiber_manager_do_maintenance();
+            }
+        }
+    } while(FIBER_STATE_RUNNING != manager->current_fiber->state);
 }
 
 #ifdef USE_COMPILER_THREAD_LOCAL
@@ -268,6 +270,11 @@ void fiber_manager_do_maintenance()
     if(manager->to_schedule) {
         wsd_work_stealing_deque_push_bottom(manager->store_to, manager->to_schedule);
         manager->to_schedule = NULL;
+    }
+
+    if(manager->mpsc_to_push.fifo) {
+        mpsc_fifo_push(manager->mpsc_to_push.fifo, manager->mpsc_to_push.id, manager->mpsc_to_push.node);
+        memset(&manager->mpsc_to_push, 0, sizeof(manager->mpsc_to_push));
     }
 }
 

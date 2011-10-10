@@ -5,7 +5,6 @@ int fiber_mutex_init(fiber_mutex_t* mutex)
 {
     assert(mutex);
     mutex->counter = 1;
-    mutex->owner = NULL;
     mutex->waiters = mpsc_fifo_create(fiber_manager_get_kernel_thread_count());
     if(!mutex->waiters) {
         return FIBER_ERROR;
@@ -29,8 +28,6 @@ int fiber_mutex_lock(fiber_mutex_t* mutex)
     const int val = __sync_sub_and_fetch(&mutex->counter, 1);
     if(val == 0) {
         //we just got the lock, there was no contention
-        assert(mutex->owner == NULL);
-        mutex->owner = fiber_manager_get()->current_fiber;
         return FIBER_SUCCESS;
     }
 
@@ -41,12 +38,11 @@ int fiber_mutex_lock(fiber_mutex_t* mutex)
     assert(this_fiber->spsc_node);
     this_fiber->spsc_node->data = this_fiber;
     write_barrier();
-    mpsc_fifo_push(mutex->waiters, manager->id, this_fiber->spsc_node);
+    manager->mpsc_to_push.fifo = mutex->waiters;
+    manager->mpsc_to_push.id = manager->id;
+    manager->mpsc_to_push.node = this_fiber->spsc_node;
     this_fiber->spsc_node = NULL;
     fiber_manager_yield(manager);
-
-    assert(mutex->owner == NULL);
-    mutex->owner = fiber_manager_get()->current_fiber;
 
     return FIBER_SUCCESS;
 }
@@ -57,8 +53,6 @@ int fiber_mutex_trylock(fiber_mutex_t* mutex)
 
     if(__sync_bool_compare_and_swap(&mutex->counter, 1, 0)) {
         //we just got the lock, there was no contention
-        assert(mutex->owner == NULL);
-        mutex->owner = fiber_manager_get()->current_fiber;
         return FIBER_SUCCESS;
     }
     return FIBER_ERROR;
@@ -67,8 +61,6 @@ int fiber_mutex_trylock(fiber_mutex_t* mutex)
 int fiber_mutex_unlock(fiber_mutex_t* mutex)
 {
     assert(mutex);
-    assert(mutex->owner == fiber_manager_get()->current_fiber);
-    mutex->owner = NULL;
 
     store_load_barrier();//flush this fiber's writes
 
