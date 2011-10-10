@@ -21,6 +21,7 @@
 typedef struct fiber_mutex
 {
     volatile int counter;
+    fiber_t* volatile owner;
     mpsc_fifo_t* waiters;
 } fiber_mutex_t;
 

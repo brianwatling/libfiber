@@ -4,7 +4,7 @@
 
 int volatile counter = 0;
 fiber_mutex_t mutex;
-#define PER_FIBER_COUNT 100000
+#define PER_FIBER_COUNT 1000
 #define NUM_FIBERS 1000
 #define NUM_THREADS 4
 
