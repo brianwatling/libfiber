@@ -5,6 +5,7 @@ int fiber_mutex_init(fiber_mutex_t* mutex)
 {
     assert(mutex);
     mutex->counter = 1;
+    mutex->pop_lock = 0;
     mutex->waiters = mpsc_fifo_create(fiber_manager_get_kernel_thread_count());
     if(!mutex->waiters) {
         return FIBER_ERROR;
@@ -16,6 +17,7 @@ int fiber_mutex_destroy(fiber_mutex_t* mutex)
 {
     assert(mutex);
     mutex->counter = 1;
+    mutex->pop_lock = 0;
     mpsc_fifo_destroy(mutex->waiters);
     mutex->waiters = NULL;
     return FIBER_SUCCESS;
@@ -67,12 +69,18 @@ int fiber_mutex_unlock(fiber_mutex_t* mutex)
     }
 
     //some other fiber is waiting - pop and schedule at least one fiber
+    while(!__sync_bool_compare_and_swap(&mutex->pop_lock, 0, 1)) {
+        fiber_yield();
+    }
+
     spsc_node_t* out = NULL;
     do {
         if(!mpsc_fifo_pop(mutex->waiters, &out)) {
             fiber_yield();
         }
     } while(!out);
+
+    mutex->pop_lock = 0;
 
     fiber_t* const to_schedule = (fiber_t*)out->data;
     to_schedule->spsc_node = out;

@@ -23,6 +23,8 @@ int main()
 {
     fiber_manager_set_total_kernel_threads(NUM_THREADS);
 
+    fiber_mutex_init(&mutex);
+
     fiber_t* fibers[NUM_FIBERS];
     int i;
     for(i = 0; i < NUM_FIBERS; ++i) {
