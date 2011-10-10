@@ -38,7 +38,9 @@ int fiber_mutex_lock(fiber_mutex_t* mutex)
     fiber_t* const this_fiber = manager->current_fiber;
     this_fiber->state = FIBER_STATE_WAITING;
     this_fiber->spsc_node->data = this_fiber;
+    write_barrier();
     mpsc_fifo_push(mutex->waiters, manager->id, this_fiber->spsc_node);
+    this_fiber->spsc_node = NULL;
     fiber_manager_yield(manager);
 
     return FIBER_SUCCESS;
@@ -84,6 +86,7 @@ int fiber_mutex_unlock(fiber_mutex_t* mutex)
 
     fiber_t* const to_schedule = (fiber_t*)out->data;
     to_schedule->spsc_node = out;
+    assert(to_schedule->state == FIBER_STATE_WAITING);
     to_schedule->state = FIBER_STATE_READY;
     fiber_manager_schedule(fiber_manager_get(), to_schedule);
 
