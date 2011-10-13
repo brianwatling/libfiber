@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#define PUSH_COUNT 500000
+#define PUSH_COUNT 10000000
 #define NUM_THREADS 4
 
 mpsc_fifo_t* fifo = NULL;

@@ -70,6 +70,7 @@ TESTS= \
     test_mpsc \
     test_wsd \
     test_mutex \
+    test_wait_in_queue \
 
 CC ?= /usr/bin/c99
 

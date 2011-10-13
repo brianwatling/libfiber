@@ -4,7 +4,7 @@
 
 #define SHARED_COUNT 5000000
 wsd_work_stealing_deque_t* wsd_d2 = 0;
-#define NUM_THREADS 2
+#define NUM_THREADS 4
 int results[NUM_THREADS][SHARED_COUNT] = {};
 size_t run_func_count[NUM_THREADS] = {};
 uint64_t total = 0;

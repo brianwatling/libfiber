@@ -56,6 +56,10 @@ extern int fiber_manager_get_kernel_thread_count();
 
 extern void fiber_manager_do_maintenance();
 
+extern void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo);
+
+extern void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count);
+
 #ifdef __cplusplus
 }
 #endif

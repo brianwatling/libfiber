@@ -146,7 +146,7 @@ void fiber_manager_yield(fiber_manager_t* manager)
                 fiber_manager_do_maintenance();
             }
         }
-    } while(FIBER_STATE_WAITING == manager->current_fiber->state && fiber_load_balance(manager));
+    } while((manager = fiber_manager_get()) && FIBER_STATE_WAITING == manager->current_fiber->state && fiber_load_balance(manager));
 }
 
 #ifdef USE_COMPILER_THREAD_LOCAL
@@ -278,5 +278,38 @@ void fiber_manager_do_maintenance()
         mpsc_fifo_push(manager->mpsc_to_push.fifo, manager->mpsc_to_push.id, manager->mpsc_to_push.node);
         memset(&manager->mpsc_to_push, 0, sizeof(manager->mpsc_to_push));
     }
+}
+void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo)
+{
+    assert(manager);
+    assert(fifo);
+    fiber_t* const this_fiber = manager->current_fiber;
+    assert(this_fiber->state == FIBER_STATE_RUNNING);
+    assert(this_fiber->spsc_node);
+    this_fiber->state = FIBER_STATE_WAITING;
+    this_fiber->spsc_node->data = this_fiber;
+    manager->mpsc_to_push.fifo = fifo;
+    manager->mpsc_to_push.id = manager->id;
+    manager->mpsc_to_push.node = this_fiber->spsc_node;
+    manager->mpsc_to_push.node->data = this_fiber;
+    this_fiber->spsc_node = NULL;
+    fiber_manager_yield(manager);
+}
+
+void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count)
+{
+    spsc_node_t* out = NULL;
+    do {
+        if(mpsc_fifo_pop(fifo, &out)) {
+            count -= 1;
+            fiber_t* const to_schedule = (fiber_t*)out->data;
+            assert(to_schedule->state == FIBER_STATE_WAITING);
+            assert(!to_schedule->spsc_node);
+            to_schedule->spsc_node = out;
+            to_schedule->state = FIBER_STATE_READY;
+            fiber_manager_schedule(fiber_manager_get(), to_schedule);
+        }
+
+    } while(count > 0 && fiber_yield());
 }
 

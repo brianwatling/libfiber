@@ -219,14 +219,14 @@ void pthread_exit(void * status)
 
     while(!the_fiber->detached) {
         fiber_manager_yield(fiber_manager_get());
-        usleep(1);/* be a bit nicer */
+        //usleep(1);/* be a bit nicer */
         //TODO: not busy loop here.
     }
 
     wsd_work_stealing_deque_push_bottom(fiber_manager_get()->done_fibers, the_fiber);
     while(1) { /* yield() may actually not switch to anything else if there's nothing else to schedule - loop here until yield() doesn't return */
         fiber_manager_yield(fiber_manager_get());
-        usleep(1);/* be a bit nicer */
+        //usleep(1);/* be a bit nicer */
     }
 }
 

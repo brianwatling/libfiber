@@ -20,14 +20,14 @@ static void* fiber_go_function(void* param)
 
     while(!the_fiber->detached) {
         fiber_manager_yield(fiber_manager_get());
-        usleep(1);/* be a bit nicer */
+        //usleep(1);/* be a bit nicer */
         //TODO: not busy loop here.
     }
 
     wsd_work_stealing_deque_push_bottom(fiber_manager_get()->done_fibers, the_fiber);
     while(1) { /* yield() may actually not switch to anything else if there's nothing else to schedule - loop here until yield() doesn't return */
         fiber_manager_yield(fiber_manager_get());
-        usleep(1);/* be a bit nicer */
+        //usleep(1);/* be a bit nicer */
     }
     return NULL;
 }
@@ -119,9 +119,10 @@ int fiber_join(fiber_t* f)
     return FIBER_SUCCESS;
 }
 
-void fiber_yield()
+int fiber_yield()
 {
     fiber_manager_yield(fiber_manager_get());
+    return 1;
 }
 
 int fiber_detach(fiber_t* f)
