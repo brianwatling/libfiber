@@ -25,7 +25,7 @@ void wsd_circular_array_destroy(wsd_circular_array_t* a)
     free(a);
 }
 
-wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a, uint64_t start, uint64_t end)
+wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a, int64_t start, int64_t end)
 {
     assert(a);
     assert(start <= end);
@@ -34,7 +34,7 @@ wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a, uint64_t 
         return NULL;
     }
 
-    uint64_t i;
+    int64_t i;
     for(i = start; i < end; ++i) {
         wsd_circular_array_put(new_a, i, wsd_circular_array_get(a, i));
     }
@@ -68,8 +68,8 @@ void wsd_work_stealing_deque_destroy(wsd_work_stealing_deque_t* d)
 void wsd_work_stealing_deque_push_bottom(wsd_work_stealing_deque_t* d, void* p)
 {
     assert(d);
-    const uint64_t b = d->bottom;
-    const uint64_t t = d->top;
+    const int64_t b = d->bottom;
+    const int64_t t = d->top;
     wsd_circular_array_t* a = d->underlying_array;
     const int64_t size = b - t;
     if(size >= a->size_minus_one) {
@@ -86,11 +86,11 @@ void wsd_work_stealing_deque_push_bottom(wsd_work_stealing_deque_t* d, void* p)
 void* wsd_work_stealing_deque_pop_bottom(wsd_work_stealing_deque_t* d)
 {
     assert(d);
-    const uint64_t b = d->bottom - 1;
+    const int64_t b = d->bottom - 1;
     wsd_circular_array_t* const a = d->underlying_array;
     d->bottom = b;
     store_load_barrier();
-    const uint64_t t = d->top;
+    const int64_t t = d->top;
     const int64_t size = b - t;
     if(size < 0) {
         d->bottom = t;
@@ -100,7 +100,7 @@ void* wsd_work_stealing_deque_pop_bottom(wsd_work_stealing_deque_t* d)
     if(size > 0) {
         return ret;
     }
-    const uint64_t t_plus_one = t + 1;
+    const int64_t t_plus_one = t + 1;
     if(!__sync_bool_compare_and_swap(&d->top, t, t_plus_one)) {
         d->bottom = t_plus_one;
         return WSD_ABORT;
@@ -112,9 +112,9 @@ void* wsd_work_stealing_deque_pop_bottom(wsd_work_stealing_deque_t* d)
 void* wsd_work_stealing_deque_steal(wsd_work_stealing_deque_t* d)
 {
     assert(d);
-    const uint64_t t = d->top;
+    const int64_t t = d->top;
     load_load_barrier();
-    const uint64_t b = d->bottom;
+    const int64_t b = d->bottom;
     wsd_circular_array_t* const a = d->underlying_array;
     const int64_t size = b - t;
     if(size <= 0) {

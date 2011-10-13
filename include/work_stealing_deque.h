@@ -35,10 +35,10 @@ typedef struct wsd_circular_array
 
 typedef struct wsd_work_stealing_deque
 {
-    volatile uint64_t top;
-    char _cache_padding1[CACHE_SIZE - sizeof(uint64_t)];
-    volatile uint64_t bottom;
-    char _cache_padding2[CACHE_SIZE - sizeof(uint64_t)];
+    volatile int64_t top;
+    char _cache_padding1[CACHE_SIZE - sizeof(int64_t)];
+    volatile int64_t bottom;
+    char _cache_padding2[CACHE_SIZE - sizeof(int64_t)];
     wsd_circular_array_t* volatile underlying_array;
     char _cache_padding3[CACHE_SIZE - sizeof(wsd_circular_array_t*)];
 } wsd_work_stealing_deque_t;
@@ -58,21 +58,21 @@ static inline size_t wsd_circular_array_size(wsd_circular_array_t* a)
     return a->size;
 }
 
-static inline void* wsd_circular_array_get(wsd_circular_array_t* a, uint64_t i)
+static inline void* wsd_circular_array_get(wsd_circular_array_t* a, int64_t i)
 {
     assert(a);
     assert(a->data);
     return a->data[i & a->size_minus_one].data;
 }
 
-static inline void wsd_circular_array_put(wsd_circular_array_t* a, uint64_t i, void* p)
+static inline void wsd_circular_array_put(wsd_circular_array_t* a, int64_t i, void* p)
 {
     assert(a);
     assert(a->data);
     a->data[i & a->size_minus_one].data = p;
 }
 
-extern wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a, uint64_t start, uint64_t end);
+extern wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a, int64_t start, int64_t end);
 
 extern wsd_work_stealing_deque_t* wsd_work_stealing_deque_create();
 
