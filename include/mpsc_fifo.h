@@ -6,10 +6,17 @@
     Email: brianwatling@hotmail.com
     Website: https://github.com/brianwatling
 
-    Description: A single-consumer multi-producer FIFO based on a single-producer
-                 single-consumer FIFO . Each producer will have their own SRSW
+    Description: A multi-producer single-consumer FIFO based on a single-producer
+                 single-consumer FIFO . Each producer will have their own SPSC
                  FIFO. A single consumer acts as the consumer for all
-                 producers. It's not required to have a thread per producer.
+                 producers. It's not required to have a thread per producer. This
+                 queue is wait-free - that is, any enqueue or dequeue operation
+                 is independent of other threads.
+                 NOTE: this MPSC FIFO provides *per-producer* FIFO and makes a 
+                 best effort attempt to round-robin pops accross all producers.
+
+    Properties: 1. Per-producer FIFO, best effort FIFO accross producers
+                2. Wait free
 */
 
 #include "spsc_fifo.h"
@@ -38,7 +45,7 @@ static inline mpsc_fifo_t* mpsc_fifo_create(size_t num_producers)
         if(!spsc_fifo_init(&ret->fifos[i])) {
             int j = 0;
             for(j = 0; j < i; ++j) {
-                spsc_fifo_cleaup(&ret->fifos[j]);
+                spsc_fifo_cleanup(&ret->fifos[j]);
             }
             free(ret);
             return NULL;
@@ -53,7 +60,7 @@ static inline void mpsc_fifo_destroy(mpsc_fifo_t* f)
     size_t i;
     for(i = 0; i < f->num_producers; ++i) {
         spsc_fifo_t* const the_fifo = &f->fifos[i];
-        spsc_fifo_cleaup(the_fifo);
+        spsc_fifo_cleanup(the_fifo);
     }
     free(f);
 }
@@ -69,6 +76,7 @@ static inline void mpsc_fifo_push(mpsc_fifo_t* f, size_t producer_number, spsc_n
     spsc_fifo_push(the_fifo, new_node);
 }
 
+//the caller owns *out after popping
 static inline int mpsc_fifo_pop(mpsc_fifo_t* f, spsc_node_t** out)
 {
     const size_t num_producers = f->num_producers;
@@ -83,8 +91,6 @@ static inline int mpsc_fifo_pop(mpsc_fifo_t* f, spsc_node_t** out)
     }
     return 0;
 }
-
-//the caller owns *out after popping
 
 #endif
 

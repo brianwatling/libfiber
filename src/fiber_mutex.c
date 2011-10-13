@@ -28,11 +28,13 @@ int fiber_mutex_lock(fiber_mutex_t* mutex)
     const int val = __sync_sub_and_fetch(&mutex->counter, 1);
     if(val == 0) {
         //we just got the lock, there was no contention
+        load_load_barrier();
         return FIBER_SUCCESS;
     }
 
     //we failed to acquire the lock (there's contention). we'll wait.
     fiber_manager_wait_in_queue(fiber_manager_get(), mutex->waiters);
+    load_load_barrier();
 
     return FIBER_SUCCESS;
 }
@@ -43,6 +45,7 @@ int fiber_mutex_trylock(fiber_mutex_t* mutex)
 
     if(__sync_bool_compare_and_swap(&mutex->counter, 1, 0)) {
         //we just got the lock, there was no contention
+        load_load_barrier();
         return FIBER_SUCCESS;
     }
     return FIBER_ERROR;

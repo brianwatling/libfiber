@@ -95,10 +95,9 @@ int pthread_cancel(pthread_t thread)
     return ENOTSUP;//not standard.
 }
 
-int pthread_cond_broadcast(pthread_cond_t * cond)
+void pthread_testcancel(void)
 {
-    //TODO
-    return 0;
+    //TODO: support cancels?
 }
 
 int pthread_cond_destroy(pthread_cond_t * cond)
@@ -114,6 +113,12 @@ int pthread_cond_init(pthread_cond_t * cond, const pthread_condattr_t * attr)
 }
 
 int pthread_cond_signal(pthread_cond_t * cond)
+{
+    //TODO
+    return 0;
+}
+
+int pthread_cond_broadcast(pthread_cond_t * cond)
 {
     //TODO
     return 0;
@@ -293,6 +298,7 @@ int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr
 int pthread_mutex_lock(pthread_mutex_t * mutex)
 {
     //TODO
+    //TODO: implement the various mutex options, such as PTHREAD_MUTEX_ERRORCHECK
     return 0;
 }
 
@@ -465,7 +471,3 @@ int pthread_getschedparam(pthread_t thread, int * policy, struct sched_param * p
     return ENOTSUP;//not standard.
 }
 
-void pthread_testcancel(void)
-{
-    //TODO: support cancels?
-}

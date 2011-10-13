@@ -10,7 +10,11 @@
                  Code: A Corrected Queue" by Herb Sutter. I've modified the queue
                  such that it only allocates the divider node. The node passed
                  into the push method is owned by the FIFO until it is returned
-                 the consumer via the pop method.
+                 to the consumer via the pop method. This FIFO is wait-free.
+                 NOTE: This SPSC FIFO provides strict FIFO ordering
+
+    Properties: 1. Strict FIFO
+                2. Wait free
 */
 
 #include <stdint.h>
@@ -49,7 +53,7 @@ static inline int spsc_fifo_init(spsc_fifo_t* f)
     return 1;
 }
 
-static inline void spsc_fifo_cleaup(spsc_fifo_t* f)
+static inline void spsc_fifo_cleanup(spsc_fifo_t* f)
 {
     while(f->first != NULL) {
         spsc_node_t* const tmp = f->first;

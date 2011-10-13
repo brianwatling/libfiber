@@ -39,7 +39,7 @@ int main()
     pthread_join(consumer, NULL);
 
     printf("cleaning...\n");
-    spsc_fifo_cleaup(&fifo);
+    spsc_fifo_cleanup(&fifo);
 
     return 0;
 }

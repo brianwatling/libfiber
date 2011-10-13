@@ -4,6 +4,7 @@
 #include "fiber.h"
 #include "work_stealing_deque.h"
 #include "mpsc_fifo.h"
+#include "mpmc_queue.h"
 
 typedef struct fiber_mpsc_to_push
 {
@@ -12,12 +13,26 @@ typedef struct fiber_mpsc_to_push
     spsc_node_t* node;
 } fiber_mpsc_to_push_t;
 
+typedef struct fiber_spsc_to_push
+{
+    spsc_fifo_t* fifo;
+    spsc_node_t* node;
+} fiber_spsc_to_push_t;
+
+typedef struct fiber_mpmc_to_push
+{
+    mpmc_queue_t* queue;
+    mpmc_queue_node_t* node;
+} fiber_mpmc_to_push_t;
+
 typedef struct fiber_manager
 {
     fiber_t* volatile current_fiber;
     fiber_t* thread_fiber;
     fiber_t* volatile to_schedule;
     fiber_mpsc_to_push_t mpsc_to_push;
+    fiber_spsc_to_push_t spsc_to_push;
+    fiber_mpmc_to_push_t mpmc_to_push;
     wsd_work_stealing_deque_t* queue_one;
     wsd_work_stealing_deque_t* queue_two;
     wsd_work_stealing_deque_t* volatile schedule_from;
@@ -59,6 +74,14 @@ extern void fiber_manager_do_maintenance();
 extern void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo);
 
 extern void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count);
+
+extern void fiber_manager_wait_in_spsc_queue(fiber_manager_t* manager, spsc_fifo_t* fifo);
+
+extern void fiber_manager_wake_from_spsc_queue(fiber_manager_t* manager, spsc_fifo_t* fifo, int count);
+
+extern void fiber_manager_wait_in_mpmc_queue(fiber_manager_t* manager, mpmc_queue_t* queue);
+
+extern void fiber_manager_wake_from_mpmc_queue(fiber_manager_t* manager, mpmc_queue_t* queue, int count);
 
 #ifdef __cplusplus
 }

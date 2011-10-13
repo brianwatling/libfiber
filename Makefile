@@ -7,6 +7,7 @@ CFILES = \
     fiber_context.c \
     fiber_manager.c \
     fiber_mutex.c \
+    fiber_cond.c \
     fiber.c \
     work_stealing_deque.c \
 
@@ -70,6 +71,8 @@ TESTS= \
     test_mpsc \
     test_wsd \
     test_mutex \
+    test_cond \
+    test_pthread_cond \
     test_wait_in_queue \
 
 CC ?= /usr/bin/c99
