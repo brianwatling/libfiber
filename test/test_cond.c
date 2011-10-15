@@ -19,10 +19,9 @@ void* run_function(void* param)
             fiber_cond_wait(&cond, &mutex);
         }
         test_assert(counter == (myNum + i * NUM_FIBERS));
-printf("%d %d %ld\n", counter, i, myNum);
         ++counter;
-        fiber_cond_broadcast(&cond);
         fiber_mutex_unlock(&mutex);
+        fiber_cond_broadcast(&cond);
     }
     return NULL;
 }

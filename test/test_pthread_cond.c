@@ -18,7 +18,6 @@ void* run_function(void* param)
             pthread_cond_wait(&cond, &mutex);
         }
         test_assert(counter == (myNum + i * NUM_FIBERS));
-//printf("%d %d %ld\n", counter, i, myNum);
         ++counter;
         pthread_mutex_unlock(&mutex);
         pthread_cond_broadcast(&cond);

@@ -72,9 +72,10 @@ TESTS= \
     test_mpscr \
     test_wsd \
     test_mutex \
-    test_pthread_cond \
     test_wait_in_queue \
-#    test_cond \
+    test_cond \
+
+#    test_pthread_cond \
 
 CC ?= /usr/bin/c99
 

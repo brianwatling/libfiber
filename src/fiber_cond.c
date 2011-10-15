@@ -27,15 +27,12 @@ int fiber_cond_signal(fiber_cond_t* cond)
 {
     assert(cond);
 
-    /*fiber_mutex_lock(&cond->internal_mutex);
-    if(cond->popped_waiters) {
-        fiber_t* const to_wake = (fiber_t*)cond->popped_waiters->data;
-        cond->popped_waiters = cond->popped_waiters->next;
-    } else if(cond->waiter_count > 0) {
+    fiber_mutex_lock(&cond->internal_mutex);
+    if(cond->waiter_count > 0) {
+        fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, 1);
         __sync_fetch_and_sub(&cond->waiter_count, 1);
-        fiber_manager_wake_from_mpmc_queue(fiber_manager_get(), &cond->waiters, 1);
     }
-    fiber_mutex_unlock(&cond->internal_mutex);*/
+    fiber_mutex_unlock(&cond->internal_mutex);
 
     return FIBER_SUCCESS;
 }
@@ -44,17 +41,13 @@ int fiber_cond_broadcast(fiber_cond_t* cond)
 {
     assert(cond);
 
-    /*fiber_mutex_lock(&cond->internal_mutex);
-    int original = cond->waiter_count;
-    while(original > 0) {
-        const int latest = __sync_val_compare_and_swap(&cond->waiter_count, original, 0);
-        if(latest == original) {
-            fiber_manager_wake_from_mpmc_queue(fiber_manager_get(), &cond->waiter_queue, original);
-            break;
-        }
-        original = latest;
+    fiber_mutex_lock(&cond->internal_mutex);
+    const int original = cond->waiter_count;
+    if(original > 0) {
+        fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, original);
+        __sync_fetch_and_sub(&cond->waiter_count, original);
     }
-    fiber_mutex_unlock(&cond->internal_mutex);*/
+    fiber_mutex_unlock(&cond->internal_mutex);
 
     return FIBER_SUCCESS;
 }
