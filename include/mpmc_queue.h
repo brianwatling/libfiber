@@ -67,7 +67,7 @@ static inline mpmc_queue_node_t* mpmc_queue_lifo_flush(mpmc_queue_t* q)
 {
     assert(q);
 #ifdef FIBER_XCHG_POINTER
-    return xchg_pointer((void**)&q->head, NULL);
+    return atomic_exchange_pointer((void**)&q->head, NULL);
 #else
     mpmc_queue_node_t* head = q->head;
     while(!__sync_bool_compare_and_swap(&q->head, head, 0)) {

@@ -69,11 +69,12 @@ TESTS= \
     test_mpmc \
     test_spsc \
     test_mpsc \
+    test_mpscr \
     test_wsd \
     test_mutex \
-    test_cond \
     test_pthread_cond \
     test_wait_in_queue \
+#    test_cond \
 
 CC ?= /usr/bin/c99
 
@@ -89,7 +90,7 @@ libfiber2.so: $(PICOBJS)
 tests: $(TESTBINARIES)
 
 runtests: tests
-	for cur in $(TESTS); do echo $$cur; time ./bin/$$cur; done
+	for cur in $(TESTS); do echo $$cur; time ./bin/$$cur > /dev/null; if [ "$$?" -ne "0" ] ; then echo "ERROR $$cur - failed!"; fi; done
 
 bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
 	$(CC) $(CFLAGS) -Isrc -c $< -o $@

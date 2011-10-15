@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "fiber_context.h"
-#include "spsc_fifo.h"
+#include "mpsc_fifo.h"
 
 typedef int fiber_state_t;
 
@@ -23,7 +23,7 @@ typedef struct fiber
     fiber_context_t context;
     int volatile detached;
     void* volatile result;
-    spsc_node_t* volatile spsc_node;
+    mpsc_node_t* volatile mpsc_node;
 } fiber_t;
 
 #ifdef __cplusplus

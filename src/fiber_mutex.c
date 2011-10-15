@@ -5,8 +5,7 @@ int fiber_mutex_init(fiber_mutex_t* mutex)
 {
     assert(mutex);
     mutex->counter = 1;
-    mutex->waiters = mpsc_fifo_create(fiber_manager_get_kernel_thread_count());
-    if(!mutex->waiters) {
+    if(!mpsc_fifo_init(&mutex->waiters)) {
         return FIBER_ERROR;
     }
     return FIBER_SUCCESS;
@@ -16,8 +15,7 @@ int fiber_mutex_destroy(fiber_mutex_t* mutex)
 {
     assert(mutex);
     mutex->counter = 1;
-    mpsc_fifo_destroy(mutex->waiters);
-    mutex->waiters = NULL;
+    mpsc_fifo_destroy(&mutex->waiters);
     return FIBER_SUCCESS;
 }
 
@@ -33,7 +31,7 @@ int fiber_mutex_lock(fiber_mutex_t* mutex)
     }
 
     //we failed to acquire the lock (there's contention). we'll wait.
-    fiber_manager_wait_in_queue(fiber_manager_get(), mutex->waiters);
+    fiber_manager_wait_in_queue(fiber_manager_get(), &mutex->waiters);
     load_load_barrier();
 
     return FIBER_SUCCESS;
@@ -63,7 +61,7 @@ int fiber_mutex_unlock(fiber_mutex_t* mutex)
     }
 
     //some other fiber is waiting - pop and schedule another fiber
-    fiber_manager_wake_from_queue(fiber_manager_get(), mutex->waiters, 1);
+    fiber_manager_wake_from_queue(fiber_manager_get(), &mutex->waiters, 1);
     //now we can unlock the mutex - before this we hold it since the mutex double-purposes as a lock on the consumer side of the fifo
     __sync_add_and_fetch(&mutex->counter, 1);
 

@@ -275,18 +275,8 @@ void fiber_manager_do_maintenance()
     }
 
     if(manager->mpsc_to_push.fifo) {
-        mpsc_fifo_push(manager->mpsc_to_push.fifo, manager->mpsc_to_push.id, manager->mpsc_to_push.node);
+        mpsc_fifo_push(manager->mpsc_to_push.fifo, manager->mpsc_to_push.node);
         memset(&manager->mpsc_to_push, 0, sizeof(manager->mpsc_to_push));
-    }
-
-    if(manager->spsc_to_push.fifo) {
-        spsc_fifo_push(manager->spsc_to_push.fifo, manager->spsc_to_push.node);
-        memset(&manager->spsc_to_push, 0, sizeof(manager->spsc_to_push));
-    }
-
-    if(manager->mpmc_to_push.queue) {
-        mpmc_queue_push(manager->mpmc_to_push.queue, manager->mpmc_to_push.node);
-        memset(&manager->mpmc_to_push, 0, sizeof(manager->mpmc_to_push));
     }
 }
 
@@ -296,107 +286,27 @@ void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo)
     assert(fifo);
     fiber_t* const this_fiber = manager->current_fiber;
     assert(this_fiber->state == FIBER_STATE_RUNNING);
-    assert(this_fiber->spsc_node);
+    assert(this_fiber->mpsc_node);
     this_fiber->state = FIBER_STATE_WAITING;
     manager->mpsc_to_push.fifo = fifo;
-    manager->mpsc_to_push.id = manager->id;
-    manager->mpsc_to_push.node = this_fiber->spsc_node;
+    manager->mpsc_to_push.node = this_fiber->mpsc_node;
     manager->mpsc_to_push.node->data = this_fiber;
-    this_fiber->spsc_node = NULL;
+    this_fiber->mpsc_node = NULL;
     fiber_manager_yield(manager);
 }
 
 void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count)
 {
-    spsc_node_t* out = NULL;
+    mpsc_node_t* out = NULL;
     do {
-        if(mpsc_fifo_pop(fifo, &out)) {
+        if((out = mpsc_fifo_pop(fifo))) {
             count -= 1;
             fiber_t* const to_schedule = (fiber_t*)out->data;
             assert(to_schedule->state == FIBER_STATE_WAITING);
-            assert(!to_schedule->spsc_node);
-            to_schedule->spsc_node = out;
+            assert(!to_schedule->mpsc_node);
+            to_schedule->mpsc_node = out;
             to_schedule->state = FIBER_STATE_READY;
             fiber_manager_schedule(manager, to_schedule);
-        } else if(count > 0) { //wait for a while if the queue is empty and we're expected to pop a given number of items
-            fiber_yield();
-            manager = fiber_manager_get();//always grab the current manager after a yield!
-        }
-    } while(count > 0);
-}
-
-void fiber_manager_wait_in_spsc_queue(fiber_manager_t* manager, spsc_fifo_t* fifo)
-{
-    assert(manager);
-    assert(fifo);
-    fiber_t* const this_fiber = manager->current_fiber;
-    assert(this_fiber->state == FIBER_STATE_RUNNING);
-    assert(this_fiber->spsc_node);
-    this_fiber->state = FIBER_STATE_WAITING;
-    manager->spsc_to_push.fifo = fifo;
-    manager->spsc_to_push.node = this_fiber->spsc_node;
-    manager->spsc_to_push.node->data = this_fiber;
-    this_fiber->spsc_node = NULL;
-    fiber_manager_yield(manager);
-}
-
-void fiber_manager_wake_from_spsc_queue(fiber_manager_t* manager, spsc_fifo_t* fifo, int count)
-{
-    spsc_node_t* out = NULL;
-    do {
-        if(spsc_fifo_pop(fifo, &out)) {
-            count -= 1;
-            fiber_t* const to_schedule = (fiber_t*)out->data;
-            assert(to_schedule->state == FIBER_STATE_WAITING);
-            assert(!to_schedule->spsc_node);
-            to_schedule->spsc_node = out;
-            to_schedule->state = FIBER_STATE_READY;
-            fiber_manager_schedule(manager, to_schedule);
-        } else if(count > 0) { //wait for a while if the queue is empty and we're expected to pop a given number of items
-            fiber_yield();
-            manager = fiber_manager_get();//always grab the current manager after a yield!
-        }
-    } while(count > 0);
-}
-
-void fiber_manager_wait_in_mpmc_queue(fiber_manager_t* manager, mpmc_queue_t* queue)
-{
-    assert(manager);
-    assert(queue);
-    fiber_t* const this_fiber = manager->current_fiber;
-    assert(this_fiber->state == FIBER_STATE_RUNNING);
-    this_fiber->state = FIBER_STATE_WAITING;
-    mpmc_queue_node_t node;
-    mpmc_queue_node_init(&node, this_fiber);
-    manager->mpmc_to_push.queue = queue;
-    manager->mpmc_to_push.node = &node;
-    fiber_manager_yield(manager);
-}
-
-void fiber_manager_wake_from_mpmc_queue(fiber_manager_t* manager, mpmc_queue_t* queue, int count)
-{
-    assert(manager);
-    assert(queue);
-    do {
-        mpmc_queue_node_t* node = NULL;
-        if(mpmc_queue_lifo_flush_timeout(queue, &node, 1)) {
-            while(node) {
-                --count;
-                fiber_t* const to_schedule = (fiber_t*)mpmc_queue_node_get_data(node);
-                node = node->next;
-                assert(to_schedule->state == FIBER_STATE_WAITING);
-                to_schedule->state = FIBER_STATE_READY;
-                fiber_manager_schedule(manager, to_schedule);
-                if(count <= 0) {
-                    //we've popped enough - we need to re-insert any extras. this could be a performance issue.
-                    while(node) {
-                        mpmc_queue_node_t* const tmp = node;
-                        node = node->next;
-                        mpmc_queue_push(queue, tmp);
-                    }
-                    return;
-                }
-            }
         } else if(count > 0) { //wait for a while if the queue is empty and we're expected to pop a given number of items
             fiber_yield();
             manager = fiber_manager_get();//always grab the current manager after a yield!

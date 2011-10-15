@@ -43,8 +43,8 @@ fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void
             return NULL;
         }
         memset(ret, 0, sizeof(*ret));
-        ret->spsc_node = malloc(sizeof(spsc_node_t));
-        if(!ret->spsc_node) {
+        ret->mpsc_node = malloc(sizeof(mpsc_node_t));
+        if(!ret->mpsc_node) {
             free(ret);
             errno = ENOMEM;
             return NULL;
@@ -54,7 +54,7 @@ fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void
         fiber_destroy_context(&ret->context);
     }
 
-    assert(ret->spsc_node);
+    assert(ret->mpsc_node);
 
     ret->run_function = run_function;
     ret->param = param;
@@ -80,8 +80,8 @@ fiber_t* fiber_create_from_thread()
         return NULL;
     }
     memset(ret, 0, sizeof(*ret));
-    ret->spsc_node = malloc(sizeof(spsc_node_t));
-    if(!ret->spsc_node) {
+    ret->mpsc_node = malloc(sizeof(mpsc_node_t));
+    if(!ret->mpsc_node) {
         free(ret);
         errno = ENOMEM;
         return NULL;

@@ -7,8 +7,7 @@
     Website: https://github.com/brianwatling
 
     Description: A single-producer single-consumer FIFO based on "Writing Lock-Free
-                 Code: A Corrected Queue" by Herb Sutter. I've modified the queue
-                 such that it only allocates the divider node. The node passed
+                 Code: A Corrected Queue" by Herb Sutter. The node passed
                  into the push method is owned by the FIFO until it is returned
                  to the consumer via the pop method. This FIFO is wait-free.
                  NOTE: This SPSC FIFO provides strict FIFO ordering
@@ -31,12 +30,11 @@ typedef struct spsc_node
 
 typedef struct spsc_fifo
 {
-    spsc_node_t* first;
+    spsc_node_t* head;//consumer read items from head
     char _cache_padding1[CACHE_SIZE - sizeof(spsc_node_t*)];
-    spsc_node_t* divider;
-    char _cache_padding2[CACHE_SIZE - sizeof(spsc_node_t*)];
-    spsc_node_t* last;
+    spsc_node_t* tail;//producer pushes onto the tail
     char _cache_padding3[CACHE_SIZE - sizeof(spsc_node_t*)];
+    spsc_node_t* divider;
 } spsc_fifo_t;
 
 static inline int spsc_fifo_init(spsc_fifo_t* f)
@@ -48,16 +46,17 @@ static inline int spsc_fifo_init(spsc_fifo_t* f)
         return 0;
     }
     memset(f->divider, 0, sizeof(*f->divider));
-    f->first = f->divider;
-    f->last = f->divider;
+    f->tail = f->divider;
+    f->head = f->divider;
     return 1;
 }
 
-static inline void spsc_fifo_cleanup(spsc_fifo_t* f)
+static inline void spsc_fifo_destroy(spsc_fifo_t* f)
 {
-    while(f->first != NULL) {
-        spsc_node_t* const tmp = f->first;
-        f->first = tmp->next;
+    assert(f);
+    while(f->head != NULL) {
+        spsc_node_t* const tmp = f->head;
+        f->head = tmp->next;
         free(tmp);
     }
 }
@@ -65,29 +64,27 @@ static inline void spsc_fifo_cleanup(spsc_fifo_t* f)
 //the FIFO owns new_node after pushing
 static inline void spsc_fifo_push(spsc_fifo_t* f, spsc_node_t* new_node)
 {
+    assert(f);
     assert(new_node);
     new_node->next = NULL;
-    f->last->next = new_node;
-    write_barrier();
-    f->last = new_node;
+    write_barrier();//the node must be terminated before it's visible to the reader as the new tail
+    spsc_node_t* const prev_tail = f->tail;
+    f->tail = new_node;
+    prev_tail->next = new_node;
 }
 
-//the caller owns *out after popping
-static inline int spsc_fifo_pop(spsc_fifo_t* f, spsc_node_t** out)
+//the caller owns the node after popping
+static inline spsc_node_t* spsc_fifo_pop(spsc_fifo_t* f)
 {
-    assert(out);
-    if(f->divider != f->last) {
-        load_load_barrier();
-        void* const data = f->divider->next->data;
-        f->divider = f->divider->next;
-
-        assert(f->first != f->divider);
-        *out = f->first;
-        (*out)->data = data;
-        f->first = f->first->next;
-        return 1;
+    assert(f);
+    spsc_node_t* const prev_head = f->head;
+    spsc_node_t* const prev_head_next = prev_head->next;
+    if(prev_head_next) {
+        f->head = prev_head_next;
+        prev_head->data = prev_head_next->data;
+        return prev_head;
     }
-    return 0;
+    return NULL;
 }
 
 #endif

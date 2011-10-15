@@ -13,7 +13,7 @@ void* pop_func(void* p)
     intptr_t i;
     spsc_node_t* node = NULL;
     for(i = 0; i < PUSH_COUNT; ++i) {
-        while(!spsc_fifo_pop(&fifo, &node)) {};
+        while(!(node = spsc_fifo_pop(&fifo))) {};
         test_assert((intptr_t)node->data == i);
         free(node);
     }
@@ -39,7 +39,7 @@ int main()
     pthread_join(consumer, NULL);
 
     printf("cleaning...\n");
-    spsc_fifo_cleanup(&fifo);
+    spsc_fifo_destroy(&fifo);
 
     return 0;
 }

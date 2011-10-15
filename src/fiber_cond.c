@@ -5,14 +5,21 @@ int fiber_cond_init(fiber_cond_t* cond)
 {
     assert(cond);
     memset(cond, 0, sizeof(*cond));
-    mpmc_queue_init(&cond->waiter_queue);
-    return fiber_mutex_init(&cond->internal_mutex);
+    if(!mpsc_fifo_init(&cond->waiters)) {
+        return FIBER_ERROR;
+    }
+    if(!fiber_mutex_init(&cond->internal_mutex)) {
+        mpsc_fifo_destroy(&cond->waiters);
+        return FIBER_ERROR;
+    }
+    return FIBER_SUCCESS;
 }
 
 void fiber_cond_destroy(fiber_cond_t* cond)
 {
     assert(cond);
     fiber_mutex_destroy(&cond->internal_mutex);
+    mpsc_fifo_destroy(&cond->waiters);
     memset(cond, 0, sizeof(*cond));
 }
 
@@ -20,7 +27,7 @@ int fiber_cond_signal(fiber_cond_t* cond)
 {
     assert(cond);
 
-    fiber_mutex_lock(&cond->internal_mutex);
+    /*fiber_mutex_lock(&cond->internal_mutex);
     if(cond->popped_waiters) {
         fiber_t* const to_wake = (fiber_t*)cond->popped_waiters->data;
         cond->popped_waiters = cond->popped_waiters->next;
@@ -28,7 +35,7 @@ int fiber_cond_signal(fiber_cond_t* cond)
         __sync_fetch_and_sub(&cond->waiter_count, 1);
         fiber_manager_wake_from_mpmc_queue(fiber_manager_get(), &cond->waiters, 1);
     }
-    fiber_mutex_unlock(&cond->internal_mutex);
+    fiber_mutex_unlock(&cond->internal_mutex);*/
 
     return FIBER_SUCCESS;
 }
@@ -37,7 +44,7 @@ int fiber_cond_broadcast(fiber_cond_t* cond)
 {
     assert(cond);
 
-    fiber_mutex_lock(&cond->internal_mutex);
+    /*fiber_mutex_lock(&cond->internal_mutex);
     int original = cond->waiter_count;
     while(original > 0) {
         const int latest = __sync_val_compare_and_swap(&cond->waiter_count, original, 0);
@@ -47,7 +54,7 @@ int fiber_cond_broadcast(fiber_cond_t* cond)
         }
         original = latest;
     }
-    fiber_mutex_unlock(&cond->internal_mutex);
+    fiber_mutex_unlock(&cond->internal_mutex);*/
 
     return FIBER_SUCCESS;
 }
@@ -72,7 +79,7 @@ int fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex)
     __sync_fetch_and_add(&cond->waiter_count, 1);
 
     fiber_mutex_unlock(mutex);
-    fiber_manager_wait_in_mpmc_queue(fiber_manager_get(), &cond->waiter_queue);
+    fiber_manager_wait_in_queue(fiber_manager_get(), &cond->waiters);
     fiber_mutex_lock(mutex);
 
     return FIBER_SUCCESS;

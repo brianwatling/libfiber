@@ -2,7 +2,7 @@
 #define _FIBER_COND_H_
 
 #include "fiber_mutex.h"
-#include "mpmc_queue.h"
+#include "mpsc_fifo.h"
 
 /*
     Author: Brian Watling
@@ -16,8 +16,7 @@ typedef struct fiber_cond
 {
     fiber_mutex_t* caller_mutex;
     volatile int waiter_count;
-    mpmc_queue_t waiter_queue;
-    mpmc_queue_node_t* popped_waiters;
+    mpsc_fifo_t waiters;
     fiber_mutex_t internal_mutex;
 } fiber_cond_t;
 
