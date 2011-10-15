@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#define NUM_THREADS 2
+#define NUM_THREADS 4
 #define PER_THREAD_COUNT 2500000
 
 int pushes[NUM_THREADS] = {};

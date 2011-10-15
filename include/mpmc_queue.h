@@ -66,17 +66,28 @@ static inline int mpmc_queue_push_timeout(mpmc_queue_t* q, mpmc_queue_node_t* n,
 static inline mpmc_queue_node_t* mpmc_queue_lifo_flush(mpmc_queue_t* q)
 {
     assert(q);
+#ifdef FIBER_XCHG_POINTER
+    return xchg_pointer((void**)&q->head, NULL);
+#else
     mpmc_queue_node_t* head = q->head;
     while(!__sync_bool_compare_and_swap(&q->head, head, 0)) {
         head = q->head;
     }
     return head;
+#endif
 }
 
 static inline int mpmc_queue_lifo_flush_timeout(mpmc_queue_t* q, mpmc_queue_node_t** out, size_t tries)
 {
     assert(q);
     assert(out);
+#ifdef FIBER_XCHG_POINTER
+    if(tries > 0) {
+        *out = mpmc_queue_lifo_flush(q);
+        return MPMC_SUCCESS;
+    }
+    return MPMC_RETRY;
+#else
     *out = q->head;
     while(tries > 0) {
         if(__sync_bool_compare_and_swap(&q->head, *out, 0)) {
@@ -86,6 +97,7 @@ static inline int mpmc_queue_lifo_flush_timeout(mpmc_queue_t* q, mpmc_queue_node
         *out = q->head;
     }
     return MPMC_RETRY;
+#endif
 }
 
 static inline mpmc_queue_node_t* mpmc_queue_reverse(mpmc_queue_node_t* head)

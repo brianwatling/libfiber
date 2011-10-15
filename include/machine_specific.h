@@ -41,5 +41,22 @@ static inline void load_load_barrier()
 #endif
 }
 
+#if defined(ARCH_x86) || defined(ARCH_x86_64)
+#define FIBER_XCHG_POINTER
+static inline void* xchg_pointer(void** location, void* value)
+{
+    void* result = value;
+    __asm__ volatile (
+        "lock xchg %1,%0"
+        :"+r" (result), "+m" (*location)
+        : /* no input-only operands */
+	);
+    return result;
+}
+#else
+#warning no xchg_pointer() defined for this architecture. please consider defining one if possible.
+#define FIBER_NO_XCHG_POINTER
+#endif
+
 #endif
 
