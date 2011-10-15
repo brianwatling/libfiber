@@ -4,6 +4,10 @@
 #include <string.h>
 #include <assert.h>
 #include <pthread.h>
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
+#include <dlfcn.h>
 
 static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
 static int fiber_manager_num_threads = 0;
@@ -149,6 +153,25 @@ void fiber_manager_yield(fiber_manager_t* manager)
     } while((manager = fiber_manager_get()) && FIBER_STATE_WAITING == manager->current_fiber->state && fiber_load_balance(manager));
 }
 
+void* fiber_load_symbol(const char* symbol)
+{
+    void* ret = dlsym(RTLD_NEXT, symbol);
+    if(!ret) {
+        ret = dlsym(RTLD_DEFAULT, symbol);
+    }
+    assert(ret);
+    return ret;
+}
+
+#ifndef USE_COMPILER_THREAD_LOCAL
+typedef int (*pthread_key_create_function)(pthread_key_t*, void (*)(void*));
+static pthread_key_create_function pthread_key_create_func = NULL;
+typedef void* (*pthread_getspecific_function)(pthread_key_t);
+static pthread_getspecific_function pthread_getspecific_func = NULL;
+typedef int (*pthread_setspecific_function)(pthread_key_t, const void *);
+static pthread_setspecific_function pthread_setspecific_func = NULL;
+#endif
+
 #ifdef USE_COMPILER_THREAD_LOCAL
 static __thread fiber_manager_t* fiber_the_manager = NULL;
 #else
@@ -157,7 +180,10 @@ static pthread_once_t fiber_manager_key_once = PTHREAD_ONCE_INIT;
 
 static void fiber_manager_make_key()
 {
-    const int ret = pthread_key_create(&fiber_manager_key, NULL);
+    if(!pthread_key_create_func) {
+        pthread_key_create_func = (pthread_key_create_function)fiber_load_symbol("pthread_key_create");
+    }
+    const int ret = pthread_key_create_func(&fiber_manager_key, NULL);
     if(ret) {
         assert(0 && "pthread_key_create() failed!");
         abort();
@@ -175,11 +201,17 @@ fiber_manager_t* fiber_manager_get()
     return fiber_the_manager;
 #else
     (void)pthread_once(&fiber_manager_key_once, &fiber_manager_make_key);
-    fiber_manager_t* ret = (fiber_manager_t*)pthread_getspecific(fiber_manager_key);
+    if(!pthread_getspecific_func) {
+        pthread_getspecific_func = (pthread_getspecific_function)fiber_load_symbol("pthread_getspecific");
+    }
+    fiber_manager_t* ret = (fiber_manager_t*)pthread_getspecific_func(fiber_manager_key);
     if(!ret) {
         ret = fiber_manager_create();
         assert(ret);
-        if(pthread_setspecific(fiber_manager_key, ret)) {
+        if(!pthread_setspecific_func) {
+            pthread_setspecific_func = (pthread_setspecific_function)fiber_load_symbol("pthread_setspecific");
+        }
+        if(pthread_setspecific_func(fiber_manager_key, ret)) {
             assert(0 && "pthread_setspecific() failed!");
             abort();
         }
@@ -194,7 +226,10 @@ static void* fiber_manager_thread_func(void* param)
 #ifdef USE_COMPILER_THREAD_LOCAL
     fiber_the_manager = (fiber_manager_t*)param;
 #else
-    const int ret = pthread_setspecific(fiber_manager_key, param);
+    if(!pthread_setspecific_func) {
+        pthread_setspecific_func = (pthread_setspecific_function)fiber_load_symbol("pthread_setspecific");
+    }
+    const int ret = pthread_setspecific_func(fiber_manager_key, param);
     if(ret) {
         assert(0 && "pthread_setspecific() failed!");
         abort();
@@ -207,6 +242,8 @@ static void* fiber_manager_thread_func(void* param)
     }
     return NULL;
 }
+
+typedef int (*pthread_create_function)(pthread_t*, const pthread_attr_t*, void* (*)(void*), void*);
 
 int fiber_manager_set_total_kernel_threads(size_t num_threads)
 {
@@ -243,8 +280,11 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
         fiber_managers[i] = new_manager;
     }
 
+    pthread_create_function pthread_create_func = (pthread_create_function)fiber_load_symbol("pthread_create");
+    assert(pthread_create_func);
+
     for(i = 1; i < num_threads; ++i) {
-        if(pthread_create(&fiber_manager_threads[i], NULL, &fiber_manager_thread_func, fiber_managers[i])) {
+        if(pthread_create_func(&fiber_manager_threads[i], NULL, &fiber_manager_thread_func, fiber_managers[i])) {
             assert(0 && "failed to create kernel thread");
             fiber_manager_state = FIBER_MANAGER_STATE_ERROR;
             abort();

@@ -1,8 +1,12 @@
+#include "fiber_mutex.h"
+#include "fiber_cond.h"
 #include "fiber_manager.h"
+#define __USE_UNIX98
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
+#include <string.h>
 
 #ifdef __GNUC__
 #define STATIC_ASSERT_HELPER(expr, msg) \
@@ -16,6 +20,13 @@
 #endif /* #ifdef __GNUC__ */
 
 STATIC_ASSERT(sizeof(pthread_t) == sizeof(fiber_t*), bad_pthread_t_size);
+STATIC_ASSERT(sizeof(pthread_mutex_t) >= sizeof(fiber_mutex_t*), bad_pthread_t_size);
+STATIC_ASSERT(sizeof(pthread_cond_t) >= sizeof(fiber_cond_t*), bad_pthread_t_size);
+//STATIC_ASSERT(sizeof(pthread_rwlock_t) >= sizeof(fiber_t*), bad_pthread_t_size);
+
+static pthread_mutex_t default_pthread_mutex = PTHREAD_MUTEX_INITIALIZER;
+//static pthread_cond_t default_pthread_cond = PTHREAD_COND_INITIALIZER;
+//static pthread_rwlock_t default_pthread_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 /*int pthread_attr_destroy(pthread_attr_t *)
 {
@@ -271,12 +282,6 @@ void *pthread_getspecific(pthread_key_t key)
     return 0;
 }
 
-int pthread_mutex_destroy(pthread_mutex_t * mutex)
-{
-    //TODO
-    return 0;
-}
-
 int pthread_mutex_getprioceiling(const pthread_mutex_t * mutex, int *prioceiling)
 {
     //TODO
@@ -289,9 +294,63 @@ int pthread_mutex_setprioceiling(pthread_mutex_t * mutex, int prioceiling, int *
     return 0;
 }
 
+typedef struct fiber_pthread_mutex
+{
+    fiber_mutex_t mutex;
+    fiber_t* owner;
+    int type;
+} fiber_pthread_mutex_t;
+
 int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr)
 {
-    //TODO
+    if(!mutex) {
+        return EINVAL;
+    }
+    if(0 == memcmp(mutex, &default_pthread_mutex, sizeof(*mutex))) {
+        return EBUSY;
+    }
+
+    assert(*((fiber_mutex_t**)mutex) == NULL);//this is not necessarily a requirement, but I'd like to know if a system doesn't satisify this
+
+    fiber_pthread_mutex_t* const the_mutex = (fiber_pthread_mutex_t*)malloc(sizeof(fiber_pthread_mutex_t));
+    if(!the_mutex) {
+        return ENOMEM;
+    }
+    if(!fiber_mutex_init(&the_mutex->mutex)) {
+        free(the_mutex);
+        return ENOMEM;
+    }
+    the_mutex->owner = NULL;
+    the_mutex->type = PTHREAD_MUTEX_DEFAULT;
+
+    if(attr) {
+        int pshared = 0;
+        if(pthread_mutexattr_getpshared(attr, &pshared)
+           || pthread_mutexattr_gettype(attr, &the_mutex->type)
+           || pshared) {//fibers do not support pshared
+            fiber_mutex_destroy(&the_mutex->mutex);
+            free(the_mutex);
+            return EINVAL;
+        }
+    }
+
+    *((fiber_pthread_mutex_t**)mutex) = the_mutex;
+
+    return 0;
+}
+
+int pthread_mutex_destroy(pthread_mutex_t * mutex)
+{
+    if(!mutex) {
+        return EINVAL;
+    }
+    fiber_mutex_t* const the_mutex = *((fiber_mutex_t**)mutex);
+    if(!the_mutex) {
+        return EINVAL;
+    }
+    fiber_mutex_destroy(the_mutex);
+    free(the_mutex);
+    memcpy(mutex, &default_pthread_mutex, sizeof(*mutex));
     return 0;
 }
 

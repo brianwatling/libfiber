@@ -3,6 +3,7 @@
 
 #include "fiber_mutex.h"
 #include "mpsc_fifo.h"
+#include <sys/types.h>
 
 /*
     Author: Brian Watling

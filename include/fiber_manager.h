@@ -59,6 +59,8 @@ extern void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* f
 
 extern void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count);
 
+void* fiber_load_symbol(const char* symbol);
+
 #ifdef __cplusplus
 }
 #endif

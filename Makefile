@@ -1,5 +1,5 @@
 
-all: libfiber2.so runtests
+all: libfiber.so runtests
 
 VPATH += src test
 
@@ -10,6 +10,7 @@ CFILES = \
     fiber_cond.c \
     fiber.c \
     work_stealing_deque.c \
+#    fiber_pthread.c \
 
 OS ?= $(shell uname -s)
 
@@ -59,6 +60,10 @@ LDFLAGS += -lrt
 endif
 LINKER_SHARED_FLAG ?= -shared
 
+ifeq ($(OS),Linux)
+LDFLAGS += -ldl
+endif
+
 LDFLAGS += -lpthread
 
 TESTS= \
@@ -85,7 +90,7 @@ TESTBINARIES = $(patsubst %,bin/%,$(TESTS))
 INCLUDES = $(wildcard include/*.h)
 TESTINCLUDES = $(wildcard test/*.h)
 
-libfiber2.so: $(PICOBJS)
+libfiber.so: $(PICOBJS)
 	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@
 
 tests: $(TESTBINARIES)
@@ -96,7 +101,7 @@ runtests: tests
 bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
 	$(CC) $(CFLAGS) -Isrc -c $< -o $@
 
-bin/test_%: bin/test_%.o libfiber2.so
+bin/test_%: bin/test_%.o libfiber.so
 	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@
 
 bin/%.o: %.c $(INCLUDES)
@@ -106,5 +111,5 @@ bin/%.pic.o: %.c $(INCLUDES)
 	$(CC) $(CFLAGS) -DSHARED_LIB -fPIC -c $< -o $@
 
 clean:
-	rm -f bin/* libfiber2.so
+	rm -f bin/* libfiber.so
 
