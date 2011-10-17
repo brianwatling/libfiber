@@ -254,6 +254,7 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
 }
 
 #else
+#define _XOPEN_SOURCE
 #include <ucontext.h>
 #include <stdlib.h>
 

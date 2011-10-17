@@ -4,6 +4,7 @@
 #include "fiber_mutex.h"
 #include "mpsc_fifo.h"
 #include <sys/types.h>
+#include <time.h>
 
 /*
     Author: Brian Watling

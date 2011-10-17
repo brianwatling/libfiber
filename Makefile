@@ -33,11 +33,6 @@ ifeq ($(ARCH),x86)
 CFLAGS += -m32 -march=i686 -DARCH_x86
 endif
 
-FAST_SWITCHING ?= 1
-ifeq ($(FAST_SWITCHING),1)
-CFLAGS += -DFIBER_FAST_SWITCHING
-endif
-
 CFLAGS += -Werror -Wall -Iinclude -ggdb -O0
 
 USE_VALGRIND ?= 0
@@ -47,21 +42,28 @@ endif
 
 ifeq ($(OS),Darwin)
 USE_COMPILER_THREAD_LOCAL ?= 0
-endif
-USE_COMPILER_THREAD_LOCAL ?= 1
-
-ifeq ($(USE_COMPILER_THREAD_LOCAL),1)
-CFLAGS += -DUSE_COMPILER_THREAD_LOCAL
+LDFLAGS += -read_only_relocs suppress
+FAST_SWITCHING ?= 0
 endif
 
 ifeq ($(OS),SunOS)
 LINKER_SHARED_FLAG ?= -G
 LDFLAGS += -lrt
 endif
-LINKER_SHARED_FLAG ?= -shared
 
 ifeq ($(OS),Linux)
 LDFLAGS += -ldl
+endif
+
+USE_COMPILER_THREAD_LOCAL ?= 1
+LINKER_SHARED_FLAG ?= -shared
+FAST_SWITCHING ?= 1
+
+ifeq ($(USE_COMPILER_THREAD_LOCAL),1)
+CFLAGS += -DUSE_COMPILER_THREAD_LOCAL
+endif
+ifeq ($(FAST_SWITCHING),1)
+CFLAGS += -DFIBER_FAST_SWITCHING
 endif
 
 LDFLAGS += -lpthread

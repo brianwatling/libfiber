@@ -19,8 +19,8 @@ void* run_function(void* param)
         }
         test_assert(counter == (myNum + i * NUM_FIBERS));
         ++counter;
-        pthread_mutex_unlock(&mutex);
         pthread_cond_broadcast(&cond);
+        pthread_mutex_unlock(&mutex);
     }
     return NULL;
 }

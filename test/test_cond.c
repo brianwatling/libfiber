@@ -15,13 +15,13 @@ void* run_function(void* param)
     int i;
     for(i = 0; i < PER_FIBER_COUNT; ++i) {
         fiber_mutex_lock(&mutex);
-        while(counter < (myNum + i * NUM_FIBERS) ) {
+        while(counter < (myNum + i * NUM_FIBERS)) {
             fiber_cond_wait(&cond, &mutex);
         }
         test_assert(counter == (myNum + i * NUM_FIBERS));
         ++counter;
-        fiber_mutex_unlock(&mutex);
         fiber_cond_broadcast(&cond);
+        fiber_mutex_unlock(&mutex);
     }
     return NULL;
 }
