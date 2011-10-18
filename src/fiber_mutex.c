@@ -65,6 +65,9 @@ int fiber_mutex_unlock(fiber_mutex_t* mutex)
     //now we can unlock the mutex - before this we hold it since the mutex double-purposes as a lock on the consumer side of the fifo
     __sync_add_and_fetch(&mutex->counter, 1);
 
+    //the lock was contended - be nice and let the waiter run
+    fiber_yield();
+
     return FIBER_SUCCESS;
 }
 
