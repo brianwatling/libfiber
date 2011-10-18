@@ -30,7 +30,7 @@ int fiber_cond_signal(fiber_cond_t* cond)
     fiber_mutex_lock(&cond->internal_mutex);
     if(cond->waiter_count > 0) {
         fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, 1);
-        __sync_fetch_and_sub(&cond->waiter_count, 1);
+        cond->waiter_count -= 1;
     }
     fiber_mutex_unlock(&cond->internal_mutex);
 
@@ -42,11 +42,8 @@ int fiber_cond_broadcast(fiber_cond_t* cond)
     assert(cond);
 
     fiber_mutex_lock(&cond->internal_mutex);
-    const int original = cond->waiter_count;
-    if(original > 0) {
-        fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, original);
-        __sync_fetch_and_sub(&cond->waiter_count, original);
-    }
+    fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, cond->waiter_count);
+    cond->waiter_count = 0;
     fiber_mutex_unlock(&cond->internal_mutex);
 
     return FIBER_SUCCESS;
@@ -62,14 +59,12 @@ int fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex)
 {
     assert(cond);
     assert(mutex);
+
+    fiber_mutex_lock(&cond->internal_mutex);
     assert(!cond->caller_mutex || cond->caller_mutex == mutex);
-
     cond->caller_mutex = mutex;
-
-    //incremenet the waiter count before unlocking the mutex - this allows a
-    //signaller to wait until we've entered the queue before signalling us (ie
-    //if he grabs the mutex after the unlock but before the wait_in_queue)
-    __sync_fetch_and_add(&cond->waiter_count, 1);
+    cond->waiter_count += 1;
+    fiber_mutex_unlock(&cond->internal_mutex);
 
     fiber_mutex_unlock(mutex);
     fiber_manager_wait_in_queue(fiber_manager_get(), &cond->waiters);

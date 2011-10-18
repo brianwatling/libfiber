@@ -20,8 +20,8 @@ void* run_function(void* param)
         }
         test_assert(counter == (myNum + i * NUM_FIBERS));
         ++counter;
-        fiber_cond_broadcast(&cond);
         fiber_mutex_unlock(&mutex);
+        fiber_cond_broadcast(&cond);
     }
     return NULL;
 }
