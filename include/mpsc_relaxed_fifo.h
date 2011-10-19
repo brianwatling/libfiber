@@ -34,7 +34,7 @@ typedef struct mpscr_fifo
 static inline mpscr_fifo_t* mpscr_fifo_create(size_t num_producers)
 {
     assert(num_producers > 0);
-    mpscr_fifo_t* const ret = malloc(sizeof(mpscr_fifo_t) + num_producers * sizeof(spsc_fifo_t));
+    mpscr_fifo_t* const ret = malloc(sizeof(*ret) + num_producers * sizeof(spsc_fifo_t));
     if(!ret) {
         return NULL;
     }
@@ -56,13 +56,14 @@ static inline mpscr_fifo_t* mpscr_fifo_create(size_t num_producers)
 
 static inline void mpscr_fifo_destroy(mpscr_fifo_t* f)
 {
-    assert(f);
-    size_t i;
-    for(i = 0; i < f->num_producers; ++i) {
-        spsc_fifo_t* const the_fifo = &f->fifos[i];
-        spsc_fifo_destroy(the_fifo);
+    if(f) {
+        size_t i;
+        for(i = 0; i < f->num_producers; ++i) {
+            spsc_fifo_t* const the_fifo = &f->fifos[i];
+            spsc_fifo_destroy(the_fifo);
+        }
+        free(f);
     }
-    free(f);
 }
 
 //the FIFO owns new_node after pushing

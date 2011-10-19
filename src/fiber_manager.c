@@ -26,54 +26,32 @@ void fiber_destroy(fiber_t* f)
 
 fiber_manager_t* fiber_manager_create()
 {
-    fiber_manager_t* const manager = malloc(sizeof(fiber_manager_t));
+    fiber_manager_t* const manager = calloc(1, sizeof(*manager));
     if(!manager) {
         errno = ENOMEM;
         return NULL;
     }
 
-    memset(manager, 0, sizeof(*manager));
-
     manager->thread_fiber = fiber_create_from_thread();
-    if(!manager->thread_fiber) {
-        return NULL;
-    }
-
     manager->current_fiber = manager->thread_fiber;
     manager->queue_one = wsd_work_stealing_deque_create();
-    if(!manager->queue_one) {
-        fiber_destroy(manager->thread_fiber);
-        return NULL;
-    }
     manager->queue_two = wsd_work_stealing_deque_create();
-    if(!manager->queue_two) {
-        wsd_work_stealing_deque_destroy(manager->queue_one);
-        fiber_destroy(manager->thread_fiber);
-        return NULL;
-    }
-    manager->done_fibers = wsd_work_stealing_deque_create();
-    if(!manager->done_fibers) {
-        wsd_work_stealing_deque_destroy(manager->queue_two);
-        wsd_work_stealing_deque_destroy(manager->queue_one);
-        fiber_destroy(manager->thread_fiber);
-        return NULL;
-        return NULL;
-    }
-
     manager->schedule_from = manager->queue_one;
     manager->store_to = manager->queue_two;
+    manager->done_fibers = wsd_work_stealing_deque_create();
 
-    return manager;
-}
-
-void fiber_manager_destroy(fiber_manager_t* manager)
-{
-    if(manager) {
-        fiber_destroy(manager->thread_fiber);
+    if(!manager->thread_fiber
+       || !manager->queue_one
+       || !manager->queue_two
+       || !manager->done_fibers) {
         wsd_work_stealing_deque_destroy(manager->queue_one);
         wsd_work_stealing_deque_destroy(manager->queue_two);
         wsd_work_stealing_deque_destroy(manager->done_fibers);
+        fiber_destroy(manager->thread_fiber);
+        free(manager);
+        return NULL;
     }
+    return manager;
 }
 
 void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber)
@@ -113,8 +91,6 @@ static int fiber_load_balance(fiber_manager_t* manager)
     return 1;
 }
 
-//static int fiber_manager_load_balance_guard = 0;
-
 void fiber_manager_yield(fiber_manager_t* manager)
 {
     assert(fiber_manager_state == FIBER_MANAGER_STATE_STARTED);
@@ -128,10 +104,8 @@ void fiber_manager_yield(fiber_manager_t* manager)
     do {
         manager->yield_count += 1;
         //occasionally steal some work from threads with more load
-        //TODO: evaluate whether guarding this is worthwhile
-        if((manager->yield_count & 1023) == 0) {// && __sync_bool_compare_and_swap(&fiber_manager_load_balance_guard, 0, 1)) {
+        if((manager->yield_count & 1023) == 0) {
             fiber_load_balance(manager);
-            //fiber_manager_load_balance_guard = 0;
         }
 
         if(wsd_work_stealing_deque_size(manager->schedule_from) > 0) {
@@ -252,16 +226,13 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
         return FIBER_ERROR;
     }
 
-    fiber_mananger_thread_queues = malloc(2 * num_threads * sizeof(wsd_work_stealing_deque_t*));
+    fiber_mananger_thread_queues = calloc(2 * num_threads, sizeof(*fiber_mananger_thread_queues));
     assert(fiber_mananger_thread_queues);
-    memset(fiber_mananger_thread_queues, 0, 2 * num_threads * sizeof(wsd_work_stealing_deque_t*));
-    fiber_manager_threads = malloc(num_threads * sizeof(pthread_t));
+    fiber_manager_threads = calloc(num_threads, sizeof(*fiber_manager_threads));
     assert(fiber_manager_threads);
-    memset(fiber_manager_threads, 0, num_threads * sizeof(pthread_t));
     fiber_manager_num_threads = num_threads;
-    fiber_managers = malloc(num_threads * sizeof(fiber_manager_t*));
+    fiber_managers = calloc(num_threads, sizeof(*fiber_managers));
     assert(fiber_managers);
-    memset(fiber_managers, 0, num_threads * sizeof(fiber_manager_t*));
 
     fiber_manager_t* const main_manager = fiber_manager_get();
     fiber_mananger_thread_queues[0] = main_manager->queue_one;

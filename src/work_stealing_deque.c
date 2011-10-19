@@ -11,8 +11,6 @@ wsd_circular_array_t* wsd_circular_array_create(size_t log_size)
         return NULL;
     }
 
-    memset(a, 0, sizeof(*a));
-    memset((void*)a->data, 0, data_size * sizeof(wsd_circular_array_elem_t));
     a->log_size = log_size;
     a->size = data_size;
     a->size_minus_one = a->size - 1;
@@ -21,7 +19,6 @@ wsd_circular_array_t* wsd_circular_array_create(size_t log_size)
 
 void wsd_circular_array_destroy(wsd_circular_array_t* a)
 {
-    assert(a);
     free(a);
 }
 
@@ -60,9 +57,10 @@ wsd_work_stealing_deque_t* wsd_work_stealing_deque_create()
 
 void wsd_work_stealing_deque_destroy(wsd_work_stealing_deque_t* d)
 {
-    assert(d);
-    wsd_circular_array_destroy(d->underlying_array);
-    free(d);
+    if(d) {
+        wsd_circular_array_destroy(d->underlying_array);
+        free(d);
+    }
 }
 
 void wsd_work_stealing_deque_push_bottom(wsd_work_stealing_deque_t* d, void* p)

@@ -40,24 +40,23 @@ typedef struct spsc_fifo
 static inline int spsc_fifo_init(spsc_fifo_t* f)
 {
     assert(f);
-    memset(f, 0, sizeof(*f));
-    f->divider = malloc(sizeof(*f->divider));
+    f->divider = calloc(1, sizeof(*f->divider));
+    f->tail = f->divider;
+    f->head = f->divider;
     if(!f->divider) {
         return 0;
     }
-    memset(f->divider, 0, sizeof(*f->divider));
-    f->tail = f->divider;
-    f->head = f->divider;
     return 1;
 }
 
 static inline void spsc_fifo_destroy(spsc_fifo_t* f)
 {
-    assert(f);
-    while(f->head != NULL) {
-        spsc_node_t* const tmp = f->head;
-        f->head = tmp->next;
-        free(tmp);
+    if(f) {
+        while(f->head != NULL) {
+            spsc_node_t* const tmp = f->head;
+            f->head = tmp->next;
+            free(tmp);
+        }
     }
 }
 

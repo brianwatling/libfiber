@@ -37,13 +37,12 @@ fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void
     fiber_manager_t* const manager = fiber_manager_get();
     fiber_t* ret = wsd_work_stealing_deque_pop_bottom(manager->done_fibers);
     if(ret == WSD_EMPTY || ret == WSD_ABORT) {
-        ret = malloc(sizeof(fiber_t));
+        ret = calloc(1, sizeof(*ret));
         if(!ret) {
             errno = ENOMEM;
             return NULL;
         }
-        memset(ret, 0, sizeof(*ret));
-        ret->mpsc_node = malloc(sizeof(mpsc_node_t));
+        ret->mpsc_node = calloc(1, sizeof(*ret->mpsc_node));
         if(!ret->mpsc_node) {
             free(ret);
             errno = ENOMEM;
@@ -74,13 +73,12 @@ fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void
 
 fiber_t* fiber_create_from_thread()
 {
-    fiber_t* const ret = malloc(sizeof(fiber_t));
+    fiber_t* const ret = calloc(1, sizeof(*ret));
     if(!ret) {
         errno = ENOMEM;
         return NULL;
     }
-    memset(ret, 0, sizeof(*ret));
-    ret->mpsc_node = malloc(sizeof(mpsc_node_t));
+    ret->mpsc_node = calloc(1, sizeof(*ret->mpsc_node));
     if(!ret->mpsc_node) {
         free(ret);
         errno = ENOMEM;

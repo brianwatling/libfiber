@@ -34,8 +34,6 @@ extern "C" {
 
 extern fiber_manager_t* fiber_manager_create();
 
-extern void fiber_manager_destroy(fiber_manager_t* manager);
-
 extern void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber);
 
 extern void fiber_manager_yield(fiber_manager_t* manager);
