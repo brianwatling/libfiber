@@ -49,7 +49,7 @@ int fiber_mutex_trylock(fiber_mutex_t* mutex)
     return FIBER_ERROR;
 }
 
-int fiber_mutex_unlock(fiber_mutex_t* mutex)
+int fiber_mutex_unlock_internal(fiber_mutex_t* mutex)
 {
     assert(mutex);
 
@@ -57,16 +57,23 @@ int fiber_mutex_unlock(fiber_mutex_t* mutex)
 
     if(__sync_bool_compare_and_swap(&mutex->counter, 0, 1)) {
         //there's no other fibers waiting
-        return FIBER_SUCCESS;
+        return 0;
     }
 
     //some other fiber is waiting - pop and schedule another fiber
     fiber_manager_wake_from_queue(fiber_manager_get(), &mutex->waiters, 1);
     //now we can unlock the mutex - before this we hold it since the mutex double-purposes as a lock on the consumer side of the fifo
     __sync_add_and_fetch(&mutex->counter, 1);
+    return 1;
+}
 
-    //the lock was contended - be nice and let the waiter run
-    fiber_yield();
+int fiber_mutex_unlock(fiber_mutex_t* mutex)
+{
+    const int contended = fiber_mutex_unlock_internal(mutex);
+    if(contended) {
+        //the lock was contended - be nice and let the waiter run
+        fiber_yield();
+    }
 
     return FIBER_SUCCESS;
 }

@@ -1,7 +1,6 @@
 #ifndef _FIBER_MUTEX_H_
 #define _FIBER_MUTEX_H_
 
-#include "fiber.h"
 #include "mpsc_fifo.h"
 
 /*

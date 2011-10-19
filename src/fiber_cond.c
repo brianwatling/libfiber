@@ -28,9 +28,12 @@ int fiber_cond_signal(fiber_cond_t* cond)
     assert(cond);
 
     fiber_mutex_lock(&cond->internal_mutex);
-    if(cond->waiter_count > 0) {
+    intptr_t new_val = __sync_sub_and_fetch(&cond->waiter_count, 1);
+    if(new_val >= 0) {
         fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, 1);
-        cond->waiter_count -= 1;
+    } else {
+        new_val = __sync_add_and_fetch(&cond->waiter_count, 1);
+        assert(new_val >= 0);
     }
     fiber_mutex_unlock(&cond->internal_mutex);
 
@@ -42,17 +45,13 @@ int fiber_cond_broadcast(fiber_cond_t* cond)
     assert(cond);
 
     fiber_mutex_lock(&cond->internal_mutex);
-    fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, cond->waiter_count);
-    cond->waiter_count = 0;
+    const intptr_t original = (intptr_t)atomic_exchange_pointer((void**)&cond->waiter_count, 0);
+    if(original) {
+        fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, original);
+    }
     fiber_mutex_unlock(&cond->internal_mutex);
 
     return FIBER_SUCCESS;
-}
-
-int fiber_cond_timedwait(fiber_cond_t* cond, fiber_mutex_t* mutex, const struct timespec* abstime)
-{
-    //TODO: implement this. not sure how I want to do it yet.
-    return FIBER_ERROR;
 }
 
 int fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex)
@@ -60,14 +59,11 @@ int fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex)
     assert(cond);
     assert(mutex);
 
-    fiber_mutex_lock(&cond->internal_mutex);
     assert(!cond->caller_mutex || cond->caller_mutex == mutex);
     cond->caller_mutex = mutex;
-    cond->waiter_count += 1;
-    fiber_mutex_unlock(&cond->internal_mutex);
+    __sync_fetch_and_add(&cond->waiter_count, 1);
 
-    fiber_mutex_unlock(mutex);
-    fiber_manager_wait_in_queue(fiber_manager_get(), &cond->waiters);
+    fiber_manager_wait_in_queue_and_unlock(fiber_manager_get(), &cond->waiters, mutex);
     fiber_mutex_lock(mutex);
 
     return FIBER_SUCCESS;

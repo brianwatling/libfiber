@@ -276,6 +276,8 @@ int fiber_manager_get_kernel_thread_count()
     return fiber_manager_num_threads;
 }
 
+extern int fiber_mutex_unlock_internal(fiber_mutex_t* mutex);
+
 void fiber_manager_do_maintenance()
 {
     fiber_manager_t* const manager = fiber_manager_get();
@@ -288,6 +290,12 @@ void fiber_manager_do_maintenance()
     if(manager->mpsc_to_push.fifo) {
         mpsc_fifo_push(manager->mpsc_to_push.fifo, manager->mpsc_to_push.node);
         memset(&manager->mpsc_to_push, 0, sizeof(manager->mpsc_to_push));
+    }
+
+    if(manager->mutex_to_unlock) {
+        fiber_mutex_t* const to_unlock = manager->mutex_to_unlock;
+        manager->mutex_to_unlock = NULL;
+        fiber_mutex_unlock_internal(to_unlock);
     }
 }
 
@@ -306,6 +314,12 @@ void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo)
     fiber_manager_yield(manager);
 }
 
+void fiber_manager_wait_in_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_t* fifo, fiber_mutex_t* mutex)
+{
+    manager->mutex_to_unlock = mutex;
+    fiber_manager_wait_in_queue(manager, fifo);
+}
+
 void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count)
 {
     mpsc_node_t* out = NULL;
@@ -318,10 +332,7 @@ void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, 
             to_schedule->mpsc_node = out;
             to_schedule->state = FIBER_STATE_READY;
             fiber_manager_schedule(manager, to_schedule);
-        } else if(count > 0) { //wait for a while if the queue is empty and we're expected to pop a given number of items
-            fiber_yield();
-            manager = fiber_manager_get();//always grab the current manager after a yield!
-        }
+        }/* TODO: sched yield after a few spins */
     } while(count > 0);
 }
 

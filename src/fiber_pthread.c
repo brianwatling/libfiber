@@ -137,7 +137,8 @@ int pthread_cond_broadcast(pthread_cond_t * cond)
 
 int pthread_cond_timedwait(pthread_cond_t * cond,  pthread_mutex_t * mutex, const struct timespec * abstime)
 {
-    //TODO
+    assert(0 && "ERROR: timed wait not supported by fibers");
+    abort();
     return 0;
 }
 
