@@ -29,13 +29,13 @@ extern "C" {
 
 extern int fiber_mutex_init(fiber_mutex_t* mutex);
 
-extern int fiber_mutex_destroy(fiber_mutex_t* mutex);
+extern void fiber_mutex_destroy(fiber_mutex_t* mutex);
 
-extern int fiber_mutex_lock(fiber_mutex_t* mutex);
+extern void fiber_mutex_lock(fiber_mutex_t* mutex);
 
 extern int fiber_mutex_trylock(fiber_mutex_t* mutex);
 
-extern int fiber_mutex_unlock(fiber_mutex_t* mutex);
+extern void fiber_mutex_unlock(fiber_mutex_t* mutex);
 
 #ifdef __cplusplus
 }

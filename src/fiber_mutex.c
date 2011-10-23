@@ -11,15 +11,14 @@ int fiber_mutex_init(fiber_mutex_t* mutex)
     return FIBER_SUCCESS;
 }
 
-int fiber_mutex_destroy(fiber_mutex_t* mutex)
+void fiber_mutex_destroy(fiber_mutex_t* mutex)
 {
     assert(mutex);
     mutex->counter = 1;
     mpsc_fifo_destroy(&mutex->waiters);
-    return FIBER_SUCCESS;
 }
 
-int fiber_mutex_lock(fiber_mutex_t* mutex)
+void fiber_mutex_lock(fiber_mutex_t* mutex)
 {
     assert(mutex);
 
@@ -27,14 +26,11 @@ int fiber_mutex_lock(fiber_mutex_t* mutex)
     if(val == 0) {
         //we just got the lock, there was no contention
         load_load_barrier();
-        return FIBER_SUCCESS;
     }
 
     //we failed to acquire the lock (there's contention). we'll wait.
     fiber_manager_wait_in_queue(fiber_manager_get(), &mutex->waiters);
     load_load_barrier();
-
-    return FIBER_SUCCESS;
 }
 
 int fiber_mutex_trylock(fiber_mutex_t* mutex)
@@ -67,14 +63,12 @@ int fiber_mutex_unlock_internal(fiber_mutex_t* mutex)
     return 1;
 }
 
-int fiber_mutex_unlock(fiber_mutex_t* mutex)
+void fiber_mutex_unlock(fiber_mutex_t* mutex)
 {
     const int contended = fiber_mutex_unlock_internal(mutex);
     if(contended) {
         //the lock was contended - be nice and let the waiter run
         fiber_yield();
     }
-
-    return FIBER_SUCCESS;
 }
 

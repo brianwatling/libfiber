@@ -25,7 +25,7 @@ STATIC_ASSERT(sizeof(pthread_cond_t) >= sizeof(fiber_cond_t*), bad_pthread_t_siz
 //STATIC_ASSERT(sizeof(pthread_rwlock_t) >= sizeof(fiber_t*), bad_pthread_t_size);
 
 static pthread_mutex_t default_pthread_mutex = PTHREAD_MUTEX_INITIALIZER;
-//static pthread_cond_t default_pthread_cond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t default_pthread_cond = PTHREAD_COND_INITIALIZER;
 //static pthread_rwlock_t default_pthread_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 /*int pthread_attr_destroy(pthread_attr_t *)
@@ -102,6 +102,7 @@ int pthread_attr_setstacksize(pthread_attr_t *, size_t)
 
 int pthread_cancel(pthread_t thread)
 {
+    //TODO
     //NOT IMPLEMENTED!
     return ENOTSUP;//not standard.
 }
@@ -110,61 +111,6 @@ void pthread_testcancel(void)
 {
     //TODO: support cancels?
 }
-
-int pthread_cond_destroy(pthread_cond_t * cond)
-{
-    //TODO
-    return 0;
-}
-
-int pthread_cond_init(pthread_cond_t * cond, const pthread_condattr_t * attr)
-{
-    //TODO
-    return 0;
-}
-
-int pthread_cond_signal(pthread_cond_t * cond)
-{
-    //TODO
-    return 0;
-}
-
-int pthread_cond_broadcast(pthread_cond_t * cond)
-{
-    //TODO
-    return 0;
-}
-
-int pthread_cond_timedwait(pthread_cond_t * cond,  pthread_mutex_t * mutex, const struct timespec * abstime)
-{
-    assert(0 && "ERROR: timed wait not supported by fibers");
-    abort();
-    return 0;
-}
-
-int pthread_cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex)
-{
-    //TODO
-    return 0;
-}
-
-/*
-int pthread_condattr_destroy(pthread_condattr_t *)
-{
-}
-
-int pthread_condattr_getpshared(const pthread_condattr_t *, int *)
-{
-}
-
-int pthread_condattr_init(pthread_condattr_t *)
-{
-}
-
-int pthread_condattr_setpshared(pthread_condattr_t *, int)
-{
-}
-*/
 
 static size_t fiber_default_stack_size = FIBER_DEFAULT_STACK_SIZE;
 static size_t fiber_min_stack_size = FIBER_MIN_STACK_SIZE;
@@ -256,6 +202,7 @@ int pthread_join(pthread_t thread, void ** status)
     if(FIBER_SUCCESS != fiber_join(f)) {
         return EINVAL;
     }
+    //TODO: status should be filled with the fiber's return value.
     return 0;
 }
 
@@ -298,8 +245,9 @@ int pthread_mutex_setprioceiling(pthread_mutex_t * mutex, int prioceiling, int *
 typedef struct fiber_pthread_mutex
 {
     fiber_mutex_t mutex;
-    fiber_t* owner;
     int type;
+    fiber_t* owner;
+    int lock_counter;
 } fiber_pthread_mutex_t;
 
 int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr)
@@ -311,7 +259,7 @@ int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr
         return EBUSY;
     }
 
-    assert(*((fiber_mutex_t**)mutex) == NULL);//this is not necessarily a requirement, but I'd like to know if a system doesn't satisify this
+    assert(*((void**)mutex) == NULL);//this is not necessarily a requirement, but I'd like to know if a system doesn't satisify this
 
     fiber_pthread_mutex_t* const the_mutex = (fiber_pthread_mutex_t*)malloc(sizeof(fiber_pthread_mutex_t));
     if(!the_mutex) {
@@ -323,6 +271,7 @@ int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr
     }
     the_mutex->owner = NULL;
     the_mutex->type = PTHREAD_MUTEX_DEFAULT;
+    the_mutex->lock_counter = 0;
 
     if(attr) {
         int pshared = 0;
@@ -332,6 +281,7 @@ int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr
             fiber_mutex_destroy(&the_mutex->mutex);
             free(the_mutex);
             return EINVAL;
+            //TODO: abort here?
         }
     }
 
@@ -345,11 +295,11 @@ int pthread_mutex_destroy(pthread_mutex_t * mutex)
     if(!mutex) {
         return EINVAL;
     }
-    fiber_mutex_t* const the_mutex = *((fiber_mutex_t**)mutex);
+    fiber_pthread_mutex_t* const the_mutex = *((fiber_pthread_mutex_t**)mutex);
     if(!the_mutex) {
         return EINVAL;
     }
-    fiber_mutex_destroy(the_mutex);
+    fiber_mutex_destroy(&the_mutex->mutex);
     free(the_mutex);
     memcpy(mutex, &default_pthread_mutex, sizeof(*mutex));
     return 0;
@@ -357,20 +307,89 @@ int pthread_mutex_destroy(pthread_mutex_t * mutex)
 
 int pthread_mutex_lock(pthread_mutex_t * mutex)
 {
-    //TODO
-    //TODO: implement the various mutex options, such as PTHREAD_MUTEX_ERRORCHECK
+    if(!mutex) {
+        return EINVAL;
+    }
+    fiber_pthread_mutex_t* const the_mutex = *((fiber_pthread_mutex_t**)mutex);
+    if(!the_mutex) {
+        return EINVAL;
+    }
+
+    if(the_mutex->type == PTHREAD_MUTEX_ERRORCHECK && the_mutex->owner == fiber_manager_get()->current_fiber) {
+        return EDEADLK;
+    }
+
+    if(the_mutex->type == PTHREAD_MUTEX_RECURSIVE) {
+        if(the_mutex->owner == fiber_manager_get()->current_fiber) {
+            the_mutex->lock_counter += 1;
+            return 0;
+        }
+    }
+
+    fiber_mutex_lock(&the_mutex->mutex);
+
+    if(the_mutex->type == PTHREAD_MUTEX_RECURSIVE) {
+        assert(!the_mutex->owner);
+        assert(the_mutex->lock_counter == 0);
+        the_mutex->lock_counter = 1;
+    }
+    the_mutex->owner = fiber_manager_get()->current_fiber;
+    //TODO: implement priorities?
     return 0;
 }
 
 int pthread_mutex_trylock(pthread_mutex_t * mutex)
 {
-    //TODO
+    fiber_pthread_mutex_t* const the_mutex = *((fiber_pthread_mutex_t**)mutex);
+    if(!the_mutex) {
+        return EINVAL;
+    }
+
+    if(the_mutex->type == PTHREAD_MUTEX_RECURSIVE) {
+        if(the_mutex->owner == fiber_manager_get()->current_fiber) {
+            the_mutex->lock_counter += 1;
+            return 0;
+        }
+    }
+
+    const int ret = fiber_mutex_trylock(&the_mutex->mutex);
+    if(ret != FIBER_SUCCESS) {
+        return EBUSY;
+    }
+
+    if(the_mutex->type == PTHREAD_MUTEX_RECURSIVE) {
+        assert(!the_mutex->owner);
+        assert(the_mutex->lock_counter == 0);
+        the_mutex->lock_counter = 1;
+    }
+    the_mutex->owner = fiber_manager_get()->current_fiber;
+
     return 0;
 }
 
 int pthread_mutex_unlock(pthread_mutex_t * mutex)
 {
-    //TODO
+    fiber_pthread_mutex_t* const the_mutex = *((fiber_pthread_mutex_t**)mutex);
+    if(!the_mutex) {
+        return EINVAL;
+    }
+
+    if(the_mutex->type == PTHREAD_MUTEX_ERRORCHECK || the_mutex->type == PTHREAD_MUTEX_RECURSIVE) {
+        if(!the_mutex->owner || the_mutex->owner != fiber_manager_get()->current_fiber) {
+            return EPERM;
+        }
+    }
+
+    if(the_mutex->type == PTHREAD_MUTEX_RECURSIVE) {
+        the_mutex->lock_counter -= 1;
+        if(the_mutex->lock_counter) {
+            return 0;
+        }
+    }
+
+    the_mutex->owner = NULL;
+    fiber_mutex_unlock(&the_mutex->mutex);
+
     return 0;
 }
 
@@ -415,6 +434,118 @@ int pthread_mutexattr_settype(pthread_mutexattr_t *, int)
 {
 }
 */
+
+/*
+int pthread_condattr_destroy(pthread_condattr_t *)
+{
+}
+
+int pthread_condattr_getpshared(const pthread_condattr_t *, int *)
+{
+}
+
+int pthread_condattr_init(pthread_condattr_t *)
+{
+}
+
+int pthread_condattr_setpshared(pthread_condattr_t *, int)
+{
+}
+*/
+
+int pthread_cond_init(pthread_cond_t * cond, const pthread_condattr_t * attr)
+{
+    if(!cond) {
+        return EINVAL;
+    }
+    if(0 == memcmp(cond, &default_pthread_cond, sizeof(*cond))) {
+        return EBUSY;
+    }
+
+    assert(*((void**)cond) == NULL);//this is not necessarily a requirement, but I'd like to know if a system doesn't satisify this
+
+    if(attr) {
+        int pshared = 0;
+        if(pthread_condattr_getpshared(attr, &pshared) || pshared) {
+            return EINVAL;
+        }
+    }
+
+    fiber_cond_t* const the_cond = (fiber_cond_t*)malloc(sizeof(fiber_cond_t));
+    if(!the_cond) {
+        return ENOMEM;
+    }
+
+    if(!fiber_cond_init(the_cond)) {
+        return ENOMEM;
+    }
+
+    *((fiber_cond_t**)cond) = the_cond;
+
+    return 0;
+}
+
+int pthread_cond_destroy(pthread_cond_t * cond)
+{
+    if(!cond) {
+        return EINVAL;
+    }
+
+    fiber_cond_t* const the_cond = *((fiber_cond_t**)cond);
+
+    if(the_cond->waiter_count) {//best effort
+        return EBUSY;
+    }
+
+    fiber_cond_destroy(the_cond);
+    free(the_cond);
+    memcpy(cond, &default_pthread_cond, sizeof(*cond));
+
+    return 0;
+}
+
+int pthread_cond_signal(pthread_cond_t * cond)
+{
+    if(!cond) {
+        return EINVAL;
+    }
+    fiber_cond_signal(*((fiber_cond_t**)cond));
+    return 0;
+}
+
+int pthread_cond_broadcast(pthread_cond_t * cond)
+{
+    if(!cond) {
+        return EINVAL;
+    }
+    fiber_cond_broadcast(*((fiber_cond_t**)cond));
+    return 0;
+}
+
+int pthread_cond_timedwait(pthread_cond_t * cond,  pthread_mutex_t * mutex, const struct timespec * abstime)
+{
+    //TODO
+    assert(0 && "ERROR: timed wait not supported by fibers");
+    abort();
+    return 0;
+}
+
+int pthread_cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex)
+{
+    if(!cond) {
+        return EINVAL;
+    }
+    fiber_cond_t* const the_cond = *((fiber_cond_t**)cond);
+    fiber_pthread_mutex_t* the_mutex = *((fiber_pthread_mutex_t**)mutex);
+    if(the_cond->caller_mutex && &the_mutex->mutex != the_cond->caller_mutex) {
+        return EINVAL;
+    }
+    if(the_mutex->owner != fiber_manager_get()->current_fiber) {
+        return EPERM;
+    }
+    fiber_cond_wait(the_cond, &the_mutex->mutex);
+    return 0;
+}
 
 /*
 int pthread_once(pthread_once_t *, void (*)(void))
@@ -489,12 +620,14 @@ pthread_t pthread_self(void)
 int pthread_setcancelstate(int state, int * oldstate)
 {
     //NOT IMPLEMENTED!
+    //TODO
     return 0;
 }
 
 int pthread_setcanceltype(int type, int * oldtype)
 {
     //NOT IMPLEMENTED!
+    //TODO
     return 0;
 }
 
@@ -522,12 +655,40 @@ int pthread_getconcurrency(void)
 int pthread_setschedparam(pthread_t thread, int policy, const struct sched_param * param)
 {
     //NOT IMPLEMENTED!
+    //TODO
     return ENOTSUP;
 }
 
 int pthread_getschedparam(pthread_t thread, int * policy, struct sched_param * param)
 {
     //NOT IMPLEMENTED!
+    //TODO
     return ENOTSUP;//not standard.
 }
 
+//TODO:
+/*
+< pthread_atfork
+< pthread_barrier_destroy
+< pthread_barrier_init
+< pthread_barrier_wait
+< pthread_getaffinity_np
+< pthread_getcpuclockid
+< pthread_getname_np
+< pthread_mutex_consistent
+< pthread_mutex_consistent_np
+< pthread_mutex_timedlock
+< pthread_rwlock_timedrdlock
+< pthread_rwlock_timedwrlock
+< pthread_setaffinity_np
+< pthread_setname_np
+< pthread_setschedprio
+< pthread_spin_destroy
+< pthread_spin_init
+< pthread_spin_lock
+< pthread_spin_trylock
+< pthread_spin_unlock
+< pthread_timedjoin_np
+< pthread_tryjoin_np
+< pthread_yield
+*/

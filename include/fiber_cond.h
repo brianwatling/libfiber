@@ -30,11 +30,11 @@ extern int fiber_cond_init(fiber_cond_t* cond);
 
 extern void fiber_cond_destroy(fiber_cond_t* cond);
 
-extern int fiber_cond_signal(fiber_cond_t* cond);
+extern void fiber_cond_signal(fiber_cond_t* cond);
 
-extern int fiber_cond_broadcast(fiber_cond_t* cond);
+extern void fiber_cond_broadcast(fiber_cond_t* cond);
 
-extern int fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex);
+extern void fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex);
 
 #ifdef __cplusplus
 }
