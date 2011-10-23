@@ -1,8 +1,6 @@
 #ifndef _FIBER_MUTEX_H_
 #define _FIBER_MUTEX_H_
 
-#include "mpsc_fifo.h"
-
 /*
     Author: Brian Watling
     Email: brianwatling@hotmail.com
@@ -16,6 +14,8 @@
                  the counter. The unlocker must wake up a waiter if the counter is not 1
                  after an unlock operation (ie. other fibers were waiting).
 */
+
+#include "mpsc_fifo.h"
 
 typedef struct fiber_mutex
 {
