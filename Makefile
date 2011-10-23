@@ -1,5 +1,5 @@
 
-all: libfiber.so runtests
+all: libfiber.so libfiber_pthread.so runtests
 
 VPATH += src test
 
@@ -10,7 +10,9 @@ CFILES = \
     fiber_cond.c \
     fiber.c \
     work_stealing_deque.c \
-#    fiber_pthread.c \
+
+PTHREAD_CFILES = \
+    fiber_pthread.c \
 
 OS ?= $(shell uname -s)
 
@@ -87,11 +89,16 @@ CC ?= /usr/bin/c99
 
 OBJS = $(patsubst %.c,bin/%.o,$(CFILES))
 PICOBJS = $(patsubst %.c,bin/%.pic.o,$(CFILES))
+PTHREAD_OBJS = $(patsubst %.c,bin/%.o,$(CFILES) $(PTHREAD_CFILES))
+PTHREAD_PICOBJS = $(patsubst %.c,bin/%.pic.o,$(CFILES) $(PTHREAD_CFILES))
 TESTBINARIES = $(patsubst %,bin/%,$(TESTS))
 INCLUDES = $(wildcard include/*.h)
 TESTINCLUDES = $(wildcard test/*.h)
 
 libfiber.so: $(PICOBJS)
+	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGSAFTER)
+
+libfiber_pthread.so: $(PTHREAD_PICOBJS)
 	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGSAFTER)
 
 tests: $(TESTBINARIES)
@@ -112,5 +119,5 @@ bin/%.pic.o: %.c $(INCLUDES)
 	$(CC) $(CFLAGS) -DSHARED_LIB -fPIC -c $< -o $@
 
 clean:
-	rm -f bin/* libfiber.so
+	rm -f bin/* libfiber.so libfiber_pthread.so
 

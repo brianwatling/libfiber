@@ -40,8 +40,9 @@ void pthread_testcancel(void)
     //TODO: support cancels?
 }
 
-static size_t fiber_default_stack_size = FIBER_DEFAULT_STACK_SIZE;
-static size_t fiber_min_stack_size = FIBER_MIN_STACK_SIZE;
+static size_t fiber_default_stack_size = 0;
+static size_t fiber_min_stack_size = 0;
+static size_t fiber_system_threads = 0;
 
 static void read_env_size_t(const char* name, size_t default_value, size_t* out)
 {
@@ -54,6 +55,12 @@ static void read_env_size_t(const char* name, size_t default_value, size_t* out)
     } else {
         *out = default_value;
     }
+}
+
+__attribute__((__constructor__)) void init_fiber_pthread()
+{
+    read_env_size_t("FIBER_SYSTEM_THREADS", 1, &fiber_system_threads);
+    fiber_manager_set_total_kernel_threads(fiber_system_threads);
 }
 
 int pthread_create(pthread_t * thread, const pthread_attr_t * attr, void *(*start_routine)(void *), void *arg)
@@ -183,11 +190,6 @@ int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr
     if(!mutex) {
         return EINVAL;
     }
-    if(0 == memcmp(mutex, &default_pthread_mutex, sizeof(*mutex))) {
-        return EBUSY;
-    }
-
-    assert(*((void**)mutex) == NULL);//this is not necessarily a requirement, but I'd like to know if a system doesn't satisify this
 
     fiber_pthread_mutex_t* const the_mutex = (fiber_pthread_mutex_t*)malloc(sizeof(fiber_pthread_mutex_t));
     if(!the_mutex) {
@@ -326,11 +328,6 @@ int pthread_cond_init(pthread_cond_t * cond, const pthread_condattr_t * attr)
     if(!cond) {
         return EINVAL;
     }
-    if(0 == memcmp(cond, &default_pthread_cond, sizeof(*cond))) {
-        return EBUSY;
-    }
-
-    assert(*((void**)cond) == NULL);//this is not necessarily a requirement, but I'd like to know if a system doesn't satisify this
 
     if(attr) {
         int pshared = 0;
@@ -411,7 +408,10 @@ int pthread_cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex)
     if(the_mutex->owner != fiber_manager_get()->current_fiber) {
         return EPERM;
     }
+
+    the_mutex->owner = NULL;//fiber_cond_wait doesn't maintain the mutex for us!
     fiber_cond_wait(the_cond, &the_mutex->mutex);
+    the_mutex->owner = fiber_manager_get()->current_fiber;//fiber_cond_wait doesn't maintain the mutex for us!
     return 0;
 }
 
@@ -560,3 +560,4 @@ int pthread_getschedparam(pthread_t thread, int * policy, struct sched_param * p
 < pthread_tryjoin_np
 < pthread_yield
 */
+

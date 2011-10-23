@@ -23,7 +23,7 @@ void fiber_cond_destroy(fiber_cond_t* cond)
     memset(cond, 0, sizeof(*cond));
 }
 
-void fiber_cond_signal(fiber_cond_t* cond)
+int fiber_cond_signal(fiber_cond_t* cond)
 {
     assert(cond);
 
@@ -36,9 +36,11 @@ void fiber_cond_signal(fiber_cond_t* cond)
         assert(new_val >= 0);
     }
     fiber_mutex_unlock(&cond->internal_mutex);
+
+    return FIBER_SUCCESS;
 }
 
-void fiber_cond_broadcast(fiber_cond_t* cond)
+int fiber_cond_broadcast(fiber_cond_t* cond)
 {
     assert(cond);
 
@@ -48,9 +50,11 @@ void fiber_cond_broadcast(fiber_cond_t* cond)
         fiber_manager_wake_from_queue(fiber_manager_get(), &cond->waiters, original);
     }
     fiber_mutex_unlock(&cond->internal_mutex);
+
+    return FIBER_SUCCESS;
 }
 
-void fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex)
+int fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex)
 {
     assert(cond);
     assert(mutex);
@@ -61,5 +65,7 @@ void fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t * mutex)
 
     fiber_manager_wait_in_queue_and_unlock(fiber_manager_get(), &cond->waiters, mutex);
     fiber_mutex_lock(mutex);
+
+    return FIBER_SUCCESS;
 }
 
