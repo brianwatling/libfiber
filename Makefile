@@ -52,12 +52,13 @@ LDFLAGS += -lrt
 endif
 
 ifeq ($(OS),Linux)
-LDFLAGS += -ldl
+LDFLAGSAFTER += -ldl
 endif
 
 USE_COMPILER_THREAD_LOCAL ?= 1
 LINKER_SHARED_FLAG ?= -shared
 FAST_SWITCHING ?= 1
+LDFLAGSAFTER ?= 
 
 ifeq ($(USE_COMPILER_THREAD_LOCAL),1)
 CFLAGS += -DUSE_COMPILER_THREAD_LOCAL
@@ -65,8 +66,6 @@ endif
 ifeq ($(FAST_SWITCHING),1)
 CFLAGS += -DFIBER_FAST_SWITCHING
 endif
-
-LDFLAGS += -lpthread
 
 TESTS= \
     test_context \
@@ -93,18 +92,18 @@ INCLUDES = $(wildcard include/*.h)
 TESTINCLUDES = $(wildcard test/*.h)
 
 libfiber.so: $(PICOBJS)
-	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@
+	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGSAFTER)
 
 tests: $(TESTBINARIES)
 
 runtests: tests
-	for cur in $(TESTS); do echo $$cur; time ./bin/$$cur > /dev/null; if [ "$$?" -ne "0" ] ; then echo "ERROR $$cur - failed!"; fi; done
+	for cur in $(TESTS); do echo $$cur; LD_LIBRARY_PATH=..:$$LD_LIBRARY_PATH time ./bin/$$cur > /dev/null; if [ "$$?" -ne "0" ] ; then echo "ERROR $$cur - failed!"; fi; done
 
 bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
 	$(CC) $(CFLAGS) -Isrc -c $< -o $@
 
 bin/test_%: bin/test_%.o libfiber.so
-	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@
+	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@ -lpthread
 
 bin/%.o: %.c $(INCLUDES)
 	$(CC) $(CFLAGS) -c $< -o $@
