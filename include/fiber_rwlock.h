@@ -1,5 +1,5 @@
-#ifndef _FIBER_MUTEX_H_
-#define _FIBER_MUTEX_H_
+#ifndef _FIBER_RWLOCK_H_
+#define _FIBER_RWLOCK_H_
 
 /*
     Author: Brian Watling
