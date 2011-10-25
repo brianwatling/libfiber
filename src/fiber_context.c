@@ -94,6 +94,10 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
 {
     assert(from_context);
     assert(to_context);
+
+    /* from_sp needs to be a pointer (to a pointer to a pointer) so
+       that we can modify the context struct from the assembly code
+       below */
     void*** const from_sp = &from_context->ctx_stack_pointer;
     void** const to_sp = to_context->ctx_stack_pointer;
 	__builtin_prefetch (to_sp, 1, 3);
@@ -108,18 +112,30 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
 	__builtin_prefetch (to_sp-64/4, 0, 3);
 
     __asm__ volatile
-    ("\n\t pushl %%ebp"
-     "\n\t pushl %[from]"
-     "\n\t pushl %[to]"
-     "\n\t pushl $0f"
-     "\n\t movl %%esp, (%[from])" 
-     "\n\t movl %[to], %%esp"
-     "\n\t popl %%ecx" 
-     "\n\t jmp  *%%ecx"
-     "\n0:\t popl %[to]"
-     "\n\t popl %[from]"
-     "\n\t popl %%ebp"
-     :: 
+    ("\n\t pushl %%ebp" // save the basepointer on the current stack
+
+     "\n\t pushl %[from]" /* Save the pointer to this fiber's
+                             context's stackpointer (it's not the same
+                             as current %esp) on the current stack */
+     "\n\t pushl %[to]"   /* Save the target stackpointer on the
+                             current stack */
+     "\n\t pushl $0f "    /* Save this fiber's resume program conter
+                             on the current stack. This is where we
+                             will continue executing when someone
+                             swaps back to this fiber. */
+     "\n\t movl %%esp, (%[from])" /* Save the current stackpointer in
+                                     this fiber's context struct */
+     "\n\t movl %[to], %%esp"     // switch to the target fiber's stack
+     "\n\t popl %%ecx"            /* get the target fiber's program
+                                     counter(function pointer) */
+     "\n\t jmp  *%%ecx"           // run the target fiber
+
+     /* At this point someone switched back to this fiber and we can
+        resume execution again */
+     "\n0:\t popl %[to]" // remove the saved target stackpointer from the stack
+     "\n\t popl %[from]" // remove the saved source stackpointer from the stack
+     "\n\t popl %%ebp"   // restore this fiber's basepointer from the stack
+     ::
      [from] "a" (from_sp),
      [to]   "d" (to_sp)
      :
