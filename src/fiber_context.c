@@ -114,11 +114,6 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
     __asm__ volatile
     ("\n\t pushl %%ebp" // save the basepointer on the current stack
 
-     "\n\t pushl %[from]" /* Save the pointer to this fiber's
-                             context's stackpointer (it's not the same
-                             as current %esp) on the current stack */
-     "\n\t pushl %[to]"   /* Save the target stackpointer on the
-                             current stack */
      "\n\t pushl $0f "    /* Save this fiber's resume program conter
                              on the current stack. This is where we
                              will continue executing when someone
@@ -132,9 +127,7 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
 
      /* At this point someone switched back to this fiber and we can
         resume execution again */
-     "\n0:\t popl %[to]" // remove the saved target stackpointer from the stack
-     "\n\t popl %[from]" // remove the saved source stackpointer from the stack
-     "\n\t popl %%ebp"   // restore this fiber's basepointer from the stack
+     "\n0:\t popl %%ebp"   // restore this fiber's basepointer from the stack
      ::
      [from] "a" (from_sp),
      [to]   "d" (to_sp)
