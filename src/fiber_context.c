@@ -149,16 +149,16 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
         DEALINGS IN THE SOFTWARE.
     */
 
-	__builtin_prefetch (to_sp, 1, 3);
-	__builtin_prefetch (to_sp, 0, 3);
-	__builtin_prefetch (to_sp+64/4, 1, 3);
-	__builtin_prefetch (to_sp+64/4, 0, 3);
-	__builtin_prefetch (to_sp+32/4, 1, 3);
-	__builtin_prefetch (to_sp+32/4, 0, 3);
-	__builtin_prefetch (to_sp-32/4, 1, 3);
-	__builtin_prefetch (to_sp-32/4, 0, 3);
-	__builtin_prefetch (to_sp-64/4, 1, 3);
-	__builtin_prefetch (to_sp-64/4, 0, 3);
+    __builtin_prefetch (to_sp, 1, 3);
+    __builtin_prefetch (to_sp, 0, 3);
+    __builtin_prefetch (to_sp+64/4, 1, 3);
+    __builtin_prefetch (to_sp+64/4, 0, 3);
+    __builtin_prefetch (to_sp+32/4, 1, 3);
+    __builtin_prefetch (to_sp+32/4, 0, 3);
+    __builtin_prefetch (to_sp-32/4, 1, 3);
+    __builtin_prefetch (to_sp-32/4, 0, 3);
+    __builtin_prefetch (to_sp-64/4, 1, 3);
+    __builtin_prefetch (to_sp-64/4, 0, 3);
 
     __asm__ volatile
     ("\n\t pushl %%ebp"
@@ -214,12 +214,10 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     *--context->ctx_stack_pointer = (void*)run_function;
     *--context->ctx_stack_pointer = 0;// rbp
     *--context->ctx_stack_pointer = 0;// rbx
-    *--context->ctx_stack_pointer = 0;// rax
-    *--context->ctx_stack_pointer = 0;// rdx
-/*    *--context->ctx_stack_pointer = 0;// r12
+    *--context->ctx_stack_pointer = 0;// r12
     *--context->ctx_stack_pointer = 0;// r13
     *--context->ctx_stack_pointer = 0;// r14
-    *--context->ctx_stack_pointer = 0;// r15*/
+    *--context->ctx_stack_pointer = 0;// r15
 
     STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
@@ -246,57 +244,6 @@ void fiber_destroy_context(fiber_context_t* context)
     }
 }
 
-/*	__builtin_prefetch ((void**)to_sp, 1, 3);
-	__builtin_prefetch ((void**)to_sp, 0, 3);
-	__builtin_prefetch ((void**)to_sp+64/4, 1, 3);
-	__builtin_prefetch ((void**)to_sp+64/4, 0, 3);
-	__builtin_prefetch ((void**)to_sp+32/4, 1, 3);
-	__builtin_prefetch ((void**)to_sp+32/4, 0, 3);
-	__builtin_prefetch ((void**)to_sp-32/4, 1, 3);
-	__builtin_prefetch ((void**)to_sp-32/4, 0, 3);
-	__builtin_prefetch ((void**)to_sp-64/4, 1, 3);
-	__builtin_prefetch ((void**)to_sp-64/4, 0, 3);
-
-    __asm__ volatile
-    (
-        "leaq 1f(%%rip), %%rax\n\t"
-        "movq %%rax, (%0)\n\t"
-        "movq %%rsp, 8(%0)\n\t"
-        "movq %%rbp, 16(%0)\n\t"
-        "movq $0, 24(%0)\n\t"
-        "movq 24(%1), %%rdi\n\t"
-        "movq 16(%1), %%rbp\n\t"
-        "movq 8(%1), %%rsp\n\t"
-        "jmpq *(%1)\n"
-        "1:\n"
-        : "+D" (from_sp), "+S" (to_sp) :
-        : "rax", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory", "cc"
-    );
-
-    __asm__ volatile
-    (
-        "movq  32(%%rsi), %%rcx\n\t"
-        "pushq %%rbp\n\t"
-        "pushq %%rbx\n\t"
-        "pushq %%rax\n\t"
-        "pushq %%rdx\n\t"
-        "movq  %%rsp, (%%rdi)\n\t"
-        "movq  %%rsi, %%rsp\n\t"
-        "popq  %%rdx\n\t"
-        "popq  %%rax\n\t"
-        "popq  %%rbx\n\t"
-        "popq  %%rbp\n\t"
-        "movq  48(%%rsi), %%rdi\n\t"
-        "add   $8, %%rsp\n\t"
-        "jmp   *%%rcx\n\t"
-        "ud2\n\t"
-        //: "+D" (from_sp), "+S" (to_sp)
-        :
-        : [from] "D" (from_sp),
-          [to]   "S" (to_sp)
-    );
-*/
-
 void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context)
 {
     assert(from_context);
@@ -304,30 +251,37 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
     void*** const from_sp = &from_context->ctx_stack_pointer;
     void** const to_sp = to_context->ctx_stack_pointer;
 
+    __builtin_prefetch ((void**)to_sp, 1, 3);
+    __builtin_prefetch ((void**)to_sp, 0, 3);
+    __builtin_prefetch ((void**)to_sp+64/4, 1, 3);
+    __builtin_prefetch ((void**)to_sp+64/4, 0, 3);
+    __builtin_prefetch ((void**)to_sp+32/4, 1, 3);
+    __builtin_prefetch ((void**)to_sp+32/4, 0, 3);
+    __builtin_prefetch ((void**)to_sp-32/4, 1, 3);
+    __builtin_prefetch ((void**)to_sp-32/4, 0, 3);
+    __builtin_prefetch ((void**)to_sp-64/4, 1, 3);
+    __builtin_prefetch ((void**)to_sp-64/4, 0, 3);
+
     __asm__ volatile
     (
-        "leaq 0f(%%rip), %%rcx\n\t"
-        "pushq %%rcx\n\t"
-        "movq  32(%[to]), %%rcx\n\t"
+        "leaq 0f(%%rip), %%rax\n\t"
+        "movq  48(%[to]), %%rcx\n\t"
+        "pushq %%rax\n\t"
         "pushq %%rbp\n\t"
         "pushq %%rbx\n\t"
-        "pushq %%rax\n\t"
-        "pushq %%rdx\n\t"
-/*        "pushq %%r12\n\t"
+        "pushq %%r12\n\t"
         "pushq %%r13\n\t"
         "pushq %%r14\n\t"
-        "pushq %%r15\n\t"*/
+        "pushq %%r15\n\t"
         "movq  %%rsp, (%[from])\n\t"
         "movq  %[to], %%rsp\n\t"
-/*        "popq  %%r15\n\t"
+        "popq  %%r15\n\t"
         "popq  %%r14\n\t"
         "popq  %%r13\n\t"
-        "popq  %%r12\n\t"*/
-        "popq  %%rdx\n\t"
-        "popq  %%rax\n\t"
+        "popq  %%r12\n\t"
         "popq  %%rbx\n\t"
         "popq  %%rbp\n\t"
-        "movq  48(%[to]), %[from]\n\t"
+        "movq  64(%[to]), %[from]\n\t"
         "add   $8, %%rsp\n\t"
         "jmp   *%%rcx\n\t"
         "ud2\n\t"
