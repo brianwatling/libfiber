@@ -32,6 +32,7 @@ void* pop_func(void* p)
 {
     intptr_t thr = (intptr_t)p;
     intptr_t last = 0;
+    (void)last;
     intptr_t counter = 0;
     while(!done[thr]) {
         mpmc_queue_node_t* head = NULL;

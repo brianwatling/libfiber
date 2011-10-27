@@ -25,12 +25,16 @@ void* run_function(void* param)
 int main()
 {
     fiber_manager_set_total_kernel_threads(NUM_THREADS);
-
+    usleep(500000);
     printf("starting %d fibers with %d backing threads, running %d yields per fiber\n", NUM_FIBERS, NUM_THREADS, PER_FIBER_COUNT);
     fiber_t* fibers[NUM_FIBERS] = {};
     int i;
     for(i = 0; i < NUM_FIBERS; ++i) {
         fibers[i] = fiber_create(100000, &run_function, NULL);
+        if(!fibers[i]) {
+            printf("failed to create fiber!\n");
+            return 1;
+        }
     }
 
     for(i = 0; i < NUM_FIBERS; ++i) {
