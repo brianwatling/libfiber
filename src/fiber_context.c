@@ -171,12 +171,12 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
      :
      : [from] "a" (from_sp),
        [to]   "d" (to_sp)
-     : "cc", 
+     : "cc",
      "%ecx",
 #ifndef SHARED_LIB
-     "%ebx", 
+     "%ebx",
 #endif
-     "%edi", 
+     "%edi",
      "%esi",
      "%st", "%st(1)", "%st(2)", "%st(3)", "%st(4)", "%st(5)", "%st(6)", "%st(7)",
      "memory"
@@ -189,8 +189,6 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
 #elif defined(__x86_64__) && defined(FIBER_FAST_SWITCHING)
 #include <stdlib.h>
 
-#define FIBER_REGISTER_DUMP_SIZE (sizeof(void*) * 8)
-
 int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param)
 {
     if(!context || !stack_size || !run_function) {
@@ -198,7 +196,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
         return FIBER_ERROR;
     }
 
-    context->ctx_stack_size = fiber_round_to_page_size(stack_size + FIBER_REGISTER_DUMP_SIZE);
+    context->ctx_stack_size = fiber_round_to_page_size(stack_size);
     context->ctx_stack = mmap(0, context->ctx_stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if(MAP_FAILED == context->ctx_stack) {
         errno = ENOMEM;
@@ -210,16 +208,18 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
         return FIBER_ERROR;
     }
 
-    /*ctx_stack_pointer will point at a spot reserved for dumping registers*/
-    context->ctx_stack_pointer = (void*)((char*)context->ctx_stack + context->ctx_stack_size - FIBER_REGISTER_DUMP_SIZE);
-    context->ctx_stack_pointer[0] = (void*)run_function;
-    context->ctx_stack_pointer[1] = (void*)((char*)(context->ctx_stack) + context->ctx_stack_size - sizeof(void*) - FIBER_REGISTER_DUMP_SIZE);
-    context->ctx_stack_pointer[2] = NULL;
-    context->ctx_stack_pointer[3] = param;
-    context->ctx_stack_pointer[4] = NULL;
-    context->ctx_stack_pointer[5] = NULL;
-    context->ctx_stack_pointer[6] = NULL;
-    context->ctx_stack_pointer[7] = NULL;
+    context->ctx_stack_pointer = (void**)((char*)context->ctx_stack + context->ctx_stack_size) - 1;
+    *--context->ctx_stack_pointer = param;
+    *--context->ctx_stack_pointer = NULL; /*dummy return address*/
+    *--context->ctx_stack_pointer = (void*)run_function;
+    *--context->ctx_stack_pointer = 0;// rbp
+    *--context->ctx_stack_pointer = 0;// rbx
+    *--context->ctx_stack_pointer = 0;// rax
+    *--context->ctx_stack_pointer = 0;// rdx
+/*    *--context->ctx_stack_pointer = 0;// r12
+    *--context->ctx_stack_pointer = 0;// r13
+    *--context->ctx_stack_pointer = 0;// r14
+    *--context->ctx_stack_pointer = 0;// r15*/
 
     STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
@@ -234,36 +234,19 @@ int fiber_make_context_from_thread(fiber_context_t* context)
         return FIBER_ERROR;
     }
     memset(context, 0, sizeof(*context));
-    context->ctx_stack_pointer = malloc(FIBER_REGISTER_DUMP_SIZE);
-    if(!context->ctx_stack_pointer) {
-        errno = ENOMEM;
-        return FIBER_ERROR;
-    }
     context->is_thread = 1;
     return FIBER_SUCCESS;
 }
 
 void fiber_destroy_context(fiber_context_t* context)
 {
-    if(!context) {
-        return;
-    }
-    if(!context->is_thread) {
+    if(context && !context->is_thread) {
         STACK_DEREGISTER(context);
         munmap(context->ctx_stack, context->ctx_stack_size);
-    } else if(context->ctx_stack_pointer) {
-        free(context->ctx_stack_pointer);
     }
 }
 
-void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context)
-{
-    assert(from_context);
-    assert(to_context);
-    void* from_sp = from_context->ctx_stack_pointer;
-    void* to_sp = to_context->ctx_stack_pointer;
-    //prefetching copied from boost::coroutine
-	__builtin_prefetch ((void**)to_sp, 1, 3);
+/*	__builtin_prefetch ((void**)to_sp, 1, 3);
 	__builtin_prefetch ((void**)to_sp, 0, 3);
 	__builtin_prefetch ((void**)to_sp+64/4, 1, 3);
 	__builtin_prefetch ((void**)to_sp+64/4, 0, 3);
@@ -288,6 +271,72 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
         "1:\n"
         : "+D" (from_sp), "+S" (to_sp) :
         : "rax", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory", "cc"
+    );
+
+    __asm__ volatile
+    (
+        "movq  32(%%rsi), %%rcx\n\t"
+        "pushq %%rbp\n\t"
+        "pushq %%rbx\n\t"
+        "pushq %%rax\n\t"
+        "pushq %%rdx\n\t"
+        "movq  %%rsp, (%%rdi)\n\t"
+        "movq  %%rsi, %%rsp\n\t"
+        "popq  %%rdx\n\t"
+        "popq  %%rax\n\t"
+        "popq  %%rbx\n\t"
+        "popq  %%rbp\n\t"
+        "movq  48(%%rsi), %%rdi\n\t"
+        "add   $8, %%rsp\n\t"
+        "jmp   *%%rcx\n\t"
+        "ud2\n\t"
+        //: "+D" (from_sp), "+S" (to_sp)
+        :
+        : [from] "D" (from_sp),
+          [to]   "S" (to_sp)
+    );
+*/
+
+void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context)
+{
+    assert(from_context);
+    assert(to_context);
+    void*** const from_sp = &from_context->ctx_stack_pointer;
+    void** const to_sp = to_context->ctx_stack_pointer;
+
+    __asm__ volatile
+    (
+        "leaq 0f(%%rip), %%rcx\n\t"
+        "pushq %%rcx\n\t"
+        "movq  32(%[to]), %%rcx\n\t"
+        "pushq %%rbp\n\t"
+        "pushq %%rbx\n\t"
+        "pushq %%rax\n\t"
+        "pushq %%rdx\n\t"
+/*        "pushq %%r12\n\t"
+        "pushq %%r13\n\t"
+        "pushq %%r14\n\t"
+        "pushq %%r15\n\t"*/
+        "movq  %%rsp, (%[from])\n\t"
+        "movq  %[to], %%rsp\n\t"
+/*        "popq  %%r15\n\t"
+        "popq  %%r14\n\t"
+        "popq  %%r13\n\t"
+        "popq  %%r12\n\t"*/
+        "popq  %%rdx\n\t"
+        "popq  %%rax\n\t"
+        "popq  %%rbx\n\t"
+        "popq  %%rbp\n\t"
+        "movq  48(%[to]), %[from]\n\t"
+        "add   $8, %%rsp\n\t"
+        "jmp   *%%rcx\n\t"
+        "ud2\n\t"
+        "0:\n\t"
+        :
+        : [from] "D" (from_sp),
+          [to]   "S" (to_sp)
+        : "cc",
+          "memory"
     );
 
     /* make any pending writes available to other processors */

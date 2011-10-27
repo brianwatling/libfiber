@@ -2,10 +2,12 @@
 #include "test_helper.h"
 
 int value = 0;
+fiber_context_t* expected = NULL;
 
 void* switch_to(void* param)
 {
     fiber_context_t* ctx = (fiber_context_t*)param;
+    test_assert(expected == ctx);
     value = 1;
     fiber_swap_context(&ctx[1], &ctx[0]);
     return NULL;
@@ -20,6 +22,7 @@ int main()
     printf("testing fiber_context...\n");
 
     fiber_context_t ctx[2];
+    expected = &ctx[0];
 
     test_assert(fiber_make_context_from_thread(&ctx[0]));
     test_assert(fiber_make_context(&ctx[1], 1024, &switch_to, ctx));
