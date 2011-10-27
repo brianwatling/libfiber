@@ -12,6 +12,9 @@ typedef struct fiber_context
 {
     void* ctx_stack;
     size_t ctx_stack_size;
+  /* The void** type makes sense because it we just want a pointer to
+     the memory location (in the fiber's stack) where the stackpointer
+     is saved (in the fiber's stack). */
     void** ctx_stack_pointer;
     unsigned int ctx_stack_id;
     int is_thread;
