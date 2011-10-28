@@ -9,9 +9,11 @@
 
 mpscr_fifo_t* fifo = NULL;
 int results[PUSH_COUNT] = {};
+pthread_barrier_t barrier;
 
 void* push_func(void* p)
 {
+    pthread_barrier_wait(&barrier);
     intptr_t thread_id = (intptr_t)p;
     intptr_t i;
     for(i = 0; i < PUSH_COUNT; ++i) {
@@ -24,6 +26,7 @@ void* push_func(void* p)
 
 int main()
 {
+    pthread_barrier_init(&barrier, NULL, NUM_THREADS);
     fifo = mpscr_fifo_create(NUM_THREADS-1);
     test_assert(fifo);
 
@@ -33,7 +36,7 @@ int main()
         pthread_create(&producers[i], NULL, &push_func, (void*)(i-1));
     }
 
-    usleep(500000);//TODO: use pthread_barrier
+    pthread_barrier_wait(&barrier);
 
     spsc_node_t* node = NULL;
     for(i = 0; i < PUSH_COUNT * (NUM_THREADS-1); ++i) {

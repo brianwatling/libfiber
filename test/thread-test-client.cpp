@@ -38,7 +38,6 @@ void* runFunc(void* param)
     unsigned int seed = (unsigned int)(intptr_t)param;
     timeval buffer[2];
     while(1) {
-        //usleep((((double)rand_r(&seed)) / (double)RAND_MAX) * 1000000.0 + 100000);
         gettimeofday(&buffer[0], NULL);
         assert(sizeof(buffer[0]) == send(sockfd, &buffer[0], sizeof(buffer[0]), NULL));
         int amnt = 0;

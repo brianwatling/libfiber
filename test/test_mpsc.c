@@ -9,9 +9,11 @@
 
 mpsc_fifo_t fifo;
 int results[PUSH_COUNT] = {};
+pthread_barrier_t barrier;
 
 void* push_func(void* p)
 {
+    pthread_barrier_wait(&barrier);
     intptr_t i;
     for(i = 0; i < PUSH_COUNT; ++i) {
         mpsc_node_t* const node = malloc(sizeof(mpsc_node_t));
@@ -23,6 +25,7 @@ void* push_func(void* p)
 
 int main()
 {
+    pthread_barrier_init(&barrier, NULL, NUM_THREADS);
     mpsc_fifo_init(&fifo);
 
     pthread_t producers[NUM_THREADS];
@@ -31,7 +34,7 @@ int main()
         pthread_create(&producers[i], NULL, &push_func, NULL);
     }
 
-    usleep(500000);//TODO: use pthread_barrier
+    pthread_barrier_wait(&barrier);
 
     mpsc_node_t* node = NULL;
     for(i = 0; i < PUSH_COUNT * (NUM_THREADS-1); ++i) {

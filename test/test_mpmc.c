@@ -10,11 +10,13 @@
 int pushes[NUM_THREADS] = {};
 int pops[NUM_THREADS] = {};
 int volatile done[NUM_THREADS] = {};
+pthread_barrier_t barrier;
 
 mpmc_queue_t the_q;
 
 void* push_func(void* p)
 {
+    pthread_barrier_wait(&barrier);
     intptr_t thr = (intptr_t)p;
     intptr_t i = 0;
     while(!done[thr]) {
@@ -30,6 +32,7 @@ void* push_func(void* p)
 
 void* pop_func(void* p)
 {
+    pthread_barrier_wait(&barrier);
     intptr_t thr = (intptr_t)p;
     intptr_t last = 0;
     (void)last;
@@ -40,7 +43,7 @@ void* pop_func(void* p)
             sched_yield();
         }
         if(!head) {
-            usleep(100);
+            usleep(1);
         }
         while(head) {
             intptr_t i = (intptr_t)mpmc_queue_node_get_data(head);
@@ -62,6 +65,7 @@ void* pop_func(void* p)
 
 int main()
 {
+    pthread_barrier_init(&barrier, NULL, 2 * NUM_THREADS);
     mpmc_queue_init(&the_q);
 
     pthread_t reader[NUM_THREADS];

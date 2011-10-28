@@ -166,7 +166,7 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
      "\n\t movl %%esp, (%[from])"
      "\n\t movl %[to], %%esp"
      "\n\t popl %%ecx"
-     "\n\t jmp  *%%ecx" //TODO: if ecx is label '0', no need for the jmp (ie. if the fiber is alread started)
+     "\n\t jmp  *%%ecx" //Future Optimization: if ecx is label '0', no need for the jmp (ie. if the fiber is alread started)
      "\n0:\t popl %%ebp"
      :
      : [from] "a" (from_sp),
@@ -349,9 +349,9 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
         "popq  %%r12\n\t"
         "popq  %%rbx\n\t"
         "popq  %%rbp\n\t"
-        "movq  64(%[to]), %%rdi\n\t" //TODO: no need to load this if the fiber has already been started
+        "movq  64(%[to]), %%rdi\n\t" //Future Optimization: no need to load this if the fiber has already been started
         "add   $8, %%rsp\n\t"
-        "jmp   *%%rcx\n\t" //TODO: if rcx is label '0', no need for the jmp (ie. if the fiber is alread started)
+        "jmp   *%%rcx\n\t" //Future Optimization: if rcx is label '0', no need for the jmp (ie. if the fiber is alread started)
         "0:\n\t"
         :
         : [from] "D" (from_sp),

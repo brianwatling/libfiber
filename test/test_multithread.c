@@ -25,7 +25,7 @@ void* run_function(void* param)
 int main()
 {
     fiber_manager_set_total_kernel_threads(NUM_THREADS);
-    usleep(500000);
+
     printf("starting %d fibers with %d backing threads, running %d yields per fiber\n", NUM_FIBERS, NUM_THREADS, PER_FIBER_COUNT);
     fiber_t* fibers[NUM_FIBERS] = {};
     int i;
@@ -47,9 +47,5 @@ int main()
     }
     printf("switch_count: %d\n", switch_count);
     fflush(stdout);
-    printf("time to exit in 1 second\n");
-    sleep(1);
-    printf("byebye\n");
-    _exit(0);
     return 0;
 }
