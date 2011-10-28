@@ -1,4 +1,5 @@
 #include "fiber_barrier.h"
+#include "fiber_manager.h"
 
 int fiber_barrier_init(fiber_barrier_t* barrier, int count)
 {
@@ -25,7 +26,7 @@ int fiber_barrier_wait(fiber_barrier_t* barrier)
     int const new_value = __sync_sub_and_fetch(&barrier->remaining, 1);
     assert(new_value >= 0);
     if(new_value == 0) {
-        fiber_manager_wake_from_queue(fiber_manager_get(), &barrier->waiters, barrier->count);
+        fiber_manager_wake_from_queue(fiber_manager_get(), &barrier->waiters, barrier->count - 1);
     } else {
         fiber_manager_wait_in_queue(fiber_manager_get(), &barrier->waiters);
     }

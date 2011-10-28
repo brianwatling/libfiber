@@ -7,6 +7,8 @@
     Website: https://github.com/brianwatling
 */
 
+#include "mpsc_fifo.h"
+
 typedef struct fiber_barrier {
     int count;
     int remaining;

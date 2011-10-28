@@ -9,6 +9,7 @@ CFILES = \
     fiber_mutex.c \
     fiber_cond.c \
     fiber.c \
+    fiber_barrier.c \
     work_stealing_deque.c \
 
 PTHREAD_CFILES = \
@@ -82,6 +83,7 @@ TESTS= \
     test_mutex \
     test_wait_in_queue \
     test_cond \
+    test_barrier \
 
 #    test_pthread_cond \
 
