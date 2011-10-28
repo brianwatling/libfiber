@@ -31,7 +31,7 @@ static void* fiber_go_function(void* param)
     return NULL;
 }
 
-fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void* param)
+fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run_function, void* param)
 {
     fiber_manager_t* const manager = fiber_manager_get();
     fiber_t* ret = wsd_work_stealing_deque_pop_bottom(manager->done_fibers);
@@ -65,8 +65,15 @@ fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void
         return NULL;
     }
 
-    fiber_manager_schedule(manager, ret);
+    return ret;
+}
 
+fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run_function, void* param)
+{
+    fiber_t* const ret = fiber_create_no_sched(stack_size, run_function, param);
+    if(ret) {
+        fiber_manager_schedule(fiber_manager_get(), ret);
+    }
     return ret;
 }
 

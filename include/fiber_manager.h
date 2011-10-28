@@ -14,6 +14,7 @@ typedef struct fiber_mpsc_to_push
 
 typedef struct fiber_manager
 {
+    fiber_t* maintenance_fiber;
     fiber_t* volatile current_fiber;
     fiber_t* thread_fiber;
     fiber_t* volatile to_schedule;

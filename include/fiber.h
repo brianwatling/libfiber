@@ -35,6 +35,8 @@ extern "C" {
 
 extern fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run, void* param);
 
+extern fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run, void* param);
+
 extern fiber_t* fiber_create_from_thread();
 
 extern int fiber_join(fiber_t* f);

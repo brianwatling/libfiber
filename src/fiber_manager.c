@@ -4,6 +4,7 @@
 #include <string.h>
 #include <assert.h>
 #include <pthread.h>
+#include <unistd.h>
 #ifndef __USE_GNU
 #define __USE_GNU
 #endif
@@ -64,6 +65,7 @@ void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber)
 
 static int fiber_load_balance(fiber_manager_t* manager)
 {
+    size_t max_steal = 50;
     size_t i = 2 * (manager->id + 1);
     const size_t end = i + 2 * (fiber_manager_num_threads - 1);
     const size_t mod = 2 * fiber_manager_num_threads;
@@ -77,7 +79,7 @@ static int fiber_load_balance(fiber_manager_t* manager)
             continue;
         }
         size_t remote_count = wsd_work_stealing_deque_size(remote_queue);
-        while(remote_count > local_count) {
+        while(remote_count > local_count && max_steal > 0) {
             fiber_t* const stolen = (fiber_t*)wsd_work_stealing_deque_steal(remote_queue);
             if(stolen == WSD_EMPTY || stolen == WSD_ABORT) {
                 break;
@@ -86,9 +88,26 @@ static int fiber_load_balance(fiber_manager_t* manager)
             wsd_work_stealing_deque_push_bottom(manager->schedule_from, stolen);
             --remote_count;
             ++local_count;
+            --max_steal;
         }
     }
     return 1;
+}
+
+static void* fiber_manager_thread_func(void* param);
+
+static inline void fiber_manager_switch_to(fiber_manager_t* manager, fiber_t* old_fiber, fiber_t* new_fiber)
+{
+    if(old_fiber->state == FIBER_STATE_RUNNING) {
+        old_fiber->state = FIBER_STATE_READY;
+        manager->to_schedule = old_fiber;
+    }
+    manager->current_fiber = new_fiber;
+    new_fiber->state = FIBER_STATE_RUNNING;
+    write_barrier();
+    fiber_swap_context(&old_fiber->context, &new_fiber->context);
+
+    fiber_manager_do_maintenance();
 }
 
 void fiber_manager_yield(fiber_manager_t* manager)
@@ -101,30 +120,32 @@ void fiber_manager_yield(fiber_manager_t* manager)
         manager->store_to = temp;
     }
 
-    do {
+    while(1) {
         manager->yield_count += 1;
-        //occasionally steal some work from threads with more load
-        if((manager->yield_count & 1023) == 0) {
-            fiber_load_balance(manager);
-        }
 
         if(wsd_work_stealing_deque_size(manager->schedule_from) > 0) {
             fiber_t* const new_fiber = (fiber_t*)wsd_work_stealing_deque_pop_bottom(manager->schedule_from);
             if(new_fiber != WSD_EMPTY && new_fiber != WSD_ABORT) {
-                fiber_t* const old_fiber = manager->current_fiber;
-                if(old_fiber->state == FIBER_STATE_RUNNING) {
-                    old_fiber->state = FIBER_STATE_READY;
-                    manager->to_schedule = old_fiber;/* must schedule it *after* fiber_swap_context, else another thread can start executing an invalid context */
-                }
-                manager->current_fiber = new_fiber;
-                new_fiber->state = FIBER_STATE_RUNNING;
-                write_barrier();
-                fiber_swap_context(&old_fiber->context, &new_fiber->context);
-
-                fiber_manager_do_maintenance();
+                fiber_manager_switch_to(manager, manager->current_fiber, new_fiber);
+                break;
             }
+        } else if(FIBER_STATE_WAITING == manager->current_fiber->state) {
+            if(!manager->maintenance_fiber) {
+                manager->maintenance_fiber = fiber_create_no_sched(102400, &fiber_manager_thread_func, manager);
+                fiber_detach(manager->maintenance_fiber);
+            }
+
+            fiber_manager_switch_to(manager, manager->current_fiber, manager->maintenance_fiber);
+            //re-grab the manager, since we could be on a different thread now
+            manager = fiber_manager_get();
+        } else {
+            //occasionally steal some work from threads with more load
+            if((manager->yield_count & 1023) == 0) {
+                fiber_load_balance(manager);
+            }
+            break;
         }
-    } while((manager = fiber_manager_get()) && FIBER_STATE_WAITING == manager->current_fiber->state && fiber_load_balance(manager));
+    }
 }
 
 void* fiber_load_symbol(const char* symbol)
@@ -210,9 +231,31 @@ static void* fiber_manager_thread_func(void* param)
     }
 #endif
 
+    fiber_manager_t* manager = (fiber_manager_t*)param;
+    if(!manager->maintenance_fiber) {
+        manager->maintenance_fiber = manager->thread_fiber;
+    }
+
     while(1) {
-        /* always call fiber_manager_get(), because this *thread* fiber will actually switch threads */
-        fiber_manager_yield(fiber_manager_get());
+        fiber_load_balance(manager);
+        if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
+            wsd_work_stealing_deque_t* const temp = manager->schedule_from;
+            manager->schedule_from = manager->store_to;
+            manager->store_to = temp;
+            if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
+                usleep(10000);
+            }
+        }
+
+        if(wsd_work_stealing_deque_size(manager->schedule_from) > 0) {
+            fiber_t* const new_fiber = (fiber_t*)wsd_work_stealing_deque_pop_bottom(manager->schedule_from);
+            if(new_fiber != WSD_EMPTY && new_fiber != WSD_ABORT) {
+                //make this fiber wait, so it won't be pushed into the WSD
+                manager->maintenance_fiber->state = FIBER_STATE_WAITING;
+
+                fiber_manager_switch_to(manager, manager->maintenance_fiber, new_fiber);
+            }
+        }
     }
     return NULL;
 }
@@ -254,14 +297,20 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
     pthread_create_function pthread_create_func = (pthread_create_function)fiber_load_symbol("pthread_create");
     assert(pthread_create_func);
 
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 102400);
+
     for(i = 1; i < num_threads; ++i) {
-        if(pthread_create_func(&fiber_manager_threads[i], NULL, &fiber_manager_thread_func, fiber_managers[i])) {
+        if(pthread_create_func(&fiber_manager_threads[i], &attr, &fiber_manager_thread_func, fiber_managers[i])) {
             assert(0 && "failed to create kernel thread");
             fiber_manager_state = FIBER_MANAGER_STATE_ERROR;
             abort();
             return FIBER_ERROR;
         }
     }
+
+    pthread_attr_destroy(&attr);
 
     return FIBER_SUCCESS;
 }
@@ -336,7 +385,7 @@ void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, 
         }
         ++spin_counter;
         if(spin_counter > 100) {
-            sched_yield();
+            //sched_yield();
             spin_counter = 0;
         }
     } while(count > 0);
