@@ -46,7 +46,7 @@ int main()
     run_function(NULL);
 
     for(i = 1; i < NUM_FIBERS; ++i) {
-        fiber_join(fibers[i]);
+        fiber_join(fibers[i], NULL);
     }
 
     test_assert(winner == 1);

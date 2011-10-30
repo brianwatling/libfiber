@@ -38,7 +38,7 @@ int main()
     }
 
     for(i = 0; i < NUM_FIBERS; ++i) {
-        fiber_join(fibers[i]);
+        fiber_join(fibers[i], NULL);
     }
 
     printf("SUCCESS\n");

@@ -14,6 +14,11 @@ struct fiber_manager;
 #define FIBER_STATE_WAITING (3)
 #define FIBER_STATE_DONE (4)
 
+#define FIBER_DETACH_NONE (0)
+#define FIBER_DETACH_WAIT_FOR_JOINER (1)
+#define FIBER_DETACH_WAIT_TO_JOIN (2)
+#define FIBER_DETACH_DETACHED (3)
+
 typedef struct fiber
 {
     volatile fiber_state_t state;
@@ -21,9 +26,10 @@ typedef struct fiber
     void* param;
     uint64_t volatile id;/* not unique globally, only within this fiber instance. used for joining */
     fiber_context_t context;
-    int volatile detached;
     void* volatile result;
     mpsc_node_t* volatile mpsc_node;
+    int volatile detach_state;
+    struct fiber* volatile join_info;
 } fiber_t;
 
 #ifdef __cplusplus
@@ -39,7 +45,7 @@ extern fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t ru
 
 extern fiber_t* fiber_create_from_thread();
 
-extern int fiber_join(fiber_t* f);
+extern int fiber_join(fiber_t* f, void** result);
 
 extern int fiber_yield();
 

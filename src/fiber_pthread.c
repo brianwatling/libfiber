@@ -107,25 +107,13 @@ int pthread_equal(pthread_t thread1, pthread_t thread2)
     return (fiber_t*)thread1 == (fiber_t*)thread2;
 }
 
+extern void fiber_join_routine(fiber_t* the_fiber, void* result);
+
 void pthread_exit(void * status)
 {
     fiber_t* const the_fiber = fiber_manager_get()->current_fiber;
-    the_fiber->result = status;
-
-    //TODO: the following code is ripped from fiber_go_function. don't copy/paste code!
-    the_fiber->state = FIBER_STATE_DONE;
-
-    while(!the_fiber->detached) {
-        fiber_manager_yield(fiber_manager_get());
-        //usleep(1);/* be a bit nicer */
-        //TODO: not busy loop here.
-    }
-
-    wsd_work_stealing_deque_push_bottom(fiber_manager_get()->done_fibers, the_fiber);
-    while(1) { /* yield() may actually not switch to anything else if there's nothing else to schedule - loop here until yield() doesn't return */
-        fiber_manager_yield(fiber_manager_get());
-        //usleep(1);/* be a bit nicer */
-    }
+    fiber_join_routine(the_fiber, status);
+    abort();
 }
 
 int pthread_join(pthread_t thread, void ** status)
@@ -134,10 +122,9 @@ int pthread_join(pthread_t thread, void ** status)
     if(!f) {
         return EINVAL;
     }
-    if(FIBER_SUCCESS != fiber_join(f)) {
+    if(FIBER_SUCCESS != fiber_join(f, status)) {
         return EINVAL;
     }
-    //TODO: status should be filled with the fiber's return value.
     return 0;
 }
 

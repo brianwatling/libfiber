@@ -7,7 +7,7 @@ fiber_mutex_t mutex;
 fiber_cond_t cond;
 #define PER_FIBER_COUNT 1000
 #define NUM_FIBERS 100
-#define NUM_THREADS 4
+#define NUM_THREADS 2
 
 void* run_function(void* param)
 {
@@ -40,7 +40,7 @@ int main()
     }
 
     for(i = 1; i <= NUM_FIBERS; ++i) {
-        fiber_join(fibers[i-1]);
+        fiber_join(fibers[i-1], NULL);
     }
 
     test_assert(counter == (NUM_FIBERS * PER_FIBER_COUNT + 1));

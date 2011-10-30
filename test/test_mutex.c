@@ -32,7 +32,7 @@ int main()
     }
 
     for(i = 0; i < NUM_FIBERS; ++i) {
-        fiber_join(fibers[i]);
+        fiber_join(fibers[i], NULL);
     }
 
     test_assert(counter == NUM_FIBERS * PER_FIBER_COUNT);

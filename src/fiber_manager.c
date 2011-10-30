@@ -346,6 +346,12 @@ void fiber_manager_do_maintenance()
         manager->mutex_to_unlock = NULL;
         fiber_mutex_unlock_internal(to_unlock);
     }
+
+    if(manager->set_wait_location) {
+        *manager->set_wait_location = manager->set_wait_value;
+        manager->set_wait_location = NULL;
+        manager->set_wait_value = NULL;
+    }
 }
 
 void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo)
@@ -385,9 +391,37 @@ void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, 
         }
         ++spin_counter;
         if(spin_counter > 100) {
-            //sched_yield();
+            sched_yield();
             spin_counter = 0;
         }
     } while(count > 0);
+}
+
+void fiber_manager_set_and_wait(fiber_manager_t* manager, void** location, void* value)
+{
+    assert(manager);
+    assert(location);
+    assert(value);
+    fiber_t* const this_fiber = manager->current_fiber;
+    assert(this_fiber->state == FIBER_STATE_RUNNING);
+    manager->set_wait_location = location;
+    manager->set_wait_value = value;
+    this_fiber->state = FIBER_STATE_WAITING;
+    fiber_manager_yield(manager);
+}
+
+void* fiber_manager_clear_or_wait(fiber_manager_t* manager, void** location)
+{
+    assert(manager);
+    assert(location);
+    while(1) {
+        void* const ret = atomic_exchange_pointer(location, NULL);
+        if(ret) {
+            return ret;
+        }
+        fiber_manager_yield(manager);
+        manager = fiber_manager_get();
+    }
+    return NULL;
 }
 

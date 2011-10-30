@@ -53,6 +53,17 @@ static inline void* atomic_exchange_pointer(void** location, void* value)
 	);
     return result;
 }
+
+static inline int atomic_exchange_int(int* location, int value)
+{
+    int result = value;
+    __asm__ volatile (
+        "lock xchg %1,%0"
+        :"+r" (result), "+m" (*location)
+        : /* no input-only operands */
+	);
+    return result;
+}
 #else
 #warning no atomic_exchange_pointer() defined for this architecture. please consider defining one if possible.
 #define FIBER_NO_XCHG_POINTER

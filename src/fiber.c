@@ -6,6 +6,35 @@
 #include <assert.h>
 #include <unistd.h>
 
+void fiber_join_routine(fiber_t* the_fiber, void* result)
+{
+    the_fiber->result = result;
+    write_barrier();
+
+    if(the_fiber->detach_state != FIBER_DETACH_DETACHED) {
+        const int old_state = atomic_exchange_int((int*)&the_fiber->detach_state, FIBER_DETACH_WAIT_FOR_JOINER);
+        if(old_state == FIBER_DETACH_NONE) {
+            //need to wait until another fiber joins this one
+            fiber_manager_set_and_wait(fiber_manager_get(), (void**)&the_fiber->join_info, the_fiber);
+        } else if(old_state == FIBER_DETACH_WAIT_TO_JOIN) {
+            //the joining fiber is waiting for us to finish
+            fiber_t* const to_schedule = fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&the_fiber->join_info);
+            to_schedule->result = the_fiber->result;
+            to_schedule->state = FIBER_STATE_READY;
+            write_barrier();
+            fiber_manager_schedule(fiber_manager_get(), to_schedule);
+        }
+    }
+
+    the_fiber->state = FIBER_STATE_DONE;
+    write_barrier();
+
+    wsd_work_stealing_deque_push_bottom(fiber_manager_get()->done_fibers, the_fiber);
+    while(1) { /* yield() may actually not switch to anything else if there's nothing else to schedule - loop here until yield() doesn't return */
+        fiber_manager_yield(fiber_manager_get());
+    }
+}
+
 static void* fiber_go_function(void* param)
 {
     fiber_t* the_fiber = (fiber_t*)param;
@@ -13,21 +42,10 @@ static void* fiber_go_function(void* param)
     /* do maintenance - this is usually done after fiber_swap_context, but we do it here too since we are coming from a new place */
     fiber_manager_do_maintenance();
 
-    the_fiber->result = the_fiber->run_function(the_fiber->param);
-    write_barrier();
-    the_fiber->state = FIBER_STATE_DONE;
-    write_barrier();
+    void* const result = the_fiber->run_function(the_fiber->param);
 
-    while(!the_fiber->detached) {
-        fiber_manager_yield(fiber_manager_get());
-        //usleep(1);/* be a bit nicer */
-        //TODO: not busy loop here.
-    }
+    fiber_join_routine(the_fiber, result);
 
-    wsd_work_stealing_deque_push_bottom(fiber_manager_get()->done_fibers, the_fiber);
-    while(1) { /* yield() may actually not switch to anything else if there's nothing else to schedule - loop here until yield() doesn't return */
-        fiber_manager_yield(fiber_manager_get());
-    }
     return NULL;
 }
 
@@ -57,7 +75,8 @@ fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run_funct
     ret->run_function = run_function;
     ret->param = param;
     ret->state = FIBER_STATE_READY;
-    ret->detached = 0;
+    ret->detach_state = FIBER_DETACH_NONE;
+    ret->join_info = NULL;
     ret->result = NULL;
     ret->id += 1;
     if(FIBER_SUCCESS != fiber_make_context(&ret->context, stack_size, &fiber_go_function, ret)) {
@@ -92,7 +111,8 @@ fiber_t* fiber_create_from_thread()
     }
 
     ret->state = FIBER_STATE_RUNNING;
-    ret->detached = 0;
+    ret->detach_state = FIBER_DETACH_NONE;
+    ret->join_info = NULL;
     ret->result = NULL;
     ret->id = 1;
     if(FIBER_SUCCESS != fiber_make_context_from_thread(&ret->context)) {
@@ -104,22 +124,41 @@ fiber_t* fiber_create_from_thread()
 
 #include <stdio.h>
 
-int fiber_join(fiber_t* f)
+int fiber_join(fiber_t* f, void** result)
 {
     assert(f);
-    if(f->detached) {
+    if(result) {
+        *result = NULL;
+    }
+    if(f->detach_state == FIBER_DETACH_DETACHED) {
         return FIBER_ERROR;
     }
-    /*
-        since fibers are never destroyed (they're always re-used), then we can read a
-        unique id for the fiber, then yield until it finishes or is reused (ie. the id changes)
-    */
-    uint64_t const original_id = f->id;
-    while(f->state != FIBER_STATE_DONE && f->id == original_id) {
-        fiber_manager_yield(fiber_manager_get());/* don't cache the manager - we may switch threads */
+
+    const int old_state = atomic_exchange_int((int*)&f->detach_state, FIBER_DETACH_WAIT_TO_JOIN);
+    if(old_state == FIBER_DETACH_NONE) {
+        //need to wait till the fiber finishes
+        fiber_manager_t* const manager = fiber_manager_get();
+        fiber_t* const current_fiber = manager->current_fiber;
+        fiber_manager_set_and_wait(manager, (void**)&f->join_info, current_fiber);
+        if(result) { 
+            load_load_barrier();
+            *result = current_fiber->result;
+        }
+        current_fiber->result = NULL;
+    } else if(old_state == FIBER_DETACH_WAIT_FOR_JOINER) {
+        //the other fiber is waiting for us to join
+        if(result) { 
+            *result = f->result;
+        }
+        load_load_barrier();
+        fiber_t* const to_schedule = fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&f->join_info);
+        to_schedule->state = FIBER_STATE_READY;
+        fiber_manager_schedule(fiber_manager_get(), to_schedule);
+    } else {
+        //it's either WAIT_TO_JOIN or DETACHED - that's an error!
+        return FIBER_ERROR;
     }
-    f->detached = 1;
-    write_barrier();
+
     return FIBER_SUCCESS;
 }
 
@@ -131,11 +170,19 @@ int fiber_yield()
 
 int fiber_detach(fiber_t* f)
 {
-    if(!f || f->detached) {
+    if(!f) {
         return FIBER_ERROR;
     }
-    f->detached = 1;
-    write_barrier();
+    const int old_state = atomic_exchange_int((int*)&f->detach_state, FIBER_DETACH_DETACHED);
+    if(old_state == FIBER_DETACH_WAIT_FOR_JOINER
+       || old_state == FIBER_DETACH_WAIT_TO_JOIN) {
+        //wake up the fiber or the fiber trying to join it (this second case is a convenience, pthreads specifies undefined behaviour in that case)
+        fiber_t* const to_schedule = fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&f->join_info);
+        to_schedule->state = FIBER_STATE_READY;
+        fiber_manager_schedule(fiber_manager_get(), to_schedule);
+    } else if(old_state == FIBER_DETACH_DETACHED) {
+        return FIBER_ERROR;
+    }
     return FIBER_SUCCESS;
 }
 

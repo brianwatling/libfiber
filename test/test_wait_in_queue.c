@@ -1,9 +1,9 @@
 #include "fiber_manager.h"
 #include "test_helper.h"
 
-#define NUM_THREADS 4
-#define NUM_FIBERS 1000
-#define PER_FIBER_COUNT 10000
+#define NUM_THREADS 2
+#define NUM_FIBERS 100
+#define PER_FIBER_COUNT 1000
 
 mpsc_fifo_t fifo;
 
@@ -29,10 +29,12 @@ int main()
 
     fiber_yield();
 
-    fiber_manager_wake_from_queue(fiber_manager_get(), &fifo, NUM_FIBERS * PER_FIBER_COUNT);
+    for(i = 0; i < PER_FIBER_COUNT; ++i) {
+        fiber_manager_wake_from_queue(fiber_manager_get(), &fifo, NUM_FIBERS);
+    }
 
     for(i = 0; i < NUM_FIBERS; ++i) {
-        fiber_join(fibers[i]);
+        fiber_join(fibers[i], NULL);
     }
 
     mpsc_fifo_destroy(&fifo);

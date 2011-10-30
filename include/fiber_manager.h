@@ -20,6 +20,8 @@ typedef struct fiber_manager
     fiber_t* volatile to_schedule;
     fiber_mpsc_to_push_t mpsc_to_push;
     fiber_mutex_t* volatile mutex_to_unlock;
+    void** volatile set_wait_location;
+    void* volatile set_wait_value;
     wsd_work_stealing_deque_t* queue_one;
     wsd_work_stealing_deque_t* queue_two;
     wsd_work_stealing_deque_t* volatile schedule_from;
@@ -61,6 +63,10 @@ extern void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* f
 extern void fiber_manager_wait_in_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_t* fifo, fiber_mutex_t* mutex);
 
 extern void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count);
+
+extern void fiber_manager_set_and_wait(fiber_manager_t* manager, void** location, void* value);
+
+extern void* fiber_manager_clear_or_wait(fiber_manager_t* manager, void** location);
 
 void* fiber_load_symbol(const char* symbol);
 
