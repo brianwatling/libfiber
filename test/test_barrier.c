@@ -51,6 +51,20 @@ int main()
 
     test_assert(winner == 1);
 
+    //do it all again - the barrier should be reusable
+    winner = 0;
+    memset((void*)counter, 0, sizeof(counter));
+    for(i = 1; i < NUM_FIBERS; ++i) {
+        fibers[i] = fiber_create(20000, &run_function, (void*)i);
+    }
+
+    run_function(NULL);
+
+    for(i = 1; i < NUM_FIBERS; ++i) {
+        fiber_join(fibers[i], NULL);
+    }
+
+
     fiber_barrier_destroy(&barrier);
 
     return 0;
