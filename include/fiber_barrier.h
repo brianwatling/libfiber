@@ -21,7 +21,7 @@ typedef struct fiber_barrier {
 extern "C" {
 #endif
 
-extern int fiber_barrier_init(fiber_barrier_t* barrier, int count);
+extern int fiber_barrier_init(fiber_barrier_t* barrier, uint32_t count);
 
 extern void fiber_barrier_destroy(fiber_barrier_t* barrier);
 

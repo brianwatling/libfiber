@@ -1,6 +1,7 @@
 #include "fiber_mutex.h"
 #include "fiber_cond.h"
 #include "fiber_manager.h"
+#include "fiber_barrier.h"
 #define __USE_UNIX98
 #include <stdlib.h>
 #include <pthread.h>
@@ -23,6 +24,7 @@ STATIC_ASSERT(sizeof(pthread_t) == sizeof(fiber_t*), bad_pthread_t_size);
 STATIC_ASSERT(sizeof(pthread_mutex_t) >= sizeof(fiber_mutex_t*), bad_pthread_t_size);
 STATIC_ASSERT(sizeof(pthread_cond_t) >= sizeof(fiber_cond_t*), bad_pthread_t_size);
 //STATIC_ASSERT(sizeof(pthread_rwlock_t) >= sizeof(fiber_t*), bad_pthread_t_size);
+STATIC_ASSERT(sizeof(pthread_barrier_t) >= sizeof(fiber_barrier_t*), bad_barrier_t_size);
 
 static pthread_mutex_t default_pthread_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t default_pthread_cond = PTHREAD_COND_INITIALIZER;
@@ -30,7 +32,6 @@ static pthread_cond_t default_pthread_cond = PTHREAD_COND_INITIALIZER;
 
 int pthread_cancel(pthread_t thread)
 {
-    //TODO
     //NOT IMPLEMENTED!
     return ENOTSUP;//not standard.
 }
@@ -178,7 +179,7 @@ int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr
         return EINVAL;
     }
 
-    fiber_pthread_mutex_t* const the_mutex = (fiber_pthread_mutex_t*)malloc(sizeof(fiber_pthread_mutex_t));
+    fiber_pthread_mutex_t* const the_mutex = (fiber_pthread_mutex_t*)malloc(sizeof(*the_mutex));
     if(!the_mutex) {
         return ENOMEM;
     }
@@ -323,7 +324,7 @@ int pthread_cond_init(pthread_cond_t * cond, const pthread_condattr_t * attr)
         }
     }
 
-    fiber_cond_t* const the_cond = (fiber_cond_t*)malloc(sizeof(fiber_cond_t));
+    fiber_cond_t* const the_cond = (fiber_cond_t*)malloc(sizeof(*the_cond));
     if(!the_cond) {
         return ENOMEM;
     }
@@ -475,14 +476,12 @@ pthread_t pthread_self(void)
 int pthread_setcancelstate(int state, int * oldstate)
 {
     //NOT IMPLEMENTED!
-    //TODO
     return 0;
 }
 
 int pthread_setcanceltype(int type, int * oldtype)
 {
     //NOT IMPLEMENTED!
-    //TODO
     return 0;
 }
 
@@ -510,23 +509,86 @@ int pthread_getconcurrency(void)
 int pthread_setschedparam(pthread_t thread, int policy, const struct sched_param * param)
 {
     //NOT IMPLEMENTED!
-    //TODO
     return ENOTSUP;
 }
 
 int pthread_getschedparam(pthread_t thread, int * policy, struct sched_param * param)
 {
     //NOT IMPLEMENTED!
-    //TODO
     return ENOTSUP;//not standard.
+}
+
+int pthread_setschedprio(pthread_t thread, int prio)
+{
+    //NOT IMPLEMENTED!
+    return ENOTSUP;
+}
+
+int pthread_barrier_destroy(pthread_barrier_t* barrier)
+{
+    if(!barrier) {
+        return EINVAL;
+    }
+    fiber_barrier_t* const the_barrier = *((fiber_barrier_t**)barrier);
+    if(!the_barrier) {
+        return EINVAL;
+    }
+    if(the_barrier->counter % the_barrier->count) {
+        return EBUSY;
+    }
+    fiber_barrier_destroy(the_barrier);
+    free(the_barrier);
+    memset(barrier, 0, sizeof(*barrier));
+    return 0;
+}
+
+int pthread_barrier_init(pthread_barrier_t* barrier, const pthread_barrierattr_t* attr, unsigned count)
+{
+    if(!barrier) {
+        return EINVAL;
+    }
+    if(!count) {
+        return EINVAL;
+    }
+    if(attr) {
+        int pshared = 0;
+        if(pthread_barrierattr_getpshared(attr, &pshared)
+           || pshared) {
+            return EINVAL;
+        }
+    }
+
+    fiber_barrier_t* const the_barrier = (fiber_barrier_t*)malloc(sizeof(*the_barrier));
+    if(!the_barrier) {
+        return ENOMEM;
+    }
+    if(!fiber_barrier_init(the_barrier, count)) {
+        free(the_barrier);
+        return ENOMEM;
+    }
+
+    *((fiber_barrier_t**)barrier) = the_barrier;
+
+    return 0;
+}
+
+int pthread_barrier_wait(pthread_barrier_t* barrier)
+{
+    if(!barrier) {
+        return EINVAL;
+    }
+    fiber_barrier_t* const the_barrier = *((fiber_barrier_t**)barrier);
+    if(!the_barrier) {
+        return EINVAL;
+    }
+
+    const int ret = fiber_barrier_wait(the_barrier);
+    return ret == FIBER_BARRIER_SERIAL_FIBER ? PTHREAD_BARRIER_SERIAL_THREAD : 0;
 }
 
 //TODO:
 /*
 < pthread_atfork
-< pthread_barrier_destroy
-< pthread_barrier_init
-< pthread_barrier_wait
 < pthread_getaffinity_np
 < pthread_getcpuclockid
 < pthread_getname_np
@@ -537,7 +599,6 @@ int pthread_getschedparam(pthread_t thread, int * policy, struct sched_param * p
 < pthread_rwlock_timedwrlock
 < pthread_setaffinity_np
 < pthread_setname_np
-< pthread_setschedprio
 < pthread_spin_destroy
 < pthread_spin_init
 < pthread_spin_lock

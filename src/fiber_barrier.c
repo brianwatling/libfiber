@@ -1,7 +1,7 @@
 #include "fiber_barrier.h"
 #include "fiber_manager.h"
 
-int fiber_barrier_init(fiber_barrier_t* barrier, int count)
+int fiber_barrier_init(fiber_barrier_t* barrier, uint32_t count)
 {
     assert(barrier);
     assert(count > 0);
