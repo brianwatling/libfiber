@@ -10,10 +10,12 @@
 #include "mpsc_fifo.h"
 
 typedef struct fiber_barrier {
-    int count;
-    int remaining;
+    uint32_t count;
+    volatile uint64_t counter;
     mpsc_fifo_t waiters;
 } fiber_barrier_t;
+
+#define FIBER_BARRIER_SERIAL_FIBER (1)
 
 #ifdef __cplusplus
 extern "C" {

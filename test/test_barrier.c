@@ -20,7 +20,7 @@ void* run_function(void* param)
         ++counter[index];
     }
 
-    if(0 == fiber_barrier_wait(&barrier)) {
+    if(FIBER_BARRIER_SERIAL_FIBER == fiber_barrier_wait(&barrier)) {
         test_assert(__sync_bool_compare_and_swap(&winner, 0, 1));
     }
 

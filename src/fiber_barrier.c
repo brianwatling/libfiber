@@ -6,7 +6,7 @@ int fiber_barrier_init(fiber_barrier_t* barrier, int count)
     assert(barrier);
     assert(count > 0);
     barrier->count = count;
-    barrier->remaining = count;
+    barrier->counter = 0;
     if(!mpsc_fifo_init(&barrier->waiters)) {
         return FIBER_ERROR;
     }
@@ -23,13 +23,13 @@ int fiber_barrier_wait(fiber_barrier_t* barrier)
 {
     assert(barrier);
 
-    int const new_value = __sync_sub_and_fetch(&barrier->remaining, 1);
-    assert(new_value >= 0);
-    if(new_value == 0) {
+    uint64_t const new_value = __sync_add_and_fetch(&barrier->counter, 1);
+    if(new_value % barrier->count == 0) {
         fiber_manager_wake_from_queue(fiber_manager_get(), &barrier->waiters, barrier->count - 1);
+        return FIBER_BARRIER_SERIAL_FIBER;
     } else {
         fiber_manager_wait_in_queue(fiber_manager_get(), &barrier->waiters);
+        return 0;
     }
-    return -new_value;//return remaining * -1 (or zero if this was the last call to barrier_wait() needed)
 }
 
