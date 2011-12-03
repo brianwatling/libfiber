@@ -130,7 +130,8 @@ void fiber_manager_yield(fiber_manager_t* manager)
                 fiber_manager_switch_to(manager, manager->current_fiber, new_fiber);
                 break;
             }
-        } else if(FIBER_STATE_WAITING == manager->current_fiber->state) {
+        } else if(FIBER_STATE_WAITING == manager->current_fiber->state
+                  || FIBER_STATE_DONE == manager->current_fiber->state) {
             if(!manager->maintenance_fiber) {
                 manager->maintenance_fiber = fiber_create_no_sched(102400, &fiber_manager_thread_func, manager);
                 fiber_detach(manager->maintenance_fiber);
@@ -346,6 +347,12 @@ void fiber_manager_do_maintenance()
         fiber_mutex_t* const to_unlock = manager->mutex_to_unlock;
         manager->mutex_to_unlock = NULL;
         fiber_mutex_unlock_internal(to_unlock);
+    }
+
+    if(manager->spinlock_to_unlock) {
+        fiber_spinlock_t* const to_unlock = manager->spinlock_to_unlock;
+        manager->spinlock_to_unlock = NULL;
+        fiber_spinlock_unlock(to_unlock);
     }
 
     if(manager->set_wait_location) {

@@ -162,6 +162,38 @@ int fiber_join(fiber_t* f, void** result)
     return FIBER_SUCCESS;
 }
 
+int fiber_tryjoin(fiber_t* f, void** result)
+{
+    assert(f);
+    if(result) {
+        *result = NULL;
+    }
+    if(f->detach_state == FIBER_DETACH_DETACHED) {
+        return FIBER_ERROR;
+    }
+
+    if(f->detach_state == FIBER_DETACH_WAIT_FOR_JOINER) {
+        //here we've read that the fiber is waiting to be joined.
+        //if the fiber is still waiting to be joined after we atmically change its state,
+        //then we can go ahead and wake it up. if the fiber's state has changed, we can
+        //assume the fiber has been detached or has be joined by some other fiber
+        const int old_state = atomic_exchange_int((int*)&f->detach_state, FIBER_DETACH_WAIT_TO_JOIN);
+        if(old_state == FIBER_DETACH_WAIT_FOR_JOINER) {
+            //the other fiber is waiting for us to join
+            if(result) { 
+                *result = f->result;
+            }
+            load_load_barrier();
+            fiber_t* const to_schedule = fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&f->join_info);
+            to_schedule->state = FIBER_STATE_READY;
+            fiber_manager_schedule(fiber_manager_get(), to_schedule);
+            return FIBER_SUCCESS;
+        }
+    }
+
+    return FIBER_ERROR;
+}
+
 int fiber_yield()
 {
     fiber_manager_yield(fiber_manager_get());

@@ -3,6 +3,7 @@
 
 #include "fiber.h"
 #include "fiber_mutex.h"
+#include "fiber_spinlock.h"
 #include "work_stealing_deque.h"
 #include "mpsc_fifo.h"
 
@@ -20,6 +21,7 @@ typedef struct fiber_manager
     fiber_t* volatile to_schedule;
     fiber_mpsc_to_push_t mpsc_to_push;
     fiber_mutex_t* volatile mutex_to_unlock;
+    fiber_spinlock_t* volatile spinlock_to_unlock;
     void** volatile set_wait_location;
     void* volatile set_wait_value;
     wsd_work_stealing_deque_t* queue_one;

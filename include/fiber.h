@@ -47,6 +47,8 @@ extern fiber_t* fiber_create_from_thread();
 
 extern int fiber_join(fiber_t* f, void** result);
 
+extern int fiber_tryjoin(fiber_t* f, void** result);
+
 extern int fiber_yield();
 
 extern int fiber_detach(fiber_t* f);

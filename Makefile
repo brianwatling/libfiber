@@ -7,17 +7,18 @@ CFILES = \
     fiber_context.c \
     fiber_manager.c \
     fiber_mutex.c \
+    fiber_spinlock.c \
     fiber_cond.c \
     fiber.c \
     fiber_barrier.c \
     fiber_io.c \
-    fiber_event.c \
+    fiber_event_ev.c \
     work_stealing_deque.c \
 
 PTHREAD_CFILES = \
     fiber_pthread.c \
 
-LDFLAGS += -lev
+LDFLAGS += -lm
 
 OS ?= $(shell uname -s)
 
@@ -40,7 +41,7 @@ ifeq ($(ARCH),x86)
 CFLAGS += -m32 -march=i686 -DARCH_x86
 endif
 
-CFLAGS += -Werror -Wall -Iinclude -ggdb -O0
+CFLAGS += -Wall -Iinclude -Isubmodules/libev -ggdb -O0
 
 USE_VALGRIND ?= 0
 ifeq ($(USE_VALGRIND),1)
@@ -61,7 +62,7 @@ endif
 
 ifeq ($(OS),Linux)
 CFLAGS += -DLINUX
-LDFLAGSAFTER += -ldl -lev
+LDFLAGSAFTER += -ldl -lm
 endif
 
 USE_COMPILER_THREAD_LOCAL ?= 1
@@ -77,6 +78,8 @@ CFLAGS += -DFIBER_FAST_SWITCHING
 endif
 
 TESTS= \
+    test_tryjoin \
+    test_sleep \
     test_io \
     test_context \
     test_context_speed \
@@ -119,7 +122,7 @@ bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
 	$(CC) $(CFLAGS) -Isrc -c $< -o $@
 
 bin/test_%: bin/test_%.o libfiber.so
-	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@ -lpthread
+	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@ -lpthread $(LDFLAGSAFTER)
 
 bin/%.o: %.c $(INCLUDES)
 	$(CC) $(CFLAGS) -c $< -o $@
