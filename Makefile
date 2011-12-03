@@ -10,6 +10,8 @@ CFILES = \
     fiber_cond.c \
     fiber.c \
     fiber_barrier.c \
+    fiber_io.c \
+    fiber_event.c \
     work_stealing_deque.c \
 
 PTHREAD_CFILES = \
@@ -50,11 +52,13 @@ FAST_SWITCHING ?= 0
 endif
 
 ifeq ($(OS),SunOS)
+CFLAGS += -DSOLARIS
 LINKER_SHARED_FLAG ?= -G
 LDFLAGS += -lrt
 endif
 
 ifeq ($(OS),Linux)
+CFLAGS += -DLINUX
 LDFLAGSAFTER += -ldl
 endif
 
