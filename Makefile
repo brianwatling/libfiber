@@ -75,6 +75,7 @@ CFLAGS += -DFIBER_FAST_SWITCHING
 endif
 
 TESTS= \
+    test_io \
     test_context \
     test_context_speed \
     test_basic \
