@@ -28,6 +28,9 @@ static const char* SOCKET_STRING = "__xnet_socket";
 typedef int (*acceptFnType) (int s, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen);
 #define ACCEPTPARAMS int sockfd, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen
 
+typedef ssize_t (*recvfromFnType)(int, void* _RESTRICT_KYWD, size_t, int, struct sockaddr* _RESTRICT_KYWD, socklen_t *);
+#define RECVFROMPARAMS int sockfd, void* _RESTRICT_KYWD buf, size_t len, int flags, struct sockaddr* _RESTRICT_KYWD src_addr, socklen_t* addrlen
+
 #elif defined(LINUX)
 
 static const char* SOCKET_STRING = "socket";
@@ -38,6 +41,9 @@ static const char* CONNECT_STRING = "connect";
 
 typedef int (*acceptFnType) (int, struct sockaddr*, socklen_t*);
 #define ACCEPTPARAMS int sockfd, struct sockaddr* addr, socklen_t* addrlen
+
+typedef ssize_t (*recvfromFnType)(int, void*, size_t, int, struct sockaddr*, socklen_t *);
+#define RECVFROMPARAMS int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_addr, socklen_t* addrlen
 
 #else
 
@@ -56,10 +62,9 @@ typedef int (*pollFnType)(struct pollfd *fds, nfds_t nfds, int timeout);
 typedef int (*socketFnType)(int socket_family, int socket_type, int protocol);
 typedef int (*connectFnType)(int, const struct sockaddr*, socklen_t);
 typedef ssize_t (*sendFnType)(int, const void*, size_t, int);
-typedef ssize_t (*sendtoFnType)(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+typedef ssize_t (*sendtoFnType)(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 typedef ssize_t (*sendmsgFnType)(int sockfd, const struct msghdr *msg, int flags);
-typedef ssize_t (*recvFnType)(int, void *, size_t, int);
-typedef ssize_t (*recvfromFnType)(int,void *,size_t,int,struct sockaddr *,socklen_t *);
+typedef ssize_t (*recvFnType)(int, void*, size_t, int);
 typedef ssize_t (*recvmsgFnType)(int sockfd, struct msghdr *msg, int flags);
 
 /*static openFnType fibershim_open = NULL;
@@ -247,7 +252,7 @@ ssize_t recv(int sockfd, void* buf, size_t len, int flags)
     return ret;
 }
 
-ssize_t recvfrom(int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_addr, socklen_t* addrlen)
+ssize_t recvfrom(RECVFROMPARAMS)
 {
     if(!fibershim_recvfrom) {
         fibershim_recvfrom = (recvfromFnType)dlsym(RTLD_NEXT, "recvfrom");
