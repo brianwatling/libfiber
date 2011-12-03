@@ -19,6 +19,8 @@
 
 #if defined(SOLARIS)
 
+#include <sys/filio.h>
+
 static const char* CONNECT_STRING = "__xnet_connect";
 static const char* RECVMSG_STRING = "__xnet_recvmsg";
 static const char* SENDMSG_STRING = "__xnet_sendmsg";
@@ -30,6 +32,9 @@ typedef int (*acceptFnType) (int s, struct sockaddr *_RESTRICT_KYWD addr, Psockl
 
 typedef ssize_t (*recvfromFnType)(int, void* _RESTRICT_KYWD, size_t, int, struct sockaddr* _RESTRICT_KYWD, Psocklen_t);
 #define RECVFROMPARAMS int sockfd, void* _RESTRICT_KYWD buf, size_t len, int flags, struct sockaddr* _RESTRICT_KYWD src_addr, Psocklen_t addrlen
+
+typedef int (*ioctlFnType)(int d, int request, ...);
+#define IOCTLPARAMS int d, int request, ...
 
 #elif defined(LINUX)
 
@@ -45,6 +50,9 @@ typedef int (*acceptFnType) (int, struct sockaddr*, socklen_t*);
 typedef ssize_t (*recvfromFnType)(int, void*, size_t, int, struct sockaddr*, socklen_t *);
 #define RECVFROMPARAMS int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_addr, socklen_t* addrlen
 
+typedef int (*ioctlFnType)(int d, unsigned long int request, ...);
+#define IOCTLPARAMS int d, unsigned long int request, ...
+
 #else
 
 #error unsupported OS
@@ -53,7 +61,6 @@ typedef ssize_t (*recvfromFnType)(int, void*, size_t, int, struct sockaddr*, soc
 
 typedef int (*openFnType)(const char*, int, ...);
 typedef int (*fcntlFnType)(int fd, int cmd, ...);
-typedef int (*ioctlFnType)(int d, int request, ...);
 typedef int (*pipeFnType)(int pipefd[2]);
 typedef ssize_t (*readFnType) (int, void *, size_t);
 typedef ssize_t (*writeFnType) (int, const void*, size_t);
@@ -416,19 +423,18 @@ int pipe(int pipefd[2])
 
     int ret = fibershim_pipe(pipefd);
     if(ret == 0 && fd_info) {
-        if(!fibershim_ioctl) {
-            fibershim_ioctl = (ioctlFnType)dlsym(RTLD_NEXT, "ioctl");
+        if(!fibershim_fcntl) {
+            fibershim_fcntl = (fcntlFnType)dlsym(RTLD_NEXT, "fcntl");
         }
 
-        int on = 1;
-        ret = fibershim_ioctl(pipefd[0], FIONBIO, &on);
+        ret = fibershim_fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
         if(ret < 0) {
             close(pipefd[0]);
             close(pipefd[1]);
             return ret;
         }
 
-        ret = fibershim_ioctl(pipefd[1], FIONBIO, &on);
+        ret = fibershim_fcntl(pipefd[1], F_SETFL, O_NONBLOCK);
         if(ret < 0) {
             close(pipefd[0]);
             close(pipefd[1]);
@@ -463,7 +469,7 @@ int fcntl(int fd, int cmd, ...)
     long val = va_arg(args, long);
     va_end(args);
 
-    if(cmd == F_SETFL && val == O_NONBLOCK) {
+    if(cmd == F_SETFL && (val == O_NONBLOCK || val == O_NDELAY)) {
         assert(fd < max_fd);
         fd_info[fd].blocking = 0;
         return 0;
@@ -476,7 +482,7 @@ int fcntl(int fd, int cmd, ...)
     return fibershim_fcntl(fd, cmd, val);
 }
 
-int ioctl(int d, unsigned long int request, ...)
+int ioctl(IOCTLPARAMS)
 {
     va_list args;
     va_start(args, request);
