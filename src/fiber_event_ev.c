@@ -11,7 +11,7 @@
 #include <dlfcn.h>
 #include <stdio.h>
 #define EV_STANDALONE 1
-#include <ev.c>
+#include <ev.h>
 
 static struct ev_loop* volatile fiber_loop = NULL;
 static fiber_spinlock_t fiber_loop_spinlock;

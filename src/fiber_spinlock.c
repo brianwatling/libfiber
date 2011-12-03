@@ -53,5 +53,6 @@ int fiber_spinlock_unlock(fiber_spinlock_t* spinlock)
     assert(spinlock);
     store_load_barrier();//flush this fiber's writes
     spinlock->state = 0;
+    return FIBER_SUCCESS;
 }
 

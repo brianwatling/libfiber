@@ -1,7 +1,7 @@
 
 all: libfiber.so libfiber_pthread.so runtests
 
-VPATH += src test
+VPATH += src test submodules/libev
 
 CFILES = \
     fiber_context.c \
@@ -13,6 +13,7 @@ CFILES = \
     fiber_barrier.c \
     fiber_io.c \
     fiber_event_ev.c \
+    ev.c \
     work_stealing_deque.c \
 
 PTHREAD_CFILES = \
@@ -124,11 +125,19 @@ bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
 bin/test_%: bin/test_%.o libfiber.so
 	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@ -lpthread $(LDFLAGSAFTER)
 
-bin/%.o: %.c $(INCLUDES)
+#no -Werror for ev.c
+bin/ev.o: ev.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+#no -Werror for ev.c
+bin/ev.pic.o: ev.c $(INCLUDES)
+	$(CC) $(CFLAGS) -DEV_STANDALONE -DSHARED_LIB -fPIC -c $< -o $@
+
+bin/%.o: %.c $(INCLUDES)
+	$(CC) -Werror -DEV_STANDALONE $(CFLAGS) -c $< -o $@
+
 bin/%.pic.o: %.c $(INCLUDES)
-	$(CC) $(CFLAGS) -DSHARED_LIB -fPIC -c $< -o $@
+	$(CC) -Werror $(CFLAGS) -DSHARED_LIB -fPIC -c $< -o $@
 
 clean:
 	rm -f bin/* libfiber.so libfiber_pthread.so
