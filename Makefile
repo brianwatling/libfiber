@@ -17,6 +17,8 @@ CFILES = \
 PTHREAD_CFILES = \
     fiber_pthread.c \
 
+LDFLAGS += -lev
+
 OS ?= $(shell uname -s)
 
 #your compiler will pick the architecture by default
@@ -59,7 +61,7 @@ endif
 
 ifeq ($(OS),Linux)
 CFLAGS += -DLINUX
-LDFLAGSAFTER += -ldl
+LDFLAGSAFTER += -ldl -lev
 endif
 
 USE_COMPILER_THREAD_LOCAL ?= 1

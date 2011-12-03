@@ -10,7 +10,11 @@ extern "C" {
 #define FIBER_POLL_IN (0x1)
 #define FIBER_POLL_OUT (0x2)
 
-extern int fiber_init_events();
+extern int fiber_event_init();
+
+extern void fiber_event_destroy();
+
+extern void fiber_poll_events(uint32_t seconds, uint32_t useconds);
 
 extern int fiber_wait_for_event(int fd, uint32_t events);
 

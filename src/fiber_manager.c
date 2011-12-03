@@ -1,4 +1,5 @@
 #include "fiber_manager.h"
+#include "fiber_event.h"
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -243,7 +244,7 @@ static void* fiber_manager_thread_func(void* param)
             manager->schedule_from = manager->store_to;
             manager->store_to = temp;
             if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
-                usleep(10000);
+                fiber_poll_events(0, 10000);
             }
         }
 
@@ -299,7 +300,7 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    pthread_attr_setstacksize(&attr, 102400);
+    pthread_attr_setstacksize(&attr, 1024000);
 
     for(i = 1; i < num_threads; ++i) {
         if(pthread_create_func(&fiber_manager_threads[i], &attr, &fiber_manager_thread_func, fiber_managers[i])) {

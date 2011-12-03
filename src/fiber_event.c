@@ -1,21 +1,164 @@
 #include "fiber_event.h"
 #include "fiber.h"
 #include "fiber_manager.h"
+#include "fiber_mutex.h"
+#include <stdio.h>
+#include <ev.h>
+#include <assert.h>
+#include <unistd.h>
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
+#include <dlfcn.h>
+#include <stdio.h>
 
-int fiber_init_events()
+static struct ev_loop* volatile fiber_loop = NULL;
+static fiber_mutex_t fiber_loop_mutex;
+static volatile size_t num_events_triggered = 0;
+
+typedef int (*usleepFnType) (useconds_t);
+static usleepFnType fibershim_usleep = NULL;
+
+int fiber_event_init()
 {
+    assert("libev version mismatch" && ev_version_major () == EV_VERSION_MAJOR && ev_version_minor () >= EV_VERSION_MINOR);
 
-    return FIBER_SUCCESS;
+    fiber_loop = ev_loop_new(EVFLAG_AUTO);
+    assert(fiber_loop);
+    assert(fiber_mutex_init(&fiber_loop_mutex));
+
+    return fiber_loop ? FIBER_SUCCESS : FIBER_ERROR;
+}
+
+void fiber_event_destroy()
+{
+    if(fiber_loop) {
+        fiber_mutex_lock(&fiber_loop_mutex);
+        ev_loop_destroy(fiber_loop);
+        fiber_loop = NULL;
+        fiber_mutex_unlock(&fiber_loop_mutex);
+    }
+}
+
+static void do_real_sleep(uint32_t seconds, uint32_t useconds)
+{
+    if(!fibershim_usleep) {
+        fibershim_usleep = (usleepFnType) dlsym(RTLD_NEXT, "usleep");
+    }
+    while(seconds > 0) {
+        fibershim_usleep(1000000);
+    }
+    if(useconds) {
+        fibershim_usleep(useconds);
+    }
+}
+
+void fiber_poll_events(uint32_t seconds, uint32_t useconds)
+{
+    if(!fiber_loop) {
+        do_real_sleep(seconds, useconds);
+        return;
+    }
+
+    fiber_mutex_lock(&fiber_loop_mutex);
+
+    if(!fiber_loop) {
+        fiber_mutex_unlock(&fiber_loop_mutex);
+        return;
+    }
+
+    num_events_triggered = 0;
+    ev_run(fiber_loop, EVRUN_NOWAIT);
+    const size_t local_copy = num_events_triggered;
+    fiber_mutex_unlock(&fiber_loop_mutex);
+
+    if(!local_copy) {
+        do_real_sleep(seconds, useconds);
+    }
+}
+
+static void fd_ready(struct ev_loop* loop, ev_io* watcher, int revents)
+{
+    fiber_manager_t* const manager = fiber_manager_get();
+    fiber_t* const the_fiber = watcher->data;
+    the_fiber->state = FIBER_STATE_READY;
+    fiber_manager_schedule(manager, the_fiber);
+    ++num_events_triggered;
 }
 
 int fiber_wait_for_event(int fd, uint32_t events)
 {
+    ev_io fd_event;
+    int poll_events = 0;
+    if(events & FIBER_POLL_IN) {
+        poll_events |= EV_READ;
+    }
+    if(events & FIBER_POLL_OUT) {
+        poll_events |= EV_WRITE;
+    }
+    ev_io_init(&fd_event, fd_ready, fd, poll_events);
+
+    fiber_mutex_lock(&fiber_loop_mutex);
+
+    fiber_manager_t* const manager = fiber_manager_get();
+    fiber_t* const this_fiber = manager->current_fiber;
+
+    fd_event.data = this_fiber;
+    ev_io_start(fiber_loop, &fd_event);
+
+    this_fiber->state = FIBER_STATE_WAITING;
+    manager->mutex_to_unlock = &fiber_loop_mutex;
+
+    fiber_manager_yield(manager);
+
+    fiber_mutex_lock(&fiber_loop_mutex);
+    fiber_mutex_unlock(&fiber_loop_mutex);
 
     return FIBER_SUCCESS;
 }
 
+static void timer_trigger(struct ev_loop* loop, ev_timer* watcher, int revents)
+{
+    fiber_manager_t* const manager = fiber_manager_get();
+    fiber_t* const the_fiber = watcher->data;
+    the_fiber->state = FIBER_STATE_READY;
+    fiber_manager_schedule(manager, the_fiber);
+    ++num_events_triggered;
+}
+
 int fiber_sleep(uint32_t seconds, uint32_t useconds)
 {
+    if(!fiber_loop) {
+        do_real_sleep(seconds, useconds);
+        return FIBER_SUCCESS;
+    }
+
+    ev_timer timer_event;
+    const double sleep_time = seconds + useconds * 0.000001;
+    ev_timer_init(&timer_event, &timer_trigger, sleep_time, 0);
+
+    fiber_mutex_lock(&fiber_loop_mutex);
+    if(!fiber_loop) {
+        fiber_mutex_unlock(&fiber_loop_mutex);
+        do_real_sleep(seconds, useconds);
+        return FIBER_SUCCESS;
+    }
+
+    fiber_manager_t* const manager = fiber_manager_get();
+    fiber_t* const this_fiber = manager->current_fiber;
+
+    timer_event.data = this_fiber;
+
+    ev_timer_start(fiber_loop, &timer_event);
+
+    this_fiber->state = FIBER_STATE_WAITING;
+    manager->mutex_to_unlock = &fiber_loop_mutex;
+
+    fiber_manager_yield(manager);
+
+    fiber_mutex_lock(&fiber_loop_mutex);
+    fiber_mutex_unlock(&fiber_loop_mutex);
+
     return FIBER_SUCCESS;
 }
 

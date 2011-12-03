@@ -107,6 +107,22 @@ static rlim_t max_fd = 0;
 
 int fiber_io_init()
 {
+    //fibershim_open = (openFnType)dlsym (RTLD_NEXT, "open");
+    fibershim_pipe = (pipeFnType)dlsym (RTLD_NEXT, "pipe");
+    fibershim_read = (readFnType)dlsym (RTLD_NEXT, "read");
+    fibershim_write = (writeFnType)dlsym (RTLD_NEXT, "write");
+    //fibershim_select = get_select_fn();
+    //fibershim_poll = (pollFnType) dlsym(RTLD_NEXT,"poll");
+    fibershim_socket = (socketFnType) dlsym(RTLD_NEXT, SOCKET_STRING);
+    fibershim_connect = (connectFnType) dlsym(RTLD_NEXT, CONNECT_STRING);
+    fibershim_accept = (acceptFnType) dlsym(RTLD_NEXT, "accept");
+    fibershim_send = (sendFnType)dlsym (RTLD_NEXT, "send");
+    fibershim_sendto = (sendtoFnType)dlsym (RTLD_NEXT, SENDTO_STRING);
+    fibershim_sendmsg = (sendmsgFnType)dlsym (RTLD_NEXT, SENDMSG_STRING);
+    fibershim_recv = (recvFnType)dlsym (RTLD_NEXT, "recv");
+    fibershim_recvfrom = (recvfromFnType)dlsym (RTLD_NEXT, "recvfrom");
+    fibershim_recvmsg = (recvmsgFnType)dlsym (RTLD_NEXT, RECVMSG_STRING);
+
     if(fd_info) {
         return FIBER_ERROR;
     }

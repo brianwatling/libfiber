@@ -7,12 +7,14 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <errno.h>
+#include <string.h>
 
 #define NUM_THREADS 1
-#define NUM_FIBERS 100
+#define NUM_FIBERS 4
 
 #ifdef LINUX
-const char* LOCALHOST = NULL;
+const char* LOCALHOST = "0.0.0.0";
 #else
 const char* LOCALHOST = "localhost";
 #endif
@@ -32,7 +34,7 @@ void* server_function(void* param)
 
     sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     test_assert(!bind(sockfd, res->ai_addr, res->ai_addrlen));
-    listen(sockfd, 5);
+    listen(sockfd, 50);
 
     fiber_barrier_wait(&barrier);
 
@@ -47,6 +49,7 @@ void* server_function(void* param)
         totalBytes += ret;
         totalBytes += recvfrom(sock, msg, sizeof(msg), 0, &src_addr, &addrlen);
         --acceptCount;
+        printf("%d\n", acceptCount);
         close(sock);
     }
 
@@ -70,7 +73,11 @@ void* client_function(void* param)
 
     sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     test_assert(sockfd >= 0);
-    test_assert(!connect(sockfd, res->ai_addr, res->ai_addrlen));
+    const int ret = connect(sockfd, res->ai_addr, res->ai_addrlen);
+    if(ret) {
+        printf("connect failed: %s\n", strerror(errno));
+    }
+    test_assert(!ret);
 
     send(sockfd, "hello", 5, 0);
     sendto(sockfd, "hello", 5, 0, NULL, 0);
@@ -81,7 +88,7 @@ int main()
 {
     fiber_manager_set_total_kernel_threads(NUM_THREADS);
     fiber_io_init();
-    fiber_init_events();
+    fiber_event_init();
 
     fiber_barrier_init(&barrier, 2);
 
@@ -100,6 +107,8 @@ int main()
     }
 
     fiber_barrier_destroy(&barrier);
+
+    fiber_event_destroy();
 
     return 0;
 }
