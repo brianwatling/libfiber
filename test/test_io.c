@@ -11,7 +11,7 @@
 #include <string.h>
 
 #define NUM_THREADS 1
-#define NUM_FIBERS 50
+#define NUM_FIBERS 200
 
 #ifdef LINUX
 const char* LOCALHOST = "0.0.0.0";
@@ -23,7 +23,7 @@ fiber_barrier_t barrier;
 
 void* server_function(void* param)
 {
-    int acceptCount = NUM_FIBERS;
+    int acceptCount = 0;
     struct addrinfo hints, *res;
     int sockfd;
     memset(&hints, 0, sizeof(hints));
@@ -40,15 +40,20 @@ void* server_function(void* param)
 
     int totalBytes = 0;
     int sock = 0;
-    while(acceptCount > 0 && (sock = accept(sockfd, NULL, NULL)) >= 0)
+    while(acceptCount < NUM_FIBERS && (sock = accept(sockfd, NULL, NULL)) >= 0)
     {
         char msg[5];
         struct sockaddr src_addr;
         socklen_t addrlen;
         int ret = recv(sock, msg, sizeof(msg), 0);
+        test_assert(ret == 5);
+        test_assert(5 == send(sock, "world", 5, 0));
         totalBytes += ret;
-        totalBytes += recvfrom(sock, msg, sizeof(msg), 0, &src_addr, &addrlen);
-        --acceptCount;
+        ret = recvfrom(sock, msg, sizeof(msg), 0, &src_addr, &addrlen);
+        test_assert(ret == 5);
+        test_assert(5 == send(sock, "world", 5, 0));
+        totalBytes += ret;
+        ++acceptCount;
         printf("%d %d\n", acceptCount, totalBytes);
         close(sock);
     }
@@ -79,8 +84,11 @@ void* client_function(void* param)
     }
     test_assert(!ret);
 
-    send(sockfd, "hello", 5, 0);
-    sendto(sockfd, "hello", 5, 0, NULL, 0);
+    test_assert(5 == send(sockfd, "hello", 5, 0));
+    char msg[5];
+    test_assert(5 == recv(sockfd, msg, sizeof(msg), 0));
+    test_assert(5 == sendto(sockfd, "hello", 5, 0, NULL, 0));
+    test_assert(5 == recvfrom(sockfd, msg, sizeof(msg), 0, NULL, NULL));
     close(sockfd);
     return NULL;
 }
