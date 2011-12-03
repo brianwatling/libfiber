@@ -28,8 +28,8 @@ static const char* SOCKET_STRING = "__xnet_socket";
 typedef int (*acceptFnType) (int s, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen);
 #define ACCEPTPARAMS int sockfd, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen
 
-typedef ssize_t (*recvfromFnType)(int, void* _RESTRICT_KYWD, size_t, int, struct sockaddr* _RESTRICT_KYWD, socklen_t *);
-#define RECVFROMPARAMS int sockfd, void* _RESTRICT_KYWD buf, size_t len, int flags, struct sockaddr* _RESTRICT_KYWD src_addr, socklen_t* addrlen
+typedef ssize_t (*recvfromFnType)(int, void* _RESTRICT_KYWD, size_t, int, struct sockaddr* _RESTRICT_KYWD, Psocklen_t *);
+#define RECVFROMPARAMS int sockfd, void* _RESTRICT_KYWD buf, size_t len, int flags, struct sockaddr* _RESTRICT_KYWD src_addr, Psocklen_t* addrlen
 
 #elif defined(LINUX)
 
