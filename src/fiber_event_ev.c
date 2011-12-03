@@ -83,6 +83,7 @@ void fiber_poll_events(uint32_t seconds, uint32_t useconds)
 
 static void fd_ready(struct ev_loop* loop, ev_io* watcher, int revents)
 {
+    ev_io_stop(loop, watcher);
     fiber_manager_t* const manager = fiber_manager_get();
     fiber_t* const the_fiber = watcher->data;
     the_fiber->state = FIBER_STATE_READY;
@@ -120,6 +121,7 @@ int fiber_wait_for_event(int fd, uint32_t events)
 
 static void timer_trigger(struct ev_loop* loop, ev_timer* watcher, int revents)
 {
+    ev_timer_stop(loop, watcher);
     fiber_manager_t* const manager = fiber_manager_get();
     fiber_t* const the_fiber = watcher->data;
     the_fiber->state = FIBER_STATE_READY;

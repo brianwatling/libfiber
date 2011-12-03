@@ -143,6 +143,7 @@ int fiber_io_init()
 
 static inline int should_block(int fd)
 {
+    assert(fd >= 0);
     if(fd_info && fd < max_fd && fd_info[fd].blocking) {
         return 1;
     }
@@ -193,7 +194,7 @@ int accept(ACCEPTPARAMS)
     }
 
     int sock = fibershim_accept(sockfd, addr, addrlen);
-    if(sock < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(sock)) {
+    if(sock < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(sockfd)) {
         if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
             return -1;
         }

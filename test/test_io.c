@@ -11,7 +11,7 @@
 #include <string.h>
 
 #define NUM_THREADS 1
-#define NUM_FIBERS 4
+#define NUM_FIBERS 50
 
 #ifdef LINUX
 const char* LOCALHOST = "0.0.0.0";
@@ -34,7 +34,7 @@ void* server_function(void* param)
 
     sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     test_assert(!bind(sockfd, res->ai_addr, res->ai_addrlen));
-    listen(sockfd, 50);
+    listen(sockfd, 100);
 
     fiber_barrier_wait(&barrier);
 
@@ -49,7 +49,7 @@ void* server_function(void* param)
         totalBytes += ret;
         totalBytes += recvfrom(sock, msg, sizeof(msg), 0, &src_addr, &addrlen);
         --acceptCount;
-        printf("%d\n", acceptCount);
+        printf("%d %d\n", acceptCount, totalBytes);
         close(sock);
     }
 
@@ -81,14 +81,15 @@ void* client_function(void* param)
 
     send(sockfd, "hello", 5, 0);
     sendto(sockfd, "hello", 5, 0, NULL, 0);
+    close(sockfd);
     return NULL;
 }
 
 int main()
 {
-    fiber_manager_set_total_kernel_threads(NUM_THREADS);
     fiber_io_init();
     fiber_event_init();
+    fiber_manager_set_total_kernel_threads(NUM_THREADS);
 
     fiber_barrier_init(&barrier, 2);
 
