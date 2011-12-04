@@ -22,10 +22,19 @@
 #include <sys/filio.h>
 
 static const char* CONNECT_STRING = "__xnet_connect";
+#define CONNECTFUNCTION __xnet_connect
 static const char* RECVMSG_STRING = "__xnet_recvmsg";
+#define RECVMSGFUNCTION __xnet_recvmsg
 static const char* SENDMSG_STRING = "__xnet_sendmsg";
+#define SENDMSGFUNCTION __xnet_sendmsg
 static const char* SENDTO_STRING = "__xnet_sendto";
+#define SENDTOFUNCTION __xnet_sendto
 static const char* SOCKET_STRING = "__xnet_socket";
+#define SOCKETFUNCTION __xnet_socket
+
+//other functions maybe worth shimming:
+//__xnet_socketpair
+//__xnet_getaddrinfo
 
 typedef int (*acceptFnType) (int s, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen);
 #define ACCEPTPARAMS int sockfd, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen
@@ -39,10 +48,15 @@ typedef int (*ioctlFnType)(int d, int request, ...);
 #elif defined(LINUX)
 
 static const char* SOCKET_STRING = "socket";
+#define SOCKETFUNCTION socket
 static const char* SENDMSG_STRING = "sendmsg";
+#define SENDMSGFUNCTION sendmsg
 static const char* SENDTO_STRING = "sendto";
+#define SENDTOFUNCTION sendto
 static const char* RECVMSG_STRING = "recvmsg";
+#define RECVMSGFUNCTION recvmsg
 static const char* CONNECT_STRING = "connect";
+#define CONNECTFUNCTION connect
 
 typedef int (*acceptFnType) (int, struct sockaddr*, socklen_t*);
 #define ACCEPTPARAMS int sockfd, struct sockaddr* addr, socklen_t* addrlen
@@ -180,7 +194,7 @@ static int setup_socket(int sock)
     return setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 }
 
-int socket(int domain, int type, int protocol)
+int SOCKETFUNCTION(int domain, int type, int protocol)
 {
     if(!fibershim_socket) {
         fibershim_socket = (socketFnType)dlsym(RTLD_NEXT, SOCKET_STRING);
@@ -277,7 +291,7 @@ ssize_t recvfrom(RECVFROMPARAMS)
     return ret;
 }
 
-ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags)
+ssize_t RECVMSGFUNCTION(int sockfd, struct msghdr* msg, int flags)
 {
     if(!fibershim_recvmsg) {
         fibershim_recvmsg = (recvmsgFnType)dlsym(RTLD_NEXT, RECVMSG_STRING);
@@ -329,7 +343,7 @@ ssize_t send(int sockfd, const void* buf, size_t len, int flags)
     return ret;
 }
 
-ssize_t sendto(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr* dest_addr, socklen_t addrlen)
+ssize_t SENDTOFUNCTION(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr* dest_addr, socklen_t addrlen)
 {
     if(!fibershim_sendto) {
         fibershim_sendto = (sendtoFnType)dlsym(RTLD_NEXT, SENDTO_STRING);
@@ -346,7 +360,7 @@ ssize_t sendto(int sockfd, const void* buf, size_t len, int flags, const struct 
     return ret;
 }
 
-ssize_t sendmsg(int sockfd, const struct msghdr* msg, int flags)
+ssize_t SENDMSGFUNCTION(int sockfd, const struct msghdr* msg, int flags)
 {
     if(!fibershim_sendmsg) {
         fibershim_sendmsg = (sendmsgFnType)dlsym(RTLD_NEXT, SENDMSG_STRING);
@@ -363,7 +377,7 @@ ssize_t sendmsg(int sockfd, const struct msghdr* msg, int flags)
     return ret;
 }
 
-int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
+int CONNECTFUNCTION(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
 {
     if(!fibershim_connect) {
         fibershim_connect = (connectFnType)dlsym(RTLD_NEXT, CONNECT_STRING);
