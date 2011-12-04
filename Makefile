@@ -58,7 +58,7 @@ endif
 ifeq ($(OS),SunOS)
 CFLAGS += -DSOLARIS
 LINKER_SHARED_FLAG ?= -G
-LDFLAGS += -lrt
+LDFLAGSAFTER += -lrt -lsocket
 endif
 
 ifeq ($(OS),Linux)
