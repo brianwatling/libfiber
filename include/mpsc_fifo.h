@@ -29,7 +29,7 @@ typedef struct mpsc_fifo
 static inline int mpsc_fifo_init(mpsc_fifo_t* f)
 {
     assert(f);
-    f->tail = calloc(1, sizeof(*f->tail));
+    f->tail = (mpsc_node_t*)calloc(1, sizeof(*f->tail));
     f->head = f->tail;
     if(!f->tail) {
         return 0;
