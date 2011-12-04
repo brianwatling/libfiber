@@ -93,7 +93,7 @@ static void fd_ready(struct ev_loop* loop, ev_io* watcher, int revents)
 
 int fiber_wait_for_event(int fd, uint32_t events)
 {
-    ev_io fd_event;
+    ev_io fd_event = {};
     int poll_events = 0;
     if(events & FIBER_POLL_IN) {
         poll_events |= EV_READ;
@@ -101,7 +101,9 @@ int fiber_wait_for_event(int fd, uint32_t events)
     if(events & FIBER_POLL_OUT) {
         poll_events |= EV_WRITE;
     }
-    ev_io_init(&fd_event, fd_ready, fd, poll_events);
+    //this code should really use ev_io_init(), but ev_io_init has compile warnings.
+    ev_set_cb(&fd_event, &fd_ready);
+    ev_io_set(&fd_event, fd, poll_events);
 
     fiber_spinlock_lock(&fiber_loop_spinlock);
 
@@ -136,9 +138,12 @@ int fiber_sleep(uint32_t seconds, uint32_t useconds)
         return FIBER_SUCCESS;
     }
 
-    ev_timer timer_event;
+    //this code should really use ev_timer_init(), but ev_timer_init has compile warnings.
+    ev_timer timer_event = {};
+    ev_set_cb(&timer_event, &timer_trigger);
     const double sleep_time = seconds + useconds * 0.000001;
-    ev_timer_init(&timer_event, &timer_trigger, sleep_time, 0);
+    timer_event.at = sleep_time;
+    timer_event.repeat = 0;
 
     fiber_spinlock_lock(&fiber_loop_spinlock);
     if(!fiber_loop) {
