@@ -70,7 +70,9 @@ extern void fiber_manager_set_and_wait(fiber_manager_t* manager, void** location
 
 extern void* fiber_manager_clear_or_wait(fiber_manager_t* manager, void** location);
 
-void* fiber_load_symbol(const char* symbol);
+extern void* fiber_load_symbol(const char* symbol);
+
+extern void fiber_do_real_sleep(uint32_t seconds, uint32_t useconds);
 
 #ifdef __cplusplus
 }

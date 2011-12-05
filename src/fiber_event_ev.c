@@ -17,9 +17,6 @@ static struct ev_loop* volatile fiber_loop = NULL;
 static fiber_spinlock_t fiber_loop_spinlock;
 static volatile int num_events_triggered = 0;
 
-typedef int (*usleepFnType) (useconds_t);
-static usleepFnType fibershim_usleep = NULL;
-
 int fiber_event_init()
 {
     assert("libev version mismatch" && ev_version_major () == EV_VERSION_MAJOR && ev_version_minor () >= EV_VERSION_MINOR);
@@ -41,19 +38,6 @@ void fiber_event_destroy()
     }
 }
 
-static void do_real_sleep(uint32_t seconds, uint32_t useconds)
-{
-    if(!fibershim_usleep) {
-        fibershim_usleep = (usleepFnType) dlsym(RTLD_NEXT, "usleep");
-    }
-    while(seconds > 0) {
-        fibershim_usleep(1000000);
-    }
-    if(useconds) {
-        fibershim_usleep(useconds);
-    }
-}
-
 int fiber_poll_events()
 {
     if(!fiber_loop) {
@@ -66,6 +50,22 @@ int fiber_poll_events()
 
     num_events_triggered = 0;
     ev_run(fiber_loop, EVRUN_NOWAIT);
+    const int local_copy = num_events_triggered;
+    fiber_spinlock_unlock(&fiber_loop_spinlock);
+
+    return local_copy;
+}
+
+int fiber_poll_events_blocking(uint32_t seconds, uint32_t useconds)
+{
+    if(!fiber_loop) {
+        return FIBER_EVENT_NOTINIT;
+    }
+
+    fiber_spinlock_lock(&fiber_loop_spinlock);
+
+    num_events_triggered = 0;
+    ev_run(fiber_loop, EVRUN_ONCE);
     const int local_copy = num_events_triggered;
     fiber_spinlock_unlock(&fiber_loop_spinlock);
 
@@ -125,7 +125,7 @@ static void timer_trigger(struct ev_loop* loop, ev_timer* watcher, int revents)
 int fiber_sleep(uint32_t seconds, uint32_t useconds)
 {
     if(!fiber_loop) {
-        do_real_sleep(seconds, useconds);
+        fiber_do_real_sleep(seconds, useconds);
         return FIBER_SUCCESS;
     }
 
@@ -137,11 +137,6 @@ int fiber_sleep(uint32_t seconds, uint32_t useconds)
     timer_event.repeat = 0;
 
     fiber_spinlock_lock(&fiber_loop_spinlock);
-    if(!fiber_loop) {
-        fiber_spinlock_unlock(&fiber_loop_spinlock);
-        do_real_sleep(seconds, useconds);
-        return FIBER_SUCCESS;
-    }
 
     fiber_manager_t* const manager = fiber_manager_get();
     fiber_t* const this_fiber = manager->current_fiber;

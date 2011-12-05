@@ -17,6 +17,8 @@ extern void fiber_event_destroy();
 
 extern int fiber_poll_events();
 
+extern int fiber_poll_events_blocking(uint32_t seconds, uint32_t useconds);
+
 #define FIBER_POLL_IN (0x1)
 #define FIBER_POLL_OUT (0x2)
 

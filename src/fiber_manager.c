@@ -13,6 +13,7 @@
 
 static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
 static int fiber_manager_num_threads = 0;
+static int fiber_manager_active_threads = 0;
 static wsd_work_stealing_deque_t** fiber_mananger_thread_queues = NULL;
 static pthread_t* fiber_manager_threads = NULL;
 static fiber_manager_t** fiber_managers = NULL;
@@ -245,7 +246,16 @@ static void* fiber_manager_thread_func(void* param)
             manager->schedule_from = manager->store_to;
             manager->store_to = temp;
             if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
-                fiber_poll_events();
+                const int num_events = fiber_poll_events();
+                if(num_events == 0) {
+                    const int active_threads = __sync_sub_and_fetch(&fiber_manager_active_threads, 1);
+                    if(active_threads > 0) {
+                        fiber_do_real_sleep(0, 1000);
+                    } else {
+                        fiber_poll_events_blocking(0, 1000);
+                    }
+                    __sync_add_and_fetch(&fiber_manager_active_threads, 1);
+                }
             }
         }
 
@@ -276,6 +286,7 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
     fiber_manager_threads = calloc(num_threads, sizeof(*fiber_manager_threads));
     assert(fiber_manager_threads);
     fiber_manager_num_threads = num_threads;
+    fiber_manager_active_threads = num_threads;
     fiber_managers = calloc(num_threads, sizeof(*fiber_managers));
     assert(fiber_managers);
 
@@ -431,5 +442,22 @@ void* fiber_manager_clear_or_wait(fiber_manager_t* manager, void** location)
         manager = fiber_manager_get();
     }
     return NULL;
+}
+
+typedef int (*usleepFnType)(useconds_t);
+static usleepFnType fibershim_usleep = NULL;
+
+void fiber_do_real_sleep(uint32_t seconds, uint32_t useconds)
+{
+    if(!fibershim_usleep) {
+        fibershim_usleep = (usleepFnType)fiber_load_symbol("usleep");
+    }
+    while(seconds > 0) {
+        fibershim_usleep(1000000);
+        --seconds;
+    }
+    if(useconds) {
+        fibershim_usleep(useconds);
+    }
 }
 
