@@ -245,7 +245,7 @@ static void* fiber_manager_thread_func(void* param)
             manager->schedule_from = manager->store_to;
             manager->store_to = temp;
             if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
-                fiber_poll_events(0, 10000);
+                fiber_poll_events();
             }
         }
 

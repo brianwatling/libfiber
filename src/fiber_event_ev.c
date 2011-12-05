@@ -15,7 +15,7 @@
 
 static struct ev_loop* volatile fiber_loop = NULL;
 static fiber_spinlock_t fiber_loop_spinlock;
-static volatile size_t num_events_triggered = 0;
+static volatile int num_events_triggered = 0;
 
 typedef int (*usleepFnType) (useconds_t);
 static usleepFnType fibershim_usleep = NULL;
@@ -54,31 +54,22 @@ static void do_real_sleep(uint32_t seconds, uint32_t useconds)
     }
 }
 
-void fiber_poll_events(uint32_t seconds, uint32_t useconds)
+int fiber_poll_events()
 {
     if(!fiber_loop) {
-        do_real_sleep(seconds, useconds);
-        return;
+        return FIBER_EVENT_NOTINIT;
     }
 
     if(!fiber_spinlock_trylock(&fiber_loop_spinlock, 128)) {
-        do_real_sleep(seconds, useconds);
-        return;
-    }
-
-    if(!fiber_loop) {
-        fiber_spinlock_unlock(&fiber_loop_spinlock);
-        return;
+        return FIBER_EVENT_TRYAGAIN;
     }
 
     num_events_triggered = 0;
     ev_run(fiber_loop, EVRUN_NOWAIT);
-    const size_t local_copy = num_events_triggered;
+    const int local_copy = num_events_triggered;
     fiber_spinlock_unlock(&fiber_loop_spinlock);
 
-    if(!local_copy) {
-        do_real_sleep(seconds, useconds);
-    }
+    return local_copy;
 }
 
 static void fd_ready(struct ev_loop* loop, ev_io* watcher, int revents)
