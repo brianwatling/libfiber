@@ -245,12 +245,16 @@ static void* fiber_manager_thread_func(void* param)
             wsd_work_stealing_deque_t* const temp = manager->schedule_from;
             manager->schedule_from = manager->store_to;
             manager->store_to = temp;
+
             if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
                 const int num_events = fiber_poll_events();
                 if(num_events == 0) {
                     const int active_threads = __sync_sub_and_fetch(&fiber_manager_active_threads, 1);
                     if(active_threads > 0) {
-                        fiber_do_real_sleep(0, 1000);
+                        do {
+                            fiber_do_real_sleep(0, 1000);
+                            fiber_load_balance(manager);
+                        } while(wsd_work_stealing_deque_size(manager->schedule_from) == 0);
                     } else {
                         fiber_poll_events_blocking(0, 1000);
                     }
