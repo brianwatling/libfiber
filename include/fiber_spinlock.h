@@ -24,6 +24,8 @@ typedef struct fiber_spinlock
 extern "C" {
 #endif
 
+#define FIBER_SPINLOCK_INITIALIER {0}
+
 extern int fiber_spinlock_init(fiber_spinlock_t* spinlock);
 
 extern int fiber_spinlock_destroy(fiber_spinlock_t* spinlock);

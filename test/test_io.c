@@ -95,8 +95,6 @@ void* client_function(void* param)
 
 int main()
 {
-    fiber_io_init();
-    fiber_event_init();
     fiber_manager_init(NUM_THREADS);
 
     fiber_barrier_init(&barrier, 2);

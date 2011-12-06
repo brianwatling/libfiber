@@ -29,8 +29,6 @@ void* sleep_function(void* param)
 int main()
 {
     fiber_manager_init(NUM_THREADS);
-    fiber_io_init();
-    fiber_event_init();
 
     fiber_t* fibers[NUM_FIBERS];
     int i;

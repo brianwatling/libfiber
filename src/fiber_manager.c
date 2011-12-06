@@ -1,5 +1,6 @@
 #include "fiber_manager.h"
 #include "fiber_event.h"
+#include "fiber_io.h"
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -250,16 +251,7 @@ static void* fiber_manager_thread_func(void* param)
             if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
                 const int num_events = fiber_poll_events();
                 if(num_events == 0) {
-                    const int active_threads = __sync_sub_and_fetch(&fiber_manager_active_threads, 1);
-                    if(active_threads > 0) {
-                        do {
-                            fiber_do_real_sleep(0, 1000);
-                            fiber_load_balance(manager);
-                        } while(wsd_work_stealing_deque_size(manager->schedule_from) == 0);
-                    } else {
-                        fiber_poll_events_blocking(0, 1000);
-                    }
-                    __sync_add_and_fetch(&fiber_manager_active_threads, 1);
+                    fiber_poll_events_blocking(0, 1000);
                 }
             }
         }
@@ -331,6 +323,13 @@ int fiber_manager_init(size_t num_threads)
     }
 
     pthread_attr_destroy(&attr);
+
+    if(!fiber_io_init()) {
+        return FIBER_ERROR;
+    }
+    if(!fiber_event_init()) {
+        return FIBER_ERROR;
+    }
 
     return FIBER_SUCCESS;
 }
