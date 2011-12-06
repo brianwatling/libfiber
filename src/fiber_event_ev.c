@@ -76,6 +76,9 @@ size_t fiber_poll_events_blocking(uint32_t seconds, uint32_t useconds)
         return 0;
     }
 
+    load_load_barrier();//needed to ensure we read fiber_loop first - we need a valid active_thread count,
+                        //so init writes active_threads then fiber_loop, we read here in the reverse order
+
     //only allow the final thread to perform a blocking poll - this prevents the
     //thread from locking out other threads trying to register for events
     const int local_count = __sync_sub_and_fetch(&active_threads, 1);
