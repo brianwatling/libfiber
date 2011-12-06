@@ -5,6 +5,9 @@
 #include <errno.h>
 #include <sys/mman.h>
 #include <string.h>
+#ifdef FIBER_CONTEXT_MALLOC
+#include <stdlib.h>
+#endif
 
 #ifdef USE_VALGRIND
 #include <valgrind/valgrind.h>
@@ -39,6 +42,37 @@ static size_t fiber_round_to_page_size(size_t size)
     return fiberPageSize * numPagesAfterMin;
 }
 
+static void* fiber_alloc_stack(size_t stack_size)
+{
+#ifdef FIBER_CONTEXT_MALLOC
+    void* const ret = malloc(stack_size);
+    if(!ret) {
+        errno = ENOMEM;
+    }
+#else
+    void* const ret = mmap(0, stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if(ret == MAP_FAILED) {
+        errno = ENOMEM;
+        return NULL;
+    }
+
+    if(mprotect(ret, 1, PROT_NONE)) {
+        munmap(ret, stack_size);
+        return NULL;
+    }
+#endif
+    return ret;
+}
+
+static void fiber_free_stack(void* stack_ptr, size_t stack_size)
+{
+#ifdef FIBER_CONTEXT_MALLOC
+    free(stack_ptr);
+#else
+    munmap(stack_ptr, stack_size);
+#endif
+}
+
 #if defined(__GNUC__) && defined(__i386__) && defined(FIBER_FAST_SWITCHING)
 
 int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param)
@@ -49,14 +83,8 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     }
 
     context->ctx_stack_size = fiber_round_to_page_size(stack_size);
-    context->ctx_stack = mmap(0, context->ctx_stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if(MAP_FAILED == context->ctx_stack) {
-        errno = ENOMEM;
-        return FIBER_ERROR;
-    }
-
-    if(mprotect(context->ctx_stack, 1, PROT_NONE)) {
-        munmap(context->ctx_stack, context->ctx_stack_size);
+    context->ctx_stack = fiber_alloc_stack(context->ctx_stack_size);
+    if(!context->ctx_stack) {
         return FIBER_ERROR;
     }
 
@@ -86,7 +114,7 @@ void fiber_destroy_context(fiber_context_t* context)
 {
     if(context && !context->is_thread) {
         STACK_DEREGISTER(context);
-        munmap(context->ctx_stack, context->ctx_stack_size);
+        fiber_free_stack(context->ctx_stack, context->ctx_stack_size);
     }
 }
 
@@ -197,14 +225,8 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     }
 
     context->ctx_stack_size = fiber_round_to_page_size(stack_size);
-    context->ctx_stack = mmap(0, context->ctx_stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if(MAP_FAILED == context->ctx_stack) {
-        errno = ENOMEM;
-        return FIBER_ERROR;
-    }
-
-    if(mprotect(context->ctx_stack, 1, PROT_NONE)) {
-        munmap(context->ctx_stack, context->ctx_stack_size);
+    context->ctx_stack = fiber_alloc_stack(context->ctx_stack_size);
+    if(!context->ctx_stack) {
         return FIBER_ERROR;
     }
 
@@ -240,7 +262,7 @@ void fiber_destroy_context(fiber_context_t* context)
 {
     if(context && !context->is_thread) {
         STACK_DEREGISTER(context);
-        munmap(context->ctx_stack, context->ctx_stack_size);
+        fiber_free_stack(context->ctx_stack, context->ctx_stack_size);
     }
 }
 
@@ -385,16 +407,9 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     getcontext(uctx);
     uctx->uc_link = 0;
 
-    context->ctx_stack = mmap(0, context->ctx_stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if(MAP_FAILED == context->ctx_stack) {
+    context->ctx_stack = fiber_alloc_stack(context->ctx_stack_size);
+    if(!context->ctx_stack) {
         free(context->ctx_stack_pointer);
-        errno = ENOMEM;
-        return FIBER_ERROR;
-    }
-
-    if(mprotect(context->ctx_stack, 1, PROT_NONE)) {
-        free(context->ctx_stack_pointer);
-        munmap(context->ctx_stack, context->ctx_stack_size);
         return FIBER_ERROR;
     }
 
@@ -434,7 +449,7 @@ void fiber_destroy_context(fiber_context_t* context)
     if(!context->is_thread) {
         free(context->ctx_stack_pointer);
         STACK_DEREGISTER(context);
-        munmap(context->ctx_stack, context->ctx_stack_size);
+        fiber_free_stack(context->ctx_stack, context->ctx_stack_size);
     } else {
         /* this context was created from a thread */
         free(context->ctx_stack_pointer);
