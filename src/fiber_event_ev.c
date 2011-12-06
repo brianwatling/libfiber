@@ -24,10 +24,12 @@ int fiber_event_init()
 
     assert("libev version mismatch" && ev_version_major () == EV_VERSION_MAJOR && ev_version_minor () >= EV_VERSION_MINOR);
 
+    active_threads = fiber_manager_get_kernel_thread_count();
+
+    write_barrier();//needed so active_threads is set before fiber_loop (see fiber_poll_events_blocking - active_threads should never be decremented before it's been set)
+
     fiber_loop = ev_loop_new(EVFLAG_AUTO);
     assert(fiber_loop);
-
-    active_threads = fiber_manager_get_kernel_thread_count();
 
     fiber_spinlock_unlock(&fiber_loop_spinlock);
 
