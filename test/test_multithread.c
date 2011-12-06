@@ -24,7 +24,7 @@ void* run_function(void* param)
 
 int main()
 {
-    fiber_manager_set_total_kernel_threads(NUM_THREADS);
+    fiber_manager_init(NUM_THREADS);
 
     printf("starting %d fibers with %d backing threads, running %d yields per fiber\n", NUM_FIBERS, NUM_THREADS, PER_FIBER_COUNT);
     fiber_t* fibers[NUM_FIBERS] = {};

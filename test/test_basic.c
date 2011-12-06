@@ -17,7 +17,7 @@ int main()
     test_assert(z == 1);
     test_assert(y == 2);
 
-    fiber_manager_set_total_kernel_threads(1);
+    fiber_manager_init(1);
     int volatile value = 0;
     fiber_t* fiber1 = fiber_create(20000, &run_function, (void*)&value);
 

@@ -61,7 +61,7 @@ static void read_env_size_t(const char* name, size_t default_value, size_t* out)
 __attribute__((__constructor__)) void init_fiber_pthread()
 {
     read_env_size_t("FIBER_SYSTEM_THREADS", 1, &fiber_system_threads);
-    fiber_manager_set_total_kernel_threads(fiber_system_threads);
+    fiber_manager_init(fiber_system_threads);
 }
 
 int pthread_create(pthread_t * thread, const pthread_attr_t * attr, void *(*start_routine)(void *), void *arg)
@@ -496,7 +496,7 @@ int pthread_setconcurrency(int conc)
         //TODO: get processor count?
         conc = 1;
     }
-    fiber_manager_set_total_kernel_threads(conc);
+    fiber_manager_init(conc);
     fiber_pthread_concurrency = conc;
     return 0;
 }

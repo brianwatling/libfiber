@@ -48,7 +48,9 @@ extern void fiber_manager_yield(fiber_manager_t* manager);
 extern fiber_manager_t* fiber_manager_get();
 
 /* this should be called immediately when the applicaion starts */
-extern int fiber_manager_set_total_kernel_threads(size_t num_threads);
+extern int fiber_manager_init(size_t num_threads);
+
+extern void fiber_shutdown();
 
 #define FIBER_MANAGER_STATE_NONE (0)
 #define FIBER_MANAGER_STATE_STARTED (1)

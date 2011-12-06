@@ -17,6 +17,7 @@ static int fiber_manager_active_threads = 0;
 static wsd_work_stealing_deque_t** fiber_mananger_thread_queues = NULL;
 static pthread_t* fiber_manager_threads = NULL;
 static fiber_manager_t** fiber_managers = NULL;
+static volatile int fiber_shutting_down = 0;
 
 void fiber_destroy(fiber_t* f)
 {
@@ -239,7 +240,7 @@ static void* fiber_manager_thread_func(void* param)
         manager->maintenance_fiber = manager->thread_fiber;
     }
 
-    while(1) {
+    while(!fiber_shutting_down) {
         fiber_load_balance(manager);
         if(wsd_work_stealing_deque_size(manager->schedule_from) == 0) {
             wsd_work_stealing_deque_t* const temp = manager->schedule_from;
@@ -277,8 +278,10 @@ static void* fiber_manager_thread_func(void* param)
 }
 
 typedef int (*pthread_create_function)(pthread_t*, const pthread_attr_t*, void* (*)(void*), void*);
+typedef pthread_t (*pthread_self_function)(void);
+typedef int (*pthread_join_function)(pthread_t thread, void **retval);
 
-int fiber_manager_set_total_kernel_threads(size_t num_threads)
+int fiber_manager_init(size_t num_threads)
 {
     if(fiber_manager_get_state() != FIBER_MANAGER_STATE_NONE) {
         errno = EINVAL;
@@ -330,6 +333,20 @@ int fiber_manager_set_total_kernel_threads(size_t num_threads)
     pthread_attr_destroy(&attr);
 
     return FIBER_SUCCESS;
+}
+
+void fiber_shutdown()
+{
+    fiber_shutting_down = 1;
+    pthread_self_function pthread_self_func = (pthread_self_function)fiber_load_symbol("pthread_self");
+    pthread_join_function pthread_join_func = (pthread_join_function)fiber_load_symbol("pthread_join");
+    pthread_t self = pthread_self_func();
+    int i;
+    for(i = 0; i < fiber_manager_num_threads; ++i) {
+        if(!pthread_equal(fiber_manager_threads[i], self)) {
+            pthread_join_func(fiber_manager_threads[i], NULL);
+        }
+    }
 }
 
 int fiber_manager_get_state()

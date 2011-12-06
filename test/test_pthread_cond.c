@@ -27,7 +27,7 @@ void* run_function(void* param)
 
 int main()
 {
-    //fiber_manager_set_total_kernel_threads(NUM_THREADS);
+    //fiber_manager_init(NUM_THREADS);
 
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_init(&cond, NULL);

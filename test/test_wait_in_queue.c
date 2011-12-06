@@ -18,7 +18,7 @@ void* run_function(void* param)
 
 int main()
 {
-    fiber_manager_set_total_kernel_threads(NUM_THREADS);
+    fiber_manager_init(NUM_THREADS);
     mpsc_fifo_init(&fifo);
 
     fiber_t* fibers[NUM_FIBERS];

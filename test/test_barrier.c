@@ -33,7 +33,7 @@ void* run_function(void* param)
 
 int main()
 {
-    fiber_manager_set_total_kernel_threads(NUM_THREADS);
+    fiber_manager_init(NUM_THREADS);
 
     fiber_barrier_init(&barrier, NUM_FIBERS);
 
