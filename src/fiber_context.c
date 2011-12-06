@@ -75,7 +75,7 @@ static void fiber_free_stack(void* stack_ptr, size_t stack_size)
 
 #if defined(__GNUC__) && defined(__i386__) && defined(FIBER_FAST_SWITCHING)
 
-int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param)
+int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param)
 {
     if(!context || !stack_size || !run_function) {
         errno = EINVAL;
@@ -99,7 +99,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     return FIBER_SUCCESS;
 }
 
-int fiber_make_context_from_thread(fiber_context_t* context)
+int fiber_context_init_from_thread(fiber_context_t* context)
 {
     if(!context) {
         errno = EINVAL;
@@ -110,7 +110,7 @@ int fiber_make_context_from_thread(fiber_context_t* context)
     return FIBER_SUCCESS;
 }
 
-void fiber_destroy_context(fiber_context_t* context)
+void fiber_context_destroy(fiber_context_t* context)
 {
     if(context && !context->is_thread) {
         STACK_DEREGISTER(context);
@@ -118,7 +118,7 @@ void fiber_destroy_context(fiber_context_t* context)
     }
 }
 
-void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context)
+void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_context)
 {
     assert(from_context);
     assert(to_context);
@@ -217,7 +217,7 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
 #elif defined(__x86_64__) && defined(FIBER_FAST_SWITCHING)
 #include <stdlib.h>
 
-int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param)
+int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param)
 {
     if(!context || !stack_size || !run_function) {
         errno = EINVAL;
@@ -247,7 +247,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     return FIBER_SUCCESS;
 }
 
-int fiber_make_context_from_thread(fiber_context_t* context)
+int fiber_context_init_from_thread(fiber_context_t* context)
 {
     if(!context) {
         errno = EINVAL;
@@ -258,7 +258,7 @@ int fiber_make_context_from_thread(fiber_context_t* context)
     return FIBER_SUCCESS;
 }
 
-void fiber_destroy_context(fiber_context_t* context)
+void fiber_context_destroy(fiber_context_t* context)
 {
     if(context && !context->is_thread) {
         STACK_DEREGISTER(context);
@@ -266,7 +266,7 @@ void fiber_destroy_context(fiber_context_t* context)
     }
 }
 
-void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context)
+void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_context)
 {
     assert(from_context);
     assert(to_context);
@@ -391,7 +391,7 @@ void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_conte
 #include <ucontext.h>
 #include <stdlib.h>
 
-int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param)
+int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param)
 {
     if(stack_size < MINSIGSTKSZ)
         stack_size = MINSIGSTKSZ;
@@ -424,7 +424,7 @@ int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_fu
     return FIBER_SUCCESS;
 }
 
-int fiber_make_context_from_thread(fiber_context_t* context)
+int fiber_context_init_from_thread(fiber_context_t* context)
 {
     if(!context) {
         errno = EINVAL;
@@ -441,7 +441,7 @@ int fiber_make_context_from_thread(fiber_context_t* context)
     return FIBER_SUCCESS;
 }
 
-void fiber_destroy_context(fiber_context_t* context)
+void fiber_context_destroy(fiber_context_t* context)
 {
     if(!context) {
         return;
@@ -456,7 +456,7 @@ void fiber_destroy_context(fiber_context_t* context)
     }
 }
 
-void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context)
+void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_context)
 {
     swapcontext((ucontext_t*)from_context->ctx_stack_pointer, (ucontext_t*)to_context->ctx_stack_pointer);
 

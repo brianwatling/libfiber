@@ -36,14 +36,14 @@ void yield()
     while(!(to_run = get_for_running())) { pthread_yield();}
     to_schedule_after_switch = current_context;
     current_context = to_run;
-    fiber_swap_context(to_schedule_after_switch, to_run);
+    fiber_context_swap(to_schedule_after_switch, to_run);
 }
 
 void* run_func(void* p)
 {
     id = 1;
     fiber_context_t main_ctx;
-    fiber_make_context_from_thread(&main_ctx);
+    fiber_context_init_from_thread(&main_ctx);
     current_context = &main_ctx;
     int count = 0;
     while(1) {
@@ -70,11 +70,11 @@ int main()
 {
     printf("testing multithread contexts\n");
     fiber_context_t main_ctx;
-    fiber_make_context_from_thread(&main_ctx);
+    fiber_context_init_from_thread(&main_ctx);
     current_context = &main_ctx;
     for(int i = 0; i < 10; ++i) {
         fiber_context_t* ctx = (fiber_context_t*)malloc(sizeof(fiber_context_t));
-        fiber_make_context(ctx, 100000, &test_func, NULL);
+        fiber_context_init(ctx, 100000, &test_func, NULL);
         schedule(ctx);
     }
 

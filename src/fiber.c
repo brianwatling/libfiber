@@ -38,7 +38,7 @@ static void* fiber_go_function(void* param)
 {
     fiber_t* the_fiber = (fiber_t*)param;
 
-    /* do maintenance - this is usually done after fiber_swap_context, but we do it here too since we are coming from a new place */
+    /* do maintenance - this is usually done after fiber_context_swap, but we do it here too since we are coming from a new place */
     fiber_manager_do_maintenance();
 
     void* const result = the_fiber->run_function(the_fiber->param);
@@ -66,7 +66,7 @@ fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run_funct
         }
     } else {
         //we got an old fiber for re-use - destroy the old stack
-        fiber_destroy_context(&ret->context);
+        fiber_context_destroy(&ret->context);
     }
 
     assert(ret->mpsc_node);
@@ -78,7 +78,7 @@ fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run_funct
     ret->join_info = NULL;
     ret->result = NULL;
     ret->id += 1;
-    if(FIBER_SUCCESS != fiber_make_context(&ret->context, stack_size, &fiber_go_function, ret)) {
+    if(FIBER_SUCCESS != fiber_context_init(&ret->context, stack_size, &fiber_go_function, ret)) {
         free(ret);
         return NULL;
     }
@@ -114,7 +114,7 @@ fiber_t* fiber_create_from_thread()
     ret->join_info = NULL;
     ret->result = NULL;
     ret->id = 1;
-    if(FIBER_SUCCESS != fiber_make_context_from_thread(&ret->context)) {
+    if(FIBER_SUCCESS != fiber_context_init_from_thread(&ret->context)) {
         free(ret);
         return NULL;
     }

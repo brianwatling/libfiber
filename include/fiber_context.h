@@ -24,13 +24,13 @@ typedef struct fiber_context
 extern "C" {
 #endif
 
-extern int fiber_make_context(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param);
+extern int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_function_t run_function, void* param);
 
-extern int fiber_make_context_from_thread(fiber_context_t* context);
+extern int fiber_context_init_from_thread(fiber_context_t* context);
 
-extern void fiber_swap_context(fiber_context_t* from_context, fiber_context_t* to_context);
+extern void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_context);
 
-extern void fiber_destroy_context(fiber_context_t* context);
+extern void fiber_context_destroy(fiber_context_t* context);
 
 #ifdef __cplusplus
 }

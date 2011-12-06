@@ -23,7 +23,7 @@ void fiber_destroy(fiber_t* f)
 {
     if(f) {
         assert(f->state == FIBER_STATE_DONE);
-        fiber_destroy_context(&f->context);
+        fiber_context_destroy(&f->context);
         free(f);
     }
 }
@@ -108,7 +108,7 @@ static inline void fiber_manager_switch_to(fiber_manager_t* manager, fiber_t* ol
     manager->current_fiber = new_fiber;
     new_fiber->state = FIBER_STATE_RUNNING;
     write_barrier();
-    fiber_swap_context(&old_fiber->context, &new_fiber->context);
+    fiber_context_swap(&old_fiber->context, &new_fiber->context);
 
     fiber_manager_do_maintenance();
 }
