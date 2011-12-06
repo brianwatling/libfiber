@@ -29,6 +29,7 @@ typedef struct fiber_manager
     wsd_work_stealing_deque_t* volatile schedule_from;
     wsd_work_stealing_deque_t* volatile store_to;
     wsd_work_stealing_deque_t* done_fibers;
+    fiber_t* volatile done_fiber;
     /* TODO: done_fibers may be better as a global queue to increase re-use, with the cost of added contention */
     /* TODO: done_fibers could also be setup to allow a thread to steal done fibers from other threads */
     int id;

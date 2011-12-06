@@ -29,10 +29,9 @@ void fiber_join_routine(fiber_t* the_fiber, void* result)
     the_fiber->state = FIBER_STATE_DONE;
     write_barrier();
 
-    wsd_work_stealing_deque_push_bottom(fiber_manager_get()->done_fibers, the_fiber);
-    while(1) { /* yield() may actually not switch to anything else if there's nothing else to schedule - loop here until yield() doesn't return */
-        fiber_manager_yield(fiber_manager_get());
-    }
+    fiber_manager_get()->done_fiber = the_fiber;
+    fiber_manager_yield(fiber_manager_get());
+    assert(0 && "should never get here");
 }
 
 static void* fiber_go_function(void* param)

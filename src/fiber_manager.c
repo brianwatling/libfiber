@@ -364,6 +364,11 @@ extern int fiber_mutex_unlock_internal(fiber_mutex_t* mutex);
 void fiber_manager_do_maintenance()
 {
     fiber_manager_t* const manager = fiber_manager_get();
+    if(manager->done_fiber) {
+        wsd_work_stealing_deque_push_bottom(manager->done_fibers, manager->done_fiber);
+        manager->done_fiber = NULL;
+    }
+
     if(manager->to_schedule) {
         assert(manager->to_schedule->state == FIBER_STATE_READY);
         wsd_work_stealing_deque_push_bottom(manager->store_to, manager->to_schedule);
