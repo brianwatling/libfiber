@@ -219,15 +219,14 @@ int accept(ACCEPTPARAMS)
         fibershim_accept = (acceptFnType) dlsym(RTLD_NEXT, "accept");
     }
 
-    int sock;
-    do {
-        if(should_block(sockfd)) {
-            if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
-                return -1;
-            }
+    int sock = fibershim_accept(sockfd, addr, addrlen);
+    if(sock < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(sockfd)) {
+        if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
+            return -1;
         }
+
         sock = fibershim_accept(sockfd, addr, addrlen);
-    } while(sock < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(sockfd));
+    }
 
     if(sock > 0) {
         if(setup_socket(sock) < 0) {
