@@ -33,17 +33,14 @@ typedef struct spsc_fifo
     spsc_node_t* head;//consumer read items from head
     char _cache_padding1[CACHE_SIZE - sizeof(spsc_node_t*)];
     spsc_node_t* tail;//producer pushes onto the tail
-    char _cache_padding3[CACHE_SIZE - sizeof(spsc_node_t*)];
-    spsc_node_t* divider;
 } spsc_fifo_t;
 
 static inline int spsc_fifo_init(spsc_fifo_t* f)
 {
     assert(f);
-    f->divider = calloc(1, sizeof(*f->divider));
-    f->tail = f->divider;
-    f->head = f->divider;
-    if(!f->divider) {
+    f->tail = calloc(1, sizeof(*f->tail));
+    f->head = f->tail;
+    if(!f->tail) {
         return 0;
     }
     return 1;
