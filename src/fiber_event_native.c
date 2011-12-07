@@ -117,7 +117,9 @@ static int fiber_poll_events_internal(int wait_ms)
     port_event_t events[64];
     uint_t nget = 1;
     errno = 0;
-    const int ret = port_getn(event_fd, events, 64, &nget, );
+    timespec_t timeout = {wait_ms / 1000, wait_ms * 1000000};
+    const int ret = port_getn(event_fd, events, 64, &nget, &timeout);
+    fiber_manager_t* const manager = fiber_manager_get();
     uint_t i;
     for(i = 0; i < nget; ++i) {
         fd_wait_info_t* const info = &wait_info[events[i].portev_object];
@@ -130,8 +132,8 @@ static int fiber_poll_events_internal(int wait_ms)
         fiber_event_wake_waiters(manager, info, 0);
         fiber_spinlock_unlock(&info->spinlock);
     }
-    if(ret < 0 && errno != ETIME) {
-        assert(ret >= 0 && errno != ETIME && "port_getn failed!");
+    if(ret == -1 && errno != ETIME) {
+        assert(0 && "port_getn failed!");
         const char* err_msg = "port_getn failed!";
         const ssize_t ret = write(STDERR_FILENO, err_msg, strlen(err_msg));
         (void)ret;
