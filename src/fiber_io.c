@@ -219,14 +219,15 @@ int accept(ACCEPTPARAMS)
         fibershim_accept = (acceptFnType) dlsym(RTLD_NEXT, "accept");
     }
 
-    int sock = fibershim_accept(sockfd, addr, addrlen);
-    if(sock < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(sockfd)) {
-        if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
-            return -1;
+    int sock;
+    do {
+        if(should_block(sockfd)) {
+            if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
+                return -1;
+            }
         }
-
         sock = fibershim_accept(sockfd, addr, addrlen);
-    }
+    } while(sock < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(sockfd));
 
     if(sock > 0) {
         if(setup_socket(sock) < 0) {
@@ -244,31 +245,34 @@ ssize_t read(int fd, void* buf, size_t count)
         fibershim_read = (readFnType)dlsym(RTLD_NEXT, "read");
     }
 
-    int ret = fibershim_read(fd, buf, count);
-    if(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(fd)) {
-        if(!fiber_wait_for_event(fd, FIBER_POLL_IN)) {
-            return -1;
+    int ret;
+    do {
+        if(should_block(fd)) {
+            if(!fiber_wait_for_event(fd, FIBER_POLL_IN)) {
+                return -1;
+            }
         }
         ret = fibershim_read(fd, buf, count);
-    }
+    } while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(fd));
 
     return ret;
 }
 
-ssize_t recv(int sockfd, void* buf, size_t len, int flags)
+ssize_t recv(int fd, void* buf, size_t len, int flags)
 {
     if(!fibershim_recv) {
         fibershim_recv = (recvFnType)dlsym(RTLD_NEXT, "recv");
     }
 
-    ssize_t ret = fibershim_recv(sockfd, buf, len, flags);
-    if(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd))
-    {
-        if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
-            return -1;
+    int ret;
+    do {
+        if(!(flags & MSG_DONTWAIT) && should_block(fd)) {
+            if(!fiber_wait_for_event(fd, FIBER_POLL_IN)) {
+                return -1;
+            }
         }
-        ret = fibershim_recv(sockfd, buf, len, flags);
-    }
+        ret = fibershim_recv(fd, buf, len, flags);
+    } while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(fd));
 
     return ret;
 }
@@ -279,14 +283,15 @@ ssize_t recvfrom(RECVFROMPARAMS)
         fibershim_recvfrom = (recvfromFnType)dlsym(RTLD_NEXT, "recvfrom");
     }
 
-    ssize_t ret = fibershim_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
-    if(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd))
-    {
-        if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
-            return -1;
+    int ret;
+    do {
+        if(!(flags & MSG_DONTWAIT) && should_block(sockfd)) {
+            if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
+                return -1;
+            }
         }
         ret = fibershim_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
-    }
+    } while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd));
 
     return ret;
 }
@@ -297,14 +302,15 @@ ssize_t RECVMSGFUNCTION(int sockfd, struct msghdr* msg, int flags)
         fibershim_recvmsg = (recvmsgFnType)dlsym(RTLD_NEXT, RECVMSG_STRING);
     }
 
-    ssize_t ret = fibershim_recvmsg(sockfd, msg, flags);
-    if(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd))
-    {
-        if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
-            return -1;
+    int ret;
+    do {
+        if(!(flags & MSG_DONTWAIT) && should_block(sockfd)) {
+            if(!fiber_wait_for_event(sockfd, FIBER_POLL_IN)) {
+                return -1;
+            }
         }
         ret = fibershim_recvmsg(sockfd, msg, flags);
-    }
+    } while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd));
 
     return ret;
 }
@@ -316,7 +322,7 @@ ssize_t write(int fd, const void* buf, size_t count)
     }
 
     int ret = fibershim_write(fd, buf, count);
-    if(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(fd)) {
+    while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(fd)) {
         if(!fiber_wait_for_event(fd, FIBER_POLL_OUT)) {
             return -1;
         }
@@ -333,7 +339,7 @@ ssize_t send(int sockfd, const void* buf, size_t len, int flags)
     }
 
     ssize_t ret = fibershim_send(sockfd, buf, len, flags);
-    if(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd)) {
+    while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd)) {
         if(!fiber_wait_for_event(sockfd, FIBER_POLL_OUT)) {
             return -1;
         }
@@ -350,7 +356,7 @@ ssize_t SENDTOFUNCTION(int sockfd, const void* buf, size_t len, int flags, const
     }
 
     ssize_t ret = fibershim_sendto(sockfd, buf, len, flags, dest_addr, addrlen);
-    if(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd)) {
+    while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd)) {
         if(!fiber_wait_for_event(sockfd, FIBER_POLL_OUT)) {
             return -1;
         }
@@ -367,7 +373,7 @@ ssize_t SENDMSGFUNCTION(int sockfd, const struct msghdr* msg, int flags)
     }
 
     ssize_t ret = fibershim_sendmsg(sockfd, msg, flags);
-    if(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd)) {
+    while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && !(flags & MSG_DONTWAIT) && should_block(sockfd)) {
         if(!fiber_wait_for_event(sockfd, FIBER_POLL_OUT)) {
             return -1;
         }
