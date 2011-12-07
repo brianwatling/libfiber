@@ -17,7 +17,7 @@ typedef struct fd_wait_info
 {
     int volatile events;
     fiber_spinlock_t spinlock;
-    fiber_t* waiters;
+    void* waiters;
 } fd_wait_info_t;
 
 static fd_wait_info_t* wait_info = NULL;
@@ -69,8 +69,21 @@ void fiber_event_destroy()
     wait_info = NULL;
 }
 
+static void fiber_event_wake_waiters(fiber_manager_t* manager, fd_wait_info_t* info, intptr_t result)
+{
+    while(info->waiters) {
+        fiber_t* const to_schedule = (fiber_t*)info->waiters;
+        info->waiters = to_schedule->scratch;
+        to_schedule->scratch = NULL;
+        to_schedule->state = FIBER_STATE_READY;
+        to_schedule->scratch = (void*)result;
+        fiber_manager_schedule(manager, to_schedule);
+    }
+}
+
 static int fiber_poll_events_internal(int wait_ms)
 {
+#if defined(LINUX)
     struct epoll_event events[64];
     const int count = epoll_wait(event_fd, events, 64, 0);
     assert(count >= 0);
@@ -88,16 +101,15 @@ static int fiber_poll_events_internal(int wait_ms)
         } else {
             epoll_ctl(event_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
         }
-        while(info->waiters) {
-            fiber_t* const to_schedule = info->waiters;
-            info->waiters = info->waiters->next;
-            to_schedule->next = NULL;
-            to_schedule->state = FIBER_STATE_READY;
-            fiber_manager_schedule(manager, to_schedule);
-        }
+        fiber_event_wake_waiters(manager, info, 0);
         fiber_spinlock_unlock(&info->spinlock);
     }
     return count;
+#elif defined(SOLARIS)
+
+#else
+#error OS not supported
+#endif
 }
 
 int fiber_poll_events()
@@ -156,13 +168,14 @@ int fiber_wait_for_event(int fd, uint32_t events)
 
     fiber_manager_t* const manager = fiber_manager_get();
     fiber_t* const this_fiber = manager->current_fiber;
-    this_fiber->next = info->waiters;
+    this_fiber->scratch = info->waiters;
     info->waiters = this_fiber;
     this_fiber->state = FIBER_STATE_WAITING;
     manager->spinlock_to_unlock = &info->spinlock;
     fiber_manager_yield(manager);
 
-    return FIBER_SUCCESS;
+    //if the fd is closed while we're polling, this_fiber->scratch will be non-NULL (see fiber_fd_closed)
+    return this_fiber->scratch ? FIBER_ERROR : FIBER_SUCCESS;
 }
 
 int fiber_sleep(uint32_t seconds, uint32_t useconds)
@@ -170,3 +183,29 @@ int fiber_sleep(uint32_t seconds, uint32_t useconds)
     assert(0 && "sleep not implemented!");
     return FIBER_SUCCESS;
 }
+
+void fiber_fd_closed(int fd)
+{
+    if(event_fd < 0) {
+        return;
+    }
+
+    assert(fd >= 0);
+    assert(fd < max_fd);
+    fd_wait_info_t* const info = &wait_info[fd];
+    fiber_spinlock_lock(&info->spinlock);
+#if defined(LINUX)
+    if(info->events) {
+        epoll_ctl(event_fd, EPOLL_CTL_DEL, fd, NULL);
+        info->events = 0;
+    }
+#elif defined(SOLARIS)
+
+#else
+#error OS not supported
+#endif
+    //result = -1 -> this indicates to fiber_wait_for_event that the fd was closed
+    fiber_event_wake_waiters(fiber_manager_get(), info, -1);
+    fiber_spinlock_unlock(&info->spinlock);
+}
+

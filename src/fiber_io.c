@@ -87,6 +87,7 @@ typedef ssize_t (*sendtoFnType)(int sockfd, const void* buf, size_t len, int fla
 typedef ssize_t (*sendmsgFnType)(int sockfd, const struct msghdr *msg, int flags);
 typedef ssize_t (*recvFnType)(int, void*, size_t, int);
 typedef ssize_t (*recvmsgFnType)(int sockfd, struct msghdr *msg, int flags);
+typedef int (*closeFnType)(int fd);
 
 /*static openFnType fibershim_open = NULL;
 static pollFnType fibershim_poll = NULL;
@@ -105,6 +106,7 @@ static connectFnType fibershim_connect = NULL;
 static pipeFnType fibershim_pipe = NULL;
 static fcntlFnType fibershim_fcntl = NULL;
 static ioctlFnType fibershim_ioctl = NULL;
+static closeFnType fibershim_close = NULL;
 
 #define STRINGIFY(x) XSTRINGIFY(x)
 #define XSTRINGIFY(x) #x
@@ -148,6 +150,7 @@ int fiber_io_init()
     fibershim_recv = (recvFnType)dlsym (RTLD_NEXT, "recv");
     fibershim_recvfrom = (recvfromFnType)dlsym (RTLD_NEXT, "recvfrom");
     fibershim_recvmsg = (recvmsgFnType)dlsym (RTLD_NEXT, RECVMSG_STRING);
+    fibershim_close = (closeFnType)dlsym(RTLD_NEXT, "close");
 
     if(fd_info) {
         return FIBER_ERROR;
@@ -493,6 +496,10 @@ int fcntl(int fd, int cmd, ...)
         fd_info[fd].blocking = 0;
         return 0;
     }
+    //make sure O_NONBLOCK stays set
+    if(cmd == F_SETFL) {
+        val |= O_NONBLOCK;
+    }
 
     if(!fibershim_fcntl) {
         fibershim_fcntl = (fcntlFnType)dlsym(RTLD_NEXT, "fcntl");
@@ -523,5 +530,15 @@ int ioctl(IOCTLPARAMS)
     }
 
     return fibershim_ioctl(d, request, val);
+}
+
+int close(int fd)
+{
+    if(!fibershim_close) {
+        fibershim_close = (closeFnType)dlsym(RTLD_NEXT, "close");
+    }
+
+    fiber_fd_closed(fd);
+    return fibershim_close(fd);
 }
 

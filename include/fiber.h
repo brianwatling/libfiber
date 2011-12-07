@@ -30,7 +30,7 @@ typedef struct fiber
     mpsc_node_t* volatile mpsc_node;
     int volatile detach_state;
     struct fiber* volatile join_info;
-    struct fiber* volatile next;
+    void* volatile scratch;
 } fiber_t;
 
 #ifdef __cplusplus

@@ -41,6 +41,9 @@ extern int fiber_wait_for_event(int fd, uint32_t events);
 //puts the calling fiber to sleep
 extern int fiber_sleep(uint32_t seconds, uint32_t useconds);
 
+//called when a file descriptor is closed
+extern void fiber_fd_closed(int fd);
+
 #ifdef __cplusplus
 }
 #endif

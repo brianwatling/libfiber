@@ -187,3 +187,8 @@ int fiber_sleep(uint32_t seconds, uint32_t useconds)
     return FIBER_SUCCESS;
 }
 
+void fiber_fd_closed(int fd)
+{
+    //NOP
+}
+
