@@ -127,7 +127,7 @@ selectFnType get_select_fn()
 
 typedef struct fiber_fd_info
 {
-    volatile int blocking;
+    volatile uint8_t blocking;
 } fiber_fd_info_t;
 
 static fiber_fd_info_t* fd_info = NULL;

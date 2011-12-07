@@ -5,6 +5,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <sys/poll.h>
+#include <errno.h>
 #if defined(LINUX)
 #include <sys/epoll.h>
 #elif defined(SOLARIS)
@@ -86,13 +87,20 @@ static int fiber_poll_events_internal(int wait_ms)
 #if defined(LINUX)
     struct epoll_event events[64];
     const int count = epoll_wait(event_fd, events, 64, 0);
-    assert(count >= 0);
+    if(count < 0) {
+        assert(count >= 0 && "epoll_wait failed!");
+        const char* err_msg = "epoll_wait failed!";
+        const ssize_t ret = write(STDERR_FILENO, err_msg, strlen(err_msg));
+        (void)ret;
+        abort();
+    }
     fiber_manager_t* const manager = fiber_manager_get();
     int i;
     for(i = 0; i < count; ++i) {
         fd_wait_info_t* const info = &wait_info[events[i].data.fd];
         fiber_spinlock_lock(&info->spinlock);
         info->events &= ~events[i].events;
+        info->events &= EPOLLIN | EPOLLOUT;
         if(info->events) {
             struct epoll_event e;
             e.events = EPOLLONESHOT | info->events;
@@ -106,7 +114,29 @@ static int fiber_poll_events_internal(int wait_ms)
     }
     return count;
 #elif defined(SOLARIS)
-
+    port_event_t events[64];
+    uint_t nget = 1;
+    errno = 0;
+    const int ret = port_getn(event_fd, events, 64, &nget, );
+    uint_t i;
+    for(i = 0; i < nget; ++i) {
+        fd_wait_info_t* const info = &wait_info[events[i].portev_object];
+        fiber_spinlock_lock(&info->spinlock);
+        info->events &= ~events[i].portev_events;
+        info->events &= POLLIN | POLLOUT;
+        if(info->events) {
+            port_associate(event_fd, PORT_SOURCE_FD, events[i].portev_object, info->events, NULL);
+        }
+        fiber_event_wake_waiters(manager, info, 0);
+        fiber_spinlock_unlock(&info->spinlock);
+    }
+    if(ret < 0 && errno != ETIME) {
+        assert(ret >= 0 && errno != ETIME && "port_getn failed!");
+        const char* err_msg = "port_getn failed!";
+        const ssize_t ret = write(STDERR_FILENO, err_msg, strlen(err_msg));
+        (void)ret;
+        abort();
+    }
 #else
 #error OS not supported
 #endif
@@ -140,11 +170,7 @@ int fiber_wait_for_event(int fd, uint32_t events)
     fiber_spinlock_lock(&info->spinlock);
 
 #if defined(LINUX)
-    int need_add = 0;
-    if(!info->events) {
-        need_add = 1;
-    }
-
+    const int need_add = info->events ? 0 : 1;
     if(events & FIBER_POLL_IN) {
         info->events |= EPOLLIN;
     }
@@ -161,7 +187,13 @@ int fiber_wait_for_event(int fd, uint32_t events)
         epoll_ctl(event_fd, EPOLL_CTL_MOD, fd, &e);
     }
 #elif defined(SOLARIS)
-
+    if(events & FIBER_POLL_IN) {
+        info->events |= POLLIN;
+    }
+    if(events & FIBER_POLL_OUT) {
+        info->events |= POLLOUT;
+    }
+    port_associate(event_fd, PORT_SOURCE_FD, fd, info->events, NULL);
 #else
 #error OS not supported
 #endif
@@ -200,7 +232,10 @@ void fiber_fd_closed(int fd)
         info->events = 0;
     }
 #elif defined(SOLARIS)
-
+    if(info->events) {
+        port_dissociate(event_fd, PORT_SOURCE_FD, fd);
+        info->events = 0;
+    }
 #else
 #error OS not supported
 #endif
