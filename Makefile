@@ -12,9 +12,14 @@ CFILES = \
     fiber.c \
     fiber_barrier.c \
     fiber_io.c \
-    fiber_event_ev.c \
-    ev.c \
     work_stealing_deque.c \
+
+USE_NATIVE_EVENTS ?= yes
+ifeq ($(USE_NATIVE_EVENTS),yes)
+CFILES += fiber_event_native.c
+else
+CFILES += fiber_event_ev.c ev.c
+endif
 
 PTHREAD_CFILES = \
     fiber_pthread.c \
