@@ -82,11 +82,11 @@ static void fiber_event_wake_waiters(fiber_manager_t* manager, fd_wait_info_t* i
     }
 }
 
-static int fiber_poll_events_internal(int wait_ms)
+static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds)
 {
 #if defined(LINUX)
     struct epoll_event events[64];
-    const int count = epoll_wait(event_fd, events, 64, 0);
+    const int count = epoll_wait(event_fd, events, 64, seconds * 1000 + useconds / 1000);
     if(count < 0) {
         assert(count >= 0 && "epoll_wait failed!");
         const char* err_msg = "epoll_wait failed!";
@@ -117,7 +117,7 @@ static int fiber_poll_events_internal(int wait_ms)
     port_event_t events[64];
     uint_t nget = 1;
     errno = 0;
-    timespec_t timeout = {wait_ms / 1000, wait_ms * 1000000};
+    timespec_t timeout = {seconds, useconds * 1000};
     const int ret = port_getn(event_fd, events, 64, &nget, &timeout);
     fiber_manager_t* const manager = fiber_manager_get();
     uint_t i;
@@ -150,7 +150,7 @@ int fiber_poll_events()
         return FIBER_EVENT_NOTINIT;
     }
 
-    return fiber_poll_events_internal(0);
+    return fiber_poll_events_internal(0, 0);
 }
 
 size_t fiber_poll_events_blocking(uint32_t seconds, uint32_t useconds)
@@ -160,7 +160,7 @@ size_t fiber_poll_events_blocking(uint32_t seconds, uint32_t useconds)
         return 0;
     }
 
-    return fiber_poll_events_internal(seconds * 1000 + useconds / 1000);
+    return fiber_poll_events_internal(seconds, useconds);
 }
 
 int fiber_wait_for_event(int fd, uint32_t events)
@@ -241,7 +241,7 @@ void fiber_fd_closed(int fd)
 #else
 #error OS not supported
 #endif
-    //result = -1 -> this indicates to fiber_wait_for_event that the fd was closed
+    //setting result to -1 indicates to fiber_wait_for_event that the fd was closed
     fiber_event_wake_waiters(fiber_manager_get(), info, -1);
     fiber_spinlock_unlock(&info->spinlock);
 }
