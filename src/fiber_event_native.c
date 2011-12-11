@@ -6,7 +6,9 @@
 #include <unistd.h>
 #include <sys/poll.h>
 #include <errno.h>
+#include <stdio.h>
 #if defined(LINUX)
+#include <sys/timerfd.h>
 #include <sys/epoll.h>
 #elif defined(SOLARIS)
 #include <port.h>
@@ -24,6 +26,72 @@ typedef struct fd_wait_info
 static fd_wait_info_t* wait_info = NULL;
 static int max_fd = 0;
 static int event_fd = -1;
+static fiber_spinlock_t sleep_spinlock = FIBER_SPINLOCK_INITIALIER;
+
+#if defined(LINUX)
+static int timer_fd = -1;
+static uint64_t timer_trigger_count = 0;
+typedef ssize_t (*readFnType) (int, void *, size_t);
+static readFnType fibershim_read = NULL;
+
+typedef struct waiter_el
+{
+    uint64_t wake_time;
+    void* waiter;
+    struct waiter_el* next;
+    struct waiter_el* left;
+    struct waiter_el* right;
+} waiter_el_t;
+
+static waiter_el_t* sleepers = NULL;
+
+void waiter_insert(waiter_el_t** tree, waiter_el_t* node)
+{
+    if(!(*tree)) {
+        *tree = node;
+        return;
+    }
+
+    while(1) {
+        if(node->wake_time < (*tree)->wake_time) {
+            tree = &(*tree)->left;
+        } else if(node->wake_time == (*tree)->wake_time) {
+            node->next = (*tree)->next;
+            (*tree)->next = node;
+            break;
+        } else {
+            tree = &(*tree)->right;
+        }
+        if(!(*tree)) {
+            *tree = node;
+            break;
+        }
+    }
+}
+
+waiter_el_t* waiter_remove_less_than(waiter_el_t** tree, const uint64_t wake_time)
+{
+    while(*tree) {
+        if((*tree)->left) {
+            tree = &(*tree)->left;
+        } else if(wake_time > (*tree)->wake_time) {
+            waiter_el_t* const ret = *tree;
+            *tree = (*tree)->right;
+            return ret;
+        } else {
+            return NULL;
+        }
+    }
+    return NULL;
+}
+
+#elif defined(SOLARIS)
+static int signal_fd = -1;
+static int signal_num = -1;
+static timer_t timer_id = {};
+#else
+#error OS not supported
+#endif
 
 int fiber_event_init()
 {
@@ -39,11 +107,41 @@ int fiber_event_init()
 
     wait_info = calloc(max_fd, sizeof(*wait_info));
 
+#if defined(LINUX)
+    timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+    assert(timer_fd >= 0);
+    struct itimerspec in = {};
+    in.it_interval.tv_nsec = 1000000;//1ms
+    in.it_value.tv_nsec = 1000000;//1ms
+    struct itimerspec out;
+    timerfd_settime(timer_fd, 0, &in, &out);
+
+    fibershim_read = (readFnType)fiber_load_symbol("read");
+#elif defined(SOLARIS)
+    sigset_t sigset;
+    sigemptyset(&sigset);
+    signal_num = SIGRTMIN + 1;
+    assert(signal_num < SIGRTMAX);
+    sigaddset(&sigset, signal_num);
+    signal_fd = signalfd(-1, &sigset, SFD_NONBLOCK);
+    assert(signal_fd >= 0);
+
+    struct sigevent evp;
+    evp.sigev_notify = SIGEV_SIGNAL;
+    timer_create(CLOCK_MONOTONIC, &evp, &timer_id);
+#else
+#error OS not supported
+#endif
+
     write_barrier();
 
 #if defined(LINUX)
     event_fd = epoll_create(1);
     assert(event_fd >= 0);
+    struct epoll_event e;
+    e.events = EPOLLIN;
+    e.data.fd = timer_fd;
+    epoll_ctl(event_fd, EPOLL_CTL_ADD, timer_fd, &e);
 #elif defined(SOLARIS)
     event_fd = port_create();
     assert(event_fd >= 0);
@@ -59,7 +157,12 @@ void fiber_event_destroy()
         return;
     }
 
-#if defined(LINUX) || defined(SOLARIS)
+#if defined(LINUX)
+    close(event_fd);
+    event_fd = -1;
+    close(timer_fd);
+    timer_fd = -1;
+#elif defined(SOLARIS)
     close(event_fd);
     event_fd = -1;
 #else
@@ -97,17 +200,39 @@ static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds)
     fiber_manager_t* const manager = fiber_manager_get();
     int i;
     for(i = 0; i < count; ++i) {
-        fd_wait_info_t* const info = &wait_info[events[i].data.fd];
+        const int the_fd = events[i].data.fd;
+        if(the_fd == timer_fd) {
+            uint64_t timer_count = 0;
+            const int ret = fibershim_read(timer_fd, &timer_count, sizeof(timer_count));
+            (void)ret;
+            fiber_spinlock_lock(&sleep_spinlock);
+            timer_trigger_count += timer_count;
+
+            waiter_el_t* to_wake = NULL;
+            while((to_wake = waiter_remove_less_than(&sleepers, timer_trigger_count))) {
+                do {
+                    assert(to_wake->waiter);
+                    fiber_t* const to_schedule = (fiber_t*)to_wake->waiter;
+                    to_schedule->state = FIBER_STATE_READY;
+                    fiber_manager_schedule(manager, to_schedule);
+                    to_wake = to_wake->next;
+                } while(to_wake);
+            }
+
+            fiber_spinlock_unlock(&sleep_spinlock);
+            continue;
+        }
+        fd_wait_info_t* const info = &wait_info[the_fd];
         fiber_spinlock_lock(&info->spinlock);
         info->events &= ~events[i].events;
         info->events &= EPOLLIN | EPOLLOUT;
         if(info->events) {
             struct epoll_event e;
             e.events = EPOLLONESHOT | info->events;
-            e.data.fd = events[i].data.fd;
+            e.data.fd = the_fd;
             epoll_ctl(event_fd, EPOLL_CTL_MOD, e.data.fd, &e);
         } else {
-            epoll_ctl(event_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+            epoll_ctl(event_fd, EPOLL_CTL_DEL, the_fd, NULL);
         }
         fiber_event_wake_waiters(manager, info, 0);
         fiber_spinlock_unlock(&info->spinlock);
@@ -202,7 +327,7 @@ int fiber_wait_for_event(int fd, uint32_t events)
 
     fiber_manager_t* const manager = fiber_manager_get();
     fiber_t* const this_fiber = manager->current_fiber;
-    this_fiber->scratch = info->waiters;
+    this_fiber->scratch = info->waiters;//use scratch field as a linked list of waiters
     info->waiters = this_fiber;
     this_fiber->state = FIBER_STATE_WAITING;
     manager->spinlock_to_unlock = &info->spinlock;
@@ -214,7 +339,27 @@ int fiber_wait_for_event(int fd, uint32_t events)
 
 int fiber_sleep(uint32_t seconds, uint32_t useconds)
 {
-    assert(0 && "sleep not implemented!");
+    if(event_fd < 0) {
+        fiber_do_real_sleep(seconds, useconds);
+        return FIBER_SUCCESS;
+    }
+
+    const uint64_t sleep_ms = seconds * 1000 + useconds / 1000 + 1;//ms
+    waiter_el_t wake_info = {};
+
+    fiber_spinlock_lock(&sleep_spinlock);
+
+    const uint64_t wake_time = timer_trigger_count + sleep_ms;
+    wake_info.wake_time = wake_time;
+    waiter_insert(&sleepers, &wake_info);
+
+    fiber_manager_t* const manager = fiber_manager_get();
+    fiber_t* const this_fiber = manager->current_fiber;
+    wake_info.waiter = this_fiber;
+    this_fiber->state = FIBER_STATE_WAITING;
+    manager->spinlock_to_unlock = &sleep_spinlock;
+    fiber_manager_yield(manager);
+
     return FIBER_SUCCESS;
 }
 
