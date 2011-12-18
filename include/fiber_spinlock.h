@@ -14,10 +14,11 @@
 */
 
 #include <stddef.h>
+#include <stdint.h>
 
 typedef struct fiber_spinlock
 {
-    volatile int state;
+    volatile uint8_t state;
 } fiber_spinlock_t;
 
 #ifdef __cplusplus
