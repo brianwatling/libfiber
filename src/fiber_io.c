@@ -21,20 +21,35 @@
 
 #include <sys/filio.h>
 
-static const char* CONNECT_STRING = "__xnet_connect";
-#define CONNECTFUNCTION __xnet_connect
-static const char* RECVMSG_STRING = "__xnet_recvmsg";
-#define RECVMSGFUNCTION __xnet_recvmsg
-static const char* SENDMSG_STRING = "__xnet_sendmsg";
-#define SENDMSGFUNCTION __xnet_sendmsg
-static const char* SENDTO_STRING = "__xnet_sendto";
-#define SENDTOFUNCTION __xnet_sendto
-static const char* SOCKET_STRING = "__xnet_socket";
-#define SOCKETFUNCTION __xnet_socket
+int __xnet_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
+{
+    return connect(sockfd, addr, addrlen);
+}
 
-//other functions maybe worth shimming:
-//__xnet_socketpair
-//__xnet_getaddrinfo
+ssize_t __xnet_recvmsg(int sockfd, struct msghdr* msg, int flags)
+{
+    return recvmsg(sockfd, msg, flags);
+}
+
+ssize_t __xnet_sendmsg(int sockfd, const struct msghdr* msg, int flags)
+{
+    return sendmsg(sockfd, msg, flags);
+}
+
+ssize_t __xnet_sendto(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr* dest_addr, socklen_t addrlen)
+{
+    return sendto(sockfd, buf, len, flags, dest_addr, addrlen);
+}
+
+int __xnet_socket(int domain, int type, int protocol)
+{
+    return socket(domain, type, protocol);
+}
+
+int __xnet_socketpair(int domain, int type, int protocol, int sv[2])
+{
+    return socketpair(domain, type, protocol, sv);
+}
 
 typedef int (*acceptFnType) (int s, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen);
 #define ACCEPTPARAMS int sockfd, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen
@@ -46,17 +61,6 @@ typedef int (*ioctlFnType)(int d, int request, ...);
 #define IOCTLPARAMS int d, int request, ...
 
 #elif defined(LINUX)
-
-static const char* SOCKET_STRING = "socket";
-#define SOCKETFUNCTION socket
-static const char* SENDMSG_STRING = "sendmsg";
-#define SENDMSGFUNCTION sendmsg
-static const char* SENDTO_STRING = "sendto";
-#define SENDTOFUNCTION sendto
-static const char* RECVMSG_STRING = "recvmsg";
-#define RECVMSGFUNCTION recvmsg
-static const char* CONNECT_STRING = "connect";
-#define CONNECTFUNCTION connect
 
 typedef int (*acceptFnType) (int, struct sockaddr*, socklen_t*);
 #define ACCEPTPARAMS int sockfd, struct sockaddr* addr, socklen_t* addrlen
@@ -81,6 +85,7 @@ typedef ssize_t (*writeFnType) (int, const void*, size_t);
 typedef int (*selectFnType)(int, fd_set *, fd_set *, fd_set *, struct timeval *);
 typedef int (*pollFnType)(struct pollfd *fds, nfds_t nfds, int timeout);
 typedef int (*socketFnType)(int socket_family, int socket_type, int protocol);
+typedef int (*socketpairFnType)(int domain, int type, int protocol, int sv[2]);
 typedef int (*connectFnType)(int, const struct sockaddr*, socklen_t);
 typedef ssize_t (*sendFnType)(int, const void*, size_t, int);
 typedef ssize_t (*sendtoFnType)(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
@@ -95,6 +100,7 @@ static selectFnType fibershim_select = NULL;*/
 static readFnType fibershim_read = NULL;
 static writeFnType fibershim_write = NULL;
 static socketFnType fibershim_socket = NULL;
+static socketpairFnType fibershim_socketpair = NULL;
 static acceptFnType fibershim_accept = NULL;
 static sendFnType fibershim_send = NULL;
 static sendtoFnType fibershim_sendto = NULL;
@@ -114,15 +120,15 @@ static closeFnType fibershim_close = NULL;
 selectFnType get_select_fn()
 {
 #if FD_SETSIZE > 1024 && !defined(_LP64) && defined(__PRAGMA_REDEFINE_EXTNAME)
-    return (selectFnType) dlsym(RTLD_NEXT, "select_large_fdset");
+    return (selectFnType)dlsym(RTLD_NEXT, "select_large_fdset");
 #endif
 
 #ifdef select
     if (strcmp(STRINGIFY(select), "select_large_fdset") == 0) {
-        return (selectFnType) dlsym(RTLD_NEXT, "select_large_fdset");
+        return (selectFnType)dlsym(RTLD_NEXT, "select_large_fdset");
     }
 #endif
-    return (selectFnType) dlsym(RTLD_NEXT, "select");
+    return (selectFnType)dlsym(RTLD_NEXT, "select");
 }
 
 typedef struct fiber_fd_info
@@ -135,21 +141,22 @@ static rlim_t max_fd = 0;
 
 int fiber_io_init()
 {
-    //fibershim_open = (openFnType)dlsym (RTLD_NEXT, "open");
-    fibershim_pipe = (pipeFnType)dlsym (RTLD_NEXT, "pipe");
-    fibershim_read = (readFnType)dlsym (RTLD_NEXT, "read");
-    fibershim_write = (writeFnType)dlsym (RTLD_NEXT, "write");
+    //fibershim_open = (openFnType)dlsym(RTLD_NEXT, "open");
+    fibershim_pipe = (pipeFnType)dlsym(RTLD_NEXT, "pipe");
+    fibershim_read = (readFnType)dlsym(RTLD_NEXT, "read");
+    fibershim_write = (writeFnType)dlsym(RTLD_NEXT, "write");
     //fibershim_select = get_select_fn();
-    //fibershim_poll = (pollFnType) dlsym(RTLD_NEXT,"poll");
-    fibershim_socket = (socketFnType) dlsym(RTLD_NEXT, SOCKET_STRING);
-    fibershim_connect = (connectFnType) dlsym(RTLD_NEXT, CONNECT_STRING);
-    fibershim_accept = (acceptFnType) dlsym(RTLD_NEXT, "accept");
-    fibershim_send = (sendFnType)dlsym (RTLD_NEXT, "send");
-    fibershim_sendto = (sendtoFnType)dlsym (RTLD_NEXT, SENDTO_STRING);
-    fibershim_sendmsg = (sendmsgFnType)dlsym (RTLD_NEXT, SENDMSG_STRING);
-    fibershim_recv = (recvFnType)dlsym (RTLD_NEXT, "recv");
-    fibershim_recvfrom = (recvfromFnType)dlsym (RTLD_NEXT, "recvfrom");
-    fibershim_recvmsg = (recvmsgFnType)dlsym (RTLD_NEXT, RECVMSG_STRING);
+    //fibershim_poll = (pollFnType)dlsym(RTLD_NEXT,"poll");
+    fibershim_socket = (socketFnType)dlsym(RTLD_NEXT, "socket");
+    fibershim_socketpair = (socketpairFnType)dlsym(RTLD_NEXT, "socketpair");
+    fibershim_connect = (connectFnType)dlsym(RTLD_NEXT, "connect");
+    fibershim_accept = (acceptFnType)dlsym(RTLD_NEXT, "accept");
+    fibershim_send = (sendFnType)dlsym(RTLD_NEXT, "send");
+    fibershim_sendto = (sendtoFnType)dlsym(RTLD_NEXT, "sendto");
+    fibershim_sendmsg = (sendmsgFnType)dlsym(RTLD_NEXT, "sendmsg");
+    fibershim_recv = (recvFnType)dlsym(RTLD_NEXT, "recv");
+    fibershim_recvfrom = (recvfromFnType)dlsym(RTLD_NEXT, "recvfrom");
+    fibershim_recvmsg = (recvmsgFnType)dlsym(RTLD_NEXT, "recvmsg");
     fibershim_close = (closeFnType)dlsym(RTLD_NEXT, "close");
 
     if(fd_info) {
@@ -197,10 +204,10 @@ static int setup_socket(int sock)
     return setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 }
 
-int SOCKETFUNCTION(int domain, int type, int protocol)
+int socket(int domain, int type, int protocol)
 {
     if(!fibershim_socket) {
-        fibershim_socket = (socketFnType)dlsym(RTLD_NEXT, SOCKET_STRING);
+        fibershim_socket = (socketFnType)dlsym(RTLD_NEXT, "socket");
     }
 
     const int sock = fibershim_socket(domain, type, protocol);
@@ -216,10 +223,28 @@ int SOCKETFUNCTION(int domain, int type, int protocol)
     return sock;
 }
 
+int socketpair(int domain, int type, int protocol, int sv[2])
+{
+    if(!fibershim_socketpair) {
+        fibershim_socketpair = (socketpairFnType)dlsym(RTLD_NEXT, "socketpair");
+    }
+
+    const int ret = socketpair(domain, type, protocol, sv);
+    if(!ret) {
+        if(setup_socket(sv[0]) || setup_socket(sv[1])) {
+            close(sv[0]);
+            close(sv[1]);
+            return -1;
+        }
+    }
+
+    return ret;
+}
+
 int accept(ACCEPTPARAMS)
 {
     if(!fibershim_accept) {
-        fibershim_accept = (acceptFnType) dlsym(RTLD_NEXT, "accept");
+        fibershim_accept = (acceptFnType)dlsym(RTLD_NEXT, "accept");
     }
 
     int sock = fibershim_accept(sockfd, addr, addrlen);
@@ -298,10 +323,10 @@ ssize_t recvfrom(RECVFROMPARAMS)
     return ret;
 }
 
-ssize_t RECVMSGFUNCTION(int sockfd, struct msghdr* msg, int flags)
+ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags)
 {
     if(!fibershim_recvmsg) {
-        fibershim_recvmsg = (recvmsgFnType)dlsym(RTLD_NEXT, RECVMSG_STRING);
+        fibershim_recvmsg = (recvmsgFnType)dlsym(RTLD_NEXT, "recvmsg");
     }
 
     int ret;
@@ -351,10 +376,10 @@ ssize_t send(int sockfd, const void* buf, size_t len, int flags)
     return ret;
 }
 
-ssize_t SENDTOFUNCTION(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr* dest_addr, socklen_t addrlen)
+ssize_t sendto(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr* dest_addr, socklen_t addrlen)
 {
     if(!fibershim_sendto) {
-        fibershim_sendto = (sendtoFnType)dlsym(RTLD_NEXT, SENDTO_STRING);
+        fibershim_sendto = (sendtoFnType)dlsym(RTLD_NEXT, "sendto");
     }
 
     ssize_t ret = fibershim_sendto(sockfd, buf, len, flags, dest_addr, addrlen);
@@ -368,10 +393,10 @@ ssize_t SENDTOFUNCTION(int sockfd, const void* buf, size_t len, int flags, const
     return ret;
 }
 
-ssize_t SENDMSGFUNCTION(int sockfd, const struct msghdr* msg, int flags)
+ssize_t sendmsg(int sockfd, const struct msghdr* msg, int flags)
 {
     if(!fibershim_sendmsg) {
-        fibershim_sendmsg = (sendmsgFnType)dlsym(RTLD_NEXT, SENDMSG_STRING);
+        fibershim_sendmsg = (sendmsgFnType)dlsym(RTLD_NEXT, "sendmsg");
     }
 
     ssize_t ret = fibershim_sendmsg(sockfd, msg, flags);
@@ -385,10 +410,10 @@ ssize_t SENDMSGFUNCTION(int sockfd, const struct msghdr* msg, int flags)
     return ret;
 }
 
-int CONNECTFUNCTION(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
+int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
 {
     if(!fibershim_connect) {
-        fibershim_connect = (connectFnType)dlsym(RTLD_NEXT, CONNECT_STRING);
+        fibershim_connect = (connectFnType)dlsym(RTLD_NEXT, "connect");
     }
 
     int ret = fibershim_connect(sockfd, addr, addrlen);
