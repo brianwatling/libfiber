@@ -47,7 +47,7 @@ ifeq ($(ARCH),x86)
 CFLAGS += -m32 -march=i686 -DARCH_x86
 endif
 
-CFLAGS += -pthread -Wall -Iinclude -Isubmodules/libev -ggdb -O3 #-DFIBER_CONTEXT_MALLOC
+CFLAGS += -pthread -Wall -Iinclude -Isubmodules/libev -D_REENTRANT -ggdb -O3 #-DFIBER_CONTEXT_MALLOC
 
 USE_VALGRIND ?= 0
 ifeq ($(USE_VALGRIND),1)
