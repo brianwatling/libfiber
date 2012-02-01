@@ -30,15 +30,15 @@ typedef struct fiber
     mpsc_node_t* volatile mpsc_node;
     int volatile detach_state;
     struct fiber* volatile join_info;
-    void* volatile scratch;
+    void* volatile scratch;//to be used by internal fiber mechanisms. be sure mechanisms do not conflict! (ie. only use scratch while a fiber is sleeping/waiting)
 } fiber_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define FIBER_DEFAULT_STACK_SIZE 102400
-#define FIBER_MIN_STACK_SIZE 1024
+#define FIBER_DEFAULT_STACK_SIZE (102400)
+#define FIBER_MIN_STACK_SIZE (1024)
 
 extern fiber_t* fiber_create(size_t stack_size, fiber_run_function_t run, void* param);
 

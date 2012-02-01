@@ -59,6 +59,21 @@ static inline void mpsc_fifo_push(mpsc_fifo_t* f, mpsc_node_t* new_node)
     prev_tail->next = new_node;
 }
 
+//returns 1 if a node is available, 0 otherwise
+static inline int mpsc_fifo_peek(mpsc_fifo_t* f, void** data)
+{
+    assert(f);
+    mpsc_node_t* const head = f->head;
+    mpsc_node_t* const head_next = head->next;
+    if(head_next) {
+        if(data) {
+            *data = head_next->data;
+        }
+        return 1;
+    }
+    return 0;
+}
+
 //the caller owns the node after popping
 static inline mpsc_node_t* mpsc_fifo_pop(mpsc_fifo_t* f)
 {

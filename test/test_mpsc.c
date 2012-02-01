@@ -38,7 +38,11 @@ int main()
 
     mpsc_node_t* node = NULL;
     for(i = 0; i < PUSH_COUNT * (NUM_THREADS-1); ++i) {
-        while(!(node = mpsc_fifo_pop(&fifo))) {};
+        void* data = NULL;
+        while(!mpsc_fifo_peek(&fifo, &data)) {};
+        node = mpsc_fifo_pop(&fifo);
+        test_assert(node);
+        test_assert(node->data == data);
         ++results[(intptr_t)node->data];
         free(node);
     }

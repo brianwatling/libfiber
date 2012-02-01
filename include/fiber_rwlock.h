@@ -8,11 +8,15 @@
 */
 
 #include "mpsc_fifo.h"
+#include "fiber_spinlock.h"
 
-typedef fiber_rwlock
+typedef struct fiber_rwlock
 {
-    mpsc_fifo_t waiters_read;
-    mpsc_fifo_t waiters_write;
+    volatile int counter;
+    volatile int waiting_writers;
+    volatile int waiting_readers;
+    fiber_spinlock_t lock;
+    mpsc_fifo_t waiters;
 } fiber_rwlock_t;
 
 #ifdef __cplusplus
@@ -25,13 +29,15 @@ extern void fiber_rwlock_destroy(fiber_rwlock_t* rwlock);
 
 extern int fiber_rwlock_rdlock(fiber_rwlock_t* rwlock);
 
+extern int fiber_rwlock_wrlock(fiber_rwlock_t* rwlock);
+
 extern int fiber_rwlock_tryrdlock(fiber_rwlock_t* rwlock);
 
 extern int fiber_rwlock_trywrlock(fiber_rwlock_t* rwlock);
 
-extern int fiber_rwlock_unlock(fiber_rwlock_t* rwlock);
+extern int fiber_rwlock_rdunlock(fiber_rwlock_t* rwlock);
 
-extern int fiber_rwlock_wrlock(fiber_rwlock_t* rwlock);
+extern int fiber_rwlock_wrunlock(fiber_rwlock_t* rwlock);
 
 #ifdef __cplusplus
 }

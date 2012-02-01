@@ -12,6 +12,7 @@ CFILES = \
     fiber.c \
     fiber_barrier.c \
     fiber_io.c \
+    fiber_rwlock.c \
     work_stealing_deque.c \
 
 USE_NATIVE_EVENTS ?= yes
@@ -101,6 +102,7 @@ TESTS= \
     test_cond \
     test_barrier \
     test_spinlock \
+    test_rwlock \
 
 #    test_pthread_cond \
 
