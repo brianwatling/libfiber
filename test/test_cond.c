@@ -1,4 +1,5 @@
 #include "fiber_cond.h"
+#include "fiber_barrier.h"
 #include "fiber_manager.h"
 #include "test_helper.h"
 
@@ -26,6 +27,15 @@ void* run_function(void* param)
     return NULL;
 }
 
+void* run_single(void* param)
+{
+    fiber_mutex_lock(&mutex);
+    fiber_cond_signal(&cond);
+    fiber_cond_wait(&cond, &mutex);
+    fiber_mutex_unlock(&mutex);
+    return NULL;
+}
+
 int main()
 {
     fiber_manager_init(NUM_THREADS);
@@ -44,6 +54,15 @@ int main()
     }
 
     test_assert(counter == (NUM_FIBERS * PER_FIBER_COUNT + 1));
+
+    fiber_t* single = fiber_create(20000, &run_single, NULL);
+    fiber_mutex_lock(&mutex);
+    fiber_cond_wait(&cond, &mutex);
+    fiber_cond_signal(&cond);
+    fiber_mutex_unlock(&mutex);
+    fiber_join(single, NULL);
+
+    fiber_cond_destroy(&cond);
 
     return 0;
 }

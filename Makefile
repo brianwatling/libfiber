@@ -100,6 +100,7 @@ TESTS= \
     test_wait_in_queue \
     test_cond \
     test_barrier \
+    test_spinlock \
 
 #    test_pthread_cond \
 
@@ -144,6 +145,15 @@ bin/%.o: %.c $(INCLUDES)
 bin/%.pic.o: %.c $(INCLUDES)
 	$(CC) -Werror $(CFLAGS) -DSHARED_LIB -fPIC -c $< -o $@
 
+.PHONY:
+coveragereport: CFLAGS += -fprofile-arcs -ftest-coverage
+coveragereport: LDFLAGS += -lgcov
+coveragereport: runtests
+	cp -rt bin/ include/ src/ test/
+	- lcov --directory `pwd` --capture --output-file bin/app.info
+	- mkdir -p bin/lcov
+	genhtml bin/app.info -o bin/lcov
+
 clean:
-	rm -f bin/* libfiber.so libfiber_pthread.so
+	rm -rf bin/* libfiber.so libfiber_pthread.so
 
