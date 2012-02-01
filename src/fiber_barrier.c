@@ -10,6 +10,7 @@ int fiber_barrier_init(fiber_barrier_t* barrier, uint32_t count)
     if(!mpsc_fifo_init(&barrier->waiters)) {
         return FIBER_ERROR;
     }
+    write_barrier();
     return FIBER_SUCCESS;
 }
 

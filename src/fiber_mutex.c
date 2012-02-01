@@ -8,6 +8,7 @@ int fiber_mutex_init(fiber_mutex_t* mutex)
     if(!mpsc_fifo_init(&mutex->waiters)) {
         return FIBER_ERROR;
     }
+    write_barrier();
     return FIBER_SUCCESS;
 }
 

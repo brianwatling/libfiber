@@ -12,6 +12,7 @@ int fiber_cond_init(fiber_cond_t* cond)
         mpsc_fifo_destroy(&cond->waiters);
         return FIBER_ERROR;
     }
+    write_barrier();
     return FIBER_SUCCESS;
 }
 

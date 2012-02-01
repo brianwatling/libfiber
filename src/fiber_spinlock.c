@@ -6,6 +6,7 @@ int fiber_spinlock_init(fiber_spinlock_t* spinlock)
 {
     assert(spinlock);
     spinlock->state = 0;
+    write_barrier();
     return FIBER_SUCCESS;
 }
 

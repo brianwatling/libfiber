@@ -52,6 +52,7 @@ wsd_work_stealing_deque_t* wsd_work_stealing_deque_create()
         free(d);
         return NULL;
     }
+    write_barrier();
     return d;
 }
 
