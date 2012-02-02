@@ -1,4 +1,4 @@
-#include "pthread.h"
+#include <pthread.h>
 #include "test_helper.h"
 
 int volatile counter = 0;

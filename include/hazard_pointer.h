@@ -25,33 +25,36 @@
 
 #include <stddef.h>
 
-typedef void* hazard_pointer_t;
-
-typedef struct hazard_pointer_node
+typedef struct hazard_node
 {
-    struct hazard_pointer_node* next;
-    hazard_pointer_t hazard_pointer;
-} hazard_pointer_node_t;
+    struct hazard_node* next;
+} hazard_node_t;
 
 typedef struct hazard_pointer_thread_record
 {
+    struct hazard_pointer_thread_record* volatile * head;
     struct hazard_pointer_thread_record* next;
     size_t retire_threshold;
     size_t retired_count;
-    hazard_pointer_node_t* retired_list;
+    hazard_node_t* retired_list;
     size_t hazard_pointers_count;
-    hazard_pointer_t hazard_pointers[];
+    hazard_node_t* hazard_pointers[];
 } hazard_pointer_thread_record_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+//create a new record and fuse it into the list of records at 'head'
 extern hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread);
 
-//hptr owns the node after this call
-extern void hazard_pointer_retire(hazard_pointer_thread_record_t* hptr, hazard_pointer_node_t* node);
+//declare node as in-use
+extern void hazard_pointer_in_use(hazard_pointer_thread_record_t* hptr, hazard_node_t* node);
 
+//hptr owns the node after this call
+extern void hazard_pointer_retire(hazard_pointer_thread_record_t* hptr, hazard_node_t* node);
+
+//TODO: add callback function with user data to be called when a node is reusable. possibly a separate version?
 extern void hazard_pointer_scan(hazard_pointer_thread_record_t* hptr);
 
 #ifdef __cplusplus

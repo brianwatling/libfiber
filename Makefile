@@ -14,6 +14,7 @@ CFILES = \
     fiber_barrier.c \
     fiber_io.c \
     fiber_rwlock.c \
+    hazard_pointer.c \
     work_stealing_deque.c \
 
 USE_NATIVE_EVENTS ?= yes
@@ -105,6 +106,7 @@ TESTS= \
     test_barrier \
     test_spinlock \
     test_rwlock \
+    test_hazard_pointers \
 
 #    test_pthread_cond \
 
@@ -130,10 +132,10 @@ runtests: tests
 	for cur in $(TESTS); do echo $$cur; LD_LIBRARY_PATH=..:$$LD_LIBRARY_PATH time ./bin/$$cur > /dev/null; if [ "$$?" -ne "0" ] ; then echo "ERROR $$cur - failed!"; fi; done
 
 bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
-	$(CC) $(CFLAGS) -Isrc -c $< -o $@
+	$(CC) -Werror $(CFLAGS) -Isrc -c $< -o $@
 
 bin/test_%: bin/test_%.o libfiber.so
-	$(CC) $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@ -lpthread $(LDFLAGSAFTER)
+	$(CC) -Werror $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@ -lpthread $(LDFLAGSAFTER)
 
 #no -Werror for ev.c
 bin/ev.o: ev.c
