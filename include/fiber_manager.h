@@ -67,7 +67,7 @@ extern void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* f
 
 extern void fiber_manager_wait_in_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_t* fifo, fiber_mutex_t* mutex);
 
-extern void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count);
+extern int fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count);
 
 extern void fiber_manager_set_and_wait(fiber_manager_t* manager, void** location, void* value);
 

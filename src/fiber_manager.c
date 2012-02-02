@@ -419,10 +419,12 @@ void fiber_manager_wait_in_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_
     fiber_manager_wait_in_queue(manager, fifo);
 }
 
-void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count)
+int fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count)
 {
+    //wake at least 'count' fibers; if count == 0, simply attempt to wake a fiber
     mpsc_node_t* out = NULL;
     int spin_counter = 0;
+    int wake_count = 0;
     do {
         if((out = mpsc_fifo_pop(fifo))) {
             count -= 1;
@@ -432,6 +434,7 @@ void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, 
             to_schedule->mpsc_node = out;
             to_schedule->state = FIBER_STATE_READY;
             fiber_manager_schedule(manager, to_schedule);
+            wake_count += 1;
         }
         ++spin_counter;
         if(spin_counter > 100) {
@@ -439,6 +442,7 @@ void fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, 
             spin_counter = 0;
         }
     } while(count > 0);
+    return wake_count;
 }
 
 void fiber_manager_set_and_wait(fiber_manager_t* manager, void** location, void* value)

@@ -7,6 +7,7 @@ CFILES = \
     fiber_context.c \
     fiber_manager.c \
     fiber_mutex.c \
+    fiber_semaphore.c \
     fiber_spinlock.c \
     fiber_cond.c \
     fiber.c \
@@ -98,6 +99,7 @@ TESTS= \
     test_mpscr \
     test_wsd \
     test_mutex \
+    test_semaphore \
     test_wait_in_queue \
     test_cond \
     test_barrier \
