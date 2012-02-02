@@ -38,8 +38,10 @@ static inline void mpmc_stack_push(mpmc_stack_t* q, mpmc_stack_node_t* n)
 {
     assert(q);
     assert(n);
-    mpmc_stack_node_t* head = q->head;
+    mpmc_stack_node_t* head;
     do {
+        head = q->head;
+        load_load_barrier();
         n->next = head;
     } while(!__sync_bool_compare_and_swap(&q->head, head, n));
 }
@@ -51,8 +53,10 @@ static inline int mpmc_stack_push_timeout(mpmc_stack_t* q, mpmc_stack_node_t* n,
 {
     assert(q);
     assert(n);
-    mpmc_stack_node_t* head = q->head;
+    mpmc_stack_node_t* head;
     do {
+        head = q->head;
+        load_load_barrier();
         n->next = head;
         if(__sync_bool_compare_and_swap(&q->head, head, n)) {
             return MPMC_SUCCESS;
@@ -87,13 +91,12 @@ static inline int mpmc_stack_lifo_flush_timeout(mpmc_stack_t* q, mpmc_stack_node
     }
     return MPMC_RETRY;
 #else
-    *out = q->head;
     while(tries > 0) {
+        *out = q->head;
         if(__sync_bool_compare_and_swap(&q->head, *out, 0)) {
             return MPMC_SUCCESS;
         }
         tries -= 1;
-        *out = q->head;
     }
     return MPMC_RETRY;
 #endif
