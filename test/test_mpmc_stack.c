@@ -1,4 +1,4 @@
-#include <mpmc_queue.h>
+#include <mpmc_stack.h>
 #include "test_helper.h"
 #include <pthread.h>
 #include <stdint.h>
@@ -12,7 +12,7 @@ int pops[NUM_THREADS] = {};
 int volatile done[NUM_THREADS] = {};
 pthread_barrier_t barrier;
 
-mpmc_queue_t the_q;
+mpmc_stack_t the_q;
 
 void* push_func(void* p)
 {
@@ -21,9 +21,9 @@ void* push_func(void* p)
     intptr_t i = 0;
     while(!done[thr]) {
         ++i;
-        mpmc_queue_node_t* n = malloc(sizeof(mpmc_queue_node_t));
-        mpmc_queue_node_init(n, (void*)i);
-        while(MPMC_RETRY == mpmc_queue_push_timeout(&the_q, n, 10)) {
+        mpmc_stack_node_t* n = malloc(sizeof(mpmc_stack_node_t));
+        mpmc_stack_node_init(n, (void*)i);
+        while(MPMC_RETRY == mpmc_stack_push_timeout(&the_q, n, 10)) {
             sched_yield();
         }
     }
@@ -38,15 +38,15 @@ void* pop_func(void* p)
     (void)last;
     intptr_t counter = 0;
     while(!done[thr]) {
-        mpmc_queue_node_t* head = NULL;
-        while(MPMC_RETRY == mpmc_queue_fifo_flush_timeout(&the_q, &head, 10)) {
+        mpmc_stack_node_t* head = NULL;
+        while(MPMC_RETRY == mpmc_stack_fifo_flush_timeout(&the_q, &head, 10)) {
             sched_yield();
         }
         if(!head) {
             usleep(1);
         }
         while(head) {
-            intptr_t i = (intptr_t)mpmc_queue_node_get_data(head);
+            intptr_t i = (intptr_t)mpmc_stack_node_get_data(head);
             if(NUM_THREADS == 1) {
                 assert(i > last);
                 last = i;
@@ -55,7 +55,7 @@ void* pop_func(void* p)
             if(counter > PER_THREAD_COUNT) {
                 done[thr] = 1;
             }
-            mpmc_queue_node_t* old = head;
+            mpmc_stack_node_t* old = head;
             head = head->next;
             free(old);
         }
@@ -66,7 +66,7 @@ void* pop_func(void* p)
 int main()
 {
     pthread_barrier_init(&barrier, NULL, 2 * NUM_THREADS);
-    mpmc_queue_init(&the_q);
+    mpmc_stack_init(&the_q);
 
     pthread_t reader[NUM_THREADS];
     pthread_t writer[NUM_THREADS];

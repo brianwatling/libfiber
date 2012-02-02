@@ -92,7 +92,7 @@ TESTS= \
     test_context_speed \
     test_basic \
     test_multithread \
-    test_mpmc \
+    test_mpmc_stack \
     test_spsc \
     test_mpsc \
     test_mpscr \

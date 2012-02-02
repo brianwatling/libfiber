@@ -1,44 +1,44 @@
-#ifndef _MPMC_QUEUE_H_
-#define _MPMC_QUEUE_H_
+#ifndef _MPMC_STACK_H_
+#define _MPMC_STACK_H_
 
 #include <assert.h>
 #include <stddef.h>
 #include "machine_specific.h"
 
-typedef struct mpmc_queue_node
+typedef struct mpmc_stack_node
 {
-    struct mpmc_queue_node* next;
+    struct mpmc_stack_node* next;
     void* data;
-} mpmc_queue_node_t;
+} mpmc_stack_node_t;
 
-typedef struct mpmc_queue
+typedef struct mpmc_stack
 {
-    mpmc_queue_node_t* volatile head;
-} mpmc_queue_t;
+    mpmc_stack_node_t* volatile head;
+} mpmc_stack_t;
 
-static inline void mpmc_queue_init(mpmc_queue_t* q)
+static inline void mpmc_stack_init(mpmc_stack_t* q)
 {
     assert(q);
     q->head = NULL;
 }
 
-static inline void mpmc_queue_node_init(mpmc_queue_node_t* n, void* data)
+static inline void mpmc_stack_node_init(mpmc_stack_node_t* n, void* data)
 {
     assert(n);
     n->data = data;
 }
 
-static inline void* mpmc_queue_node_get_data(mpmc_queue_node_t* n)
+static inline void* mpmc_stack_node_get_data(mpmc_stack_node_t* n)
 {
     assert(n);
     return n->data;
 }
 
-static inline void mpmc_queue_push(mpmc_queue_t* q, mpmc_queue_node_t* n)
+static inline void mpmc_stack_push(mpmc_stack_t* q, mpmc_stack_node_t* n)
 {
     assert(q);
     assert(n);
-    mpmc_queue_node_t* head = q->head;
+    mpmc_stack_node_t* head = q->head;
     do {
         n->next = head;
     } while(!__sync_bool_compare_and_swap(&q->head, head, n));
@@ -47,11 +47,11 @@ static inline void mpmc_queue_push(mpmc_queue_t* q, mpmc_queue_node_t* n)
 #define MPMC_RETRY (0)
 #define MPMC_SUCCESS (1)
 
-static inline int mpmc_queue_push_timeout(mpmc_queue_t* q, mpmc_queue_node_t* n, size_t tries)
+static inline int mpmc_stack_push_timeout(mpmc_stack_t* q, mpmc_stack_node_t* n, size_t tries)
 {
     assert(q);
     assert(n);
-    mpmc_queue_node_t* head = q->head;
+    mpmc_stack_node_t* head = q->head;
     do {
         n->next = head;
         if(__sync_bool_compare_and_swap(&q->head, head, n)) {
@@ -62,13 +62,13 @@ static inline int mpmc_queue_push_timeout(mpmc_queue_t* q, mpmc_queue_node_t* n,
     return MPMC_RETRY;
 }
 
-static inline mpmc_queue_node_t* mpmc_queue_lifo_flush(mpmc_queue_t* q)
+static inline mpmc_stack_node_t* mpmc_stack_lifo_flush(mpmc_stack_t* q)
 {
     assert(q);
 #ifdef FIBER_XCHG_POINTER
     return atomic_exchange_pointer((void**)&q->head, NULL);
 #else
-    mpmc_queue_node_t* head = q->head;
+    mpmc_stack_node_t* head = q->head;
     while(!__sync_bool_compare_and_swap(&q->head, head, 0)) {
         head = q->head;
     }
@@ -76,13 +76,13 @@ static inline mpmc_queue_node_t* mpmc_queue_lifo_flush(mpmc_queue_t* q)
 #endif
 }
 
-static inline int mpmc_queue_lifo_flush_timeout(mpmc_queue_t* q, mpmc_queue_node_t** out, size_t tries)
+static inline int mpmc_stack_lifo_flush_timeout(mpmc_stack_t* q, mpmc_stack_node_t** out, size_t tries)
 {
     assert(q);
     assert(out);
 #ifdef FIBER_XCHG_POINTER
     if(tries > 0) {
-        *out = mpmc_queue_lifo_flush(q);
+        *out = mpmc_stack_lifo_flush(q);
         return MPMC_SUCCESS;
     }
     return MPMC_RETRY;
@@ -99,11 +99,11 @@ static inline int mpmc_queue_lifo_flush_timeout(mpmc_queue_t* q, mpmc_queue_node
 #endif
 }
 
-static inline mpmc_queue_node_t* mpmc_queue_reverse(mpmc_queue_node_t* head)
+static inline mpmc_stack_node_t* mpmc_stack_reverse(mpmc_stack_node_t* head)
 {
-    mpmc_queue_node_t* fifo = NULL;
+    mpmc_stack_node_t* fifo = NULL;
     while(head) {
-        mpmc_queue_node_t* const next = head->next;
+        mpmc_stack_node_t* const next = head->next;
         head->next = fifo;
         fifo = head;
         head = next;
@@ -111,17 +111,17 @@ static inline mpmc_queue_node_t* mpmc_queue_reverse(mpmc_queue_node_t* head)
     return fifo;
 }
 
-static inline mpmc_queue_node_t* mpmc_queue_fifo_flush(mpmc_queue_t* q)
+static inline mpmc_stack_node_t* mpmc_stack_fifo_flush(mpmc_stack_t* q)
 {
-    return mpmc_queue_reverse(mpmc_queue_lifo_flush(q));
+    return mpmc_stack_reverse(mpmc_stack_lifo_flush(q));
 }
 
-static inline int mpmc_queue_fifo_flush_timeout(mpmc_queue_t* q, mpmc_queue_node_t** out, size_t tries)
+static inline int mpmc_stack_fifo_flush_timeout(mpmc_stack_t* q, mpmc_stack_node_t** out, size_t tries)
 {
     assert(out);
-    const int ret = mpmc_queue_lifo_flush_timeout(q, out, tries);
+    const int ret = mpmc_stack_lifo_flush_timeout(q, out, tries);
     if(ret == MPMC_SUCCESS) {
-        *out = mpmc_queue_reverse(*out);
+        *out = mpmc_stack_reverse(*out);
     }
     return ret;
 }
