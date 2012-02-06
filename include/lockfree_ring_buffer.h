@@ -29,10 +29,8 @@ static inline lockfree_ring_buffer_t* lockfree_ring_buffer_create(size_t size)
 {
     assert(size);
     const size_t required_size = sizeof(lockfree_ring_buffer_t) + size * sizeof(void*);
-    lockfree_ring_buffer_t* const ret = (lockfree_ring_buffer_t*)malloc(required_size);
+    lockfree_ring_buffer_t* const ret = (lockfree_ring_buffer_t*)calloc(1, required_size);
     if(ret) {
-        ret->high = 0;
-        ret->low = 0;
         ret->size = size;
     }
     return ret;

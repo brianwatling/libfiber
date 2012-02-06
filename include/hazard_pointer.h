@@ -59,6 +59,8 @@ extern "C" {
 //create a new record and fuse it into the list of records at 'head'
 extern hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread, hazard_node_gc_t garbage_collector);
 
+extern void hazard_pointer_thread_record_destroy(hazard_pointer_thread_record_t* hptr);
+
 //call this when you first grab an unsafe pointer
 extern void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, hazard_node_t* node, size_t n);
 

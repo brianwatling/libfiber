@@ -47,6 +47,14 @@ hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(haz
     return ret;
 }
 
+void hazard_pointer_thread_record_destroy(hazard_pointer_thread_record_t* hptr)
+{
+    if(hptr) {
+        free(hptr->plist);
+    }
+    free(hptr);
+}
+
 void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, hazard_node_t* node, size_t n)
 {
     assert(n < hptr->hazard_pointers_count);

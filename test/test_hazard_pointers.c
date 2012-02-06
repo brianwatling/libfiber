@@ -5,7 +5,7 @@
 
 //NOTE: to be run with valgrind to detect memory leaks or invalid memory access
 
-#define PER_THREAD_COUNT 1000000
+#define PER_THREAD_COUNT 10000
 #define NUM_THREADS 4
 #define POINTERS_PER_THREAD 4
 
@@ -100,6 +100,10 @@ int main()
     while(cur) {
         hazard_pointer_thread_record_t* to_free = cur;
         cur = cur->next;
+        hazard_pointer_thread_record_destroy(to_free);
+    }
+    void* to_free;
+    while((to_free = lockfree_ring_buffer_trypop(free_nodes))) {
         free(to_free);
     }
     lockfree_ring_buffer_destroy(free_nodes);
