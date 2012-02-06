@@ -107,6 +107,7 @@ TESTS= \
     test_spinlock \
     test_rwlock \
     test_hazard_pointers \
+    test_lockfree_ring_buffer \
 
 #    test_pthread_cond \
 
