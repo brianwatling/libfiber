@@ -15,6 +15,8 @@ void* run_function(void* param)
     intptr_t i;
     for(i = 1; i <= PER_THREAD_COUNT; ++i) {
         lockfree_ring_buffer_push(rb, (void*)i);
+        const size_t size = lockfree_ring_buffer_size(rb);
+        test_assert(size <= 128);
         intptr_t j = (intptr_t)lockfree_ring_buffer_pop(rb);
         test_assert(j > 0 && j <= PER_THREAD_COUNT);
         __sync_add_and_fetch(&counters[j - 1], 1);

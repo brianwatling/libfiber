@@ -78,5 +78,13 @@ void* lockfree_ring_buffer_pop(lockfree_ring_buffer_t* rb)
     }
 }
 
+size_t lockfree_ring_buffer_size(const lockfree_ring_buffer_t* rb)
+{
+    const uint64_t high = rb->high;
+    load_load_barrier();//read high first; make it look less than or equal to its actual size
+    const ssize_t size = high - rb->low;
+    return size >= 0 ? size : 0;
+}
+
 #endif
 
