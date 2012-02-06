@@ -9,6 +9,7 @@ hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(haz
 {
     assert(head);
     assert(pointers_per_thread);
+    assert(garbage_collector.free_function);
 
     //create a new record
     const size_t sizeof_pointers = pointers_per_thread * sizeof(*((*head)->hazard_pointers));
@@ -47,9 +48,21 @@ hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(haz
     return ret;
 }
 
+void hazard_pointer_thread_record_destroy_all(hazard_pointer_thread_record_t* head)
+{
+    hazard_pointer_thread_record_t* cur = head;
+    while(cur) {
+        cur->head = &cur;
+        hazard_pointer_thread_record_t* const next = cur->next;
+        hazard_pointer_thread_record_destroy(cur);
+        cur = next;
+    }
+}
+
 void hazard_pointer_thread_record_destroy(hazard_pointer_thread_record_t* hptr)
 {
     if(hptr) {
+        hazard_pointer_scan(hptr);//attempt to cleanup; best effort only here. really no threads should still be using these hazard pointers, so all should be freed
         free(hptr->plist);
     }
     free(hptr);
@@ -66,7 +79,6 @@ void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, hazard_node_t* n
 void hazard_pointer_done_using(hazard_pointer_thread_record_t* hptr, size_t n)
 {
     assert(n < hptr->hazard_pointers_count);
-    assert(hptr->hazard_pointers[n]);
     hptr->hazard_pointers[n] = 0;
 }
 

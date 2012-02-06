@@ -95,6 +95,7 @@ TESTS= \
     test_basic \
     test_multithread \
     test_mpmc_stack \
+    test_mpmc_fifo \
     test_spsc \
     test_mpsc \
     test_mpscr \

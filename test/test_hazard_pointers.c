@@ -96,12 +96,7 @@ int main()
     }
     test_assert(count == NUM_THREADS);
 
-    cur = head;
-    while(cur) {
-        hazard_pointer_thread_record_t* to_free = cur;
-        cur = cur->next;
-        hazard_pointer_thread_record_destroy(to_free);
-    }
+    hazard_pointer_thread_record_destroy_all(head);
     void* to_free;
     while((to_free = lockfree_ring_buffer_trypop(free_nodes))) {
         free(to_free);
