@@ -16,7 +16,7 @@
 #include "hazard_pointer.h"
 #include "machine_specific.h"
 
-#define MPMC_FIFO_SAFE 0
+#define MPMC_FIFO_SAFE 1
 #if MPMC_FIFO_SAFE
 #define MPMC_FIFO_HAZARD_COUNT (2)
 #else
@@ -35,7 +35,7 @@ typedef struct mpmc_fifo
 {
     mpmc_fifo_node_t* volatile head;//consumer reads items from head
     char _cache_padding[CACHE_SIZE - sizeof(mpmc_fifo_node_t*)];
-    mpmc_fifo_node_t* tail;//producer pushes onto the tail
+    mpmc_fifo_node_t* volatile tail;//producer pushes onto the tail
     hazard_pointer_thread_record_t* hazard_head;
     hazard_node_gc_t garbage_collector;
 } mpmc_fifo_t;
