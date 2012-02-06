@@ -404,12 +404,12 @@ void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo)
     assert(fifo);
     fiber_t* const this_fiber = manager->current_fiber;
     assert(this_fiber->state == FIBER_STATE_RUNNING);
-    assert(this_fiber->mpsc_node);
+    assert(this_fiber->mpsc_fifo_node);
     this_fiber->state = FIBER_STATE_WAITING;
     manager->mpsc_to_push.fifo = fifo;
-    manager->mpsc_to_push.node = this_fiber->mpsc_node;
+    manager->mpsc_to_push.node = this_fiber->mpsc_fifo_node;
     manager->mpsc_to_push.node->data = this_fiber;
-    this_fiber->mpsc_node = NULL;
+    this_fiber->mpsc_fifo_node = NULL;
     fiber_manager_yield(manager);
 }
 
@@ -422,7 +422,7 @@ void fiber_manager_wait_in_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_
 int fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count)
 {
     //wake at least 'count' fibers; if count == 0, simply attempt to wake a fiber
-    mpsc_node_t* out = NULL;
+    mpsc_fifo_node_t* out = NULL;
     int spin_counter = 0;
     int wake_count = 0;
     do {
@@ -430,8 +430,8 @@ int fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, i
             count -= 1;
             fiber_t* const to_schedule = (fiber_t*)out->data;
             assert(to_schedule->state == FIBER_STATE_WAITING);
-            assert(!to_schedule->mpsc_node);
-            to_schedule->mpsc_node = out;
+            assert(!to_schedule->mpsc_fifo_node);
+            to_schedule->mpsc_fifo_node = out;
             to_schedule->state = FIBER_STATE_READY;
             fiber_manager_schedule(manager, to_schedule);
             wake_count += 1;

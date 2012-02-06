@@ -16,7 +16,7 @@ void* push_func(void* p)
     pthread_barrier_wait(&barrier);
     intptr_t i;
     for(i = 0; i < PUSH_COUNT; ++i) {
-        mpsc_node_t* const node = malloc(sizeof(mpsc_node_t));
+        mpsc_fifo_node_t* const node = malloc(sizeof(mpsc_fifo_node_t));
         node->data = (void*)i;
         mpsc_fifo_push(&fifo, node);
     }
@@ -36,7 +36,7 @@ int main()
 
     pthread_barrier_wait(&barrier);
 
-    mpsc_node_t* node = NULL;
+    mpsc_fifo_node_t* node = NULL;
     for(i = 0; i < PUSH_COUNT * (NUM_THREADS-1); ++i) {
         void* data = NULL;
         while(!mpsc_fifo_peek(&fifo, &data)) {};

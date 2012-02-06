@@ -10,7 +10,7 @@
 typedef struct fiber_mpsc_to_push
 {
     mpsc_fifo_t* fifo;
-    mpsc_node_t* node;
+    mpsc_fifo_node_t* node;
 } fiber_mpsc_to_push_t;
 
 typedef struct fiber_manager

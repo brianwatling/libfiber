@@ -58,8 +58,8 @@ fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run_funct
             errno = ENOMEM;
             return NULL;
         }
-        ret->mpsc_node = calloc(1, sizeof(*ret->mpsc_node));
-        if(!ret->mpsc_node) {
+        ret->mpsc_fifo_node = calloc(1, sizeof(*ret->mpsc_fifo_node));
+        if(!ret->mpsc_fifo_node) {
             free(ret);
             errno = ENOMEM;
             return NULL;
@@ -69,7 +69,7 @@ fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run_funct
         fiber_context_destroy(&ret->context);
     }
 
-    assert(ret->mpsc_node);
+    assert(ret->mpsc_fifo_node);
 
     ret->run_function = run_function;
     ret->param = param;
@@ -102,8 +102,8 @@ fiber_t* fiber_create_from_thread()
         errno = ENOMEM;
         return NULL;
     }
-    ret->mpsc_node = calloc(1, sizeof(*ret->mpsc_node));
-    if(!ret->mpsc_node) {
+    ret->mpsc_fifo_node = calloc(1, sizeof(*ret->mpsc_fifo_node));
+    if(!ret->mpsc_fifo_node) {
         free(ret);
         errno = ENOMEM;
         return NULL;
