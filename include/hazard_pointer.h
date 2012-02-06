@@ -30,6 +30,14 @@ typedef struct hazard_node
     struct hazard_node* next;
 } hazard_node_t;
 
+typedef void (*hazard_node_free_function)(void* user_data, hazard_node_t* node);
+
+typedef struct hazard_node_gc
+{
+    void* user_data;
+    hazard_node_free_function free_function;
+} hazard_node_gc_t;
+
 typedef struct hazard_pointer_thread_record
 {
     struct hazard_pointer_thread_record* volatile * head;
@@ -37,7 +45,10 @@ typedef struct hazard_pointer_thread_record
     size_t retire_threshold;
     size_t retired_count;
     hazard_node_t* retired_list;
+    size_t plist_size;
+    hazard_node_t** plist;//a scratch area used in scan(); it's here to avoid malloc()ing in each scan()
     size_t hazard_pointers_count;
+    hazard_node_gc_t garbage_collector;
     hazard_node_t* hazard_pointers[];
 } hazard_pointer_thread_record_t;
 
@@ -46,15 +57,17 @@ extern "C" {
 #endif
 
 //create a new record and fuse it into the list of records at 'head'
-extern hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread);
+extern hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread, hazard_node_gc_t garbage_collector);
 
-//declare node as in-use
-extern void hazard_pointer_in_use(hazard_pointer_thread_record_t* hptr, hazard_node_t* node);
+//call this when you first grab an unsafe pointer
+extern void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, hazard_node_t* node, size_t n);
 
-//hptr owns the node after this call
-extern void hazard_pointer_retire(hazard_pointer_thread_record_t* hptr, hazard_node_t* node);
+//call this when you're done with the pointer
+extern void hazard_pointer_done_using(hazard_pointer_thread_record_t* hptr, size_t n);
 
-//TODO: add callback function with user data to be called when a node is reusable. possibly a separate version?
+//call this when an unsafe pointer should be cleaned up
+extern void hazard_pointer_free(hazard_pointer_thread_record_t* hptr, hazard_node_t* node);
+
 extern void hazard_pointer_scan(hazard_pointer_thread_record_t* hptr);
 
 #ifdef __cplusplus

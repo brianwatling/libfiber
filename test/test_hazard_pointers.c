@@ -1,12 +1,13 @@
 #include "hazard_pointer.h"
+#include "lockfree_ring_buffer.h"
 #include "test_helper.h"
 #include <pthread.h>
 
 //NOTE: to be run with valgrind to detect memory leaks or invalid memory access
 
-#define PER_THREAD_COUNT 10000000
+#define PER_THREAD_COUNT 1000000
 #define NUM_THREADS 4
-#define POINTERS_PER_THREAD 2
+#define POINTERS_PER_THREAD 4
 
 hazard_pointer_thread_record_t* head = 0;
 
@@ -16,23 +17,66 @@ struct test_object
     int my_data;
 };
 
+pthread_barrier_t barrier;
+lockfree_ring_buffer_t* free_nodes = 0;
+
+hazard_node_t* get_node(hazard_pointer_thread_record_t* hptr)
+{
+    hazard_node_t* node;
+    while(!(node = lockfree_ring_buffer_trypop(free_nodes))) {
+        hazard_pointer_scan(hptr);
+    }
+    return node;
+}
+
+void release_node(void* user_data, hazard_node_t* node)
+{
+    lockfree_ring_buffer_push(free_nodes, node);
+}
+
+hazard_pointer_thread_record_t* records[NUM_THREADS];
+
 void* run_function(void* param)
 {
-    hazard_pointer_thread_record_t* my_record = hazard_pointer_thread_record_create_and_push(&head, POINTERS_PER_THREAD);
+    pthread_barrier_wait(&barrier);
+    hazard_node_gc_t gc = { NULL, &release_node};
+    hazard_pointer_thread_record_t* my_record = hazard_pointer_thread_record_create_and_push(&head, POINTERS_PER_THREAD, gc);
+    records[(intptr_t)param] = my_record;
+    hazard_node_t* nodes[POINTERS_PER_THREAD];
     int i;
     for(i = 0; i < PER_THREAD_COUNT; ++i) {
-        hazard_node_t* node = (hazard_node_t*)malloc(sizeof(hazard_node_t));
-        hazard_pointer_retire(my_record, node);
+        int j;
+        for(j = 0; j < POINTERS_PER_THREAD; ++j) {
+            nodes[j] = get_node(my_record);
+            hazard_pointer_using(my_record, nodes[j], j);
+        }
+
+        for(j = 0; j < POINTERS_PER_THREAD; ++j) {
+            hazard_pointer_done_using(my_record, j);
+            hazard_pointer_free(my_record, nodes[j]);
+        }
+    }
+    //need to finish cleaning records owned by this thread. M.M. Michael's paper suggests methods to let threads leave...not bothering
+    while(my_record->retired_list) {
+        hazard_pointer_scan(my_record);
     }
     return NULL;
 }
 
 int main()
 {
+    pthread_barrier_init(&barrier, NULL, NUM_THREADS);
+    const size_t BUFFER_SIZE = NUM_THREADS * 2 * NUM_THREADS * POINTERS_PER_THREAD; //each thread can have up to 2 * N * K, so we need up to N * 2 * N * K nodes available at any given time
+    free_nodes = lockfree_ring_buffer_create(BUFFER_SIZE);
+    size_t node_count;
+    for(node_count = 0; node_count < BUFFER_SIZE; ++node_count) {
+        lockfree_ring_buffer_push(free_nodes, malloc(sizeof(hazard_node_t)));
+    }
+
     pthread_t threads[NUM_THREADS];
-    int i;
+    intptr_t i;
     for(i = 0; i < NUM_THREADS; ++i) {
-        pthread_create(&threads[i], NULL, &run_function, NULL);
+        pthread_create(&threads[i], NULL, &run_function, (void*)i);
     }
 
     for(i = 0; i < NUM_THREADS; ++i) {
@@ -58,5 +102,7 @@ int main()
         cur = cur->next;
         free(to_free);
     }
+    lockfree_ring_buffer_destroy(free_nodes);
     return 0;
 }
+
