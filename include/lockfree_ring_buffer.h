@@ -25,7 +25,7 @@ typedef struct lockfree_ring_buffer
     void* buffer[];
 } lockfree_ring_buffer_t;
 
-lockfree_ring_buffer_t* lockfree_ring_buffer_create(size_t size)
+static inline lockfree_ring_buffer_t* lockfree_ring_buffer_create(size_t size)
 {
     assert(size);
     const size_t required_size = sizeof(lockfree_ring_buffer_t) + size * sizeof(void*);
@@ -38,12 +38,12 @@ lockfree_ring_buffer_t* lockfree_ring_buffer_create(size_t size)
     return ret;
 }
 
-void lockfree_ring_buffer_destroy(lockfree_ring_buffer_t* rb)
+static inline void lockfree_ring_buffer_destroy(lockfree_ring_buffer_t* rb)
 {
     free(rb);
 }
 
-void lockfree_ring_buffer_push(lockfree_ring_buffer_t* rb, void* in)
+static inline void lockfree_ring_buffer_push(lockfree_ring_buffer_t* rb, void* in)
 {
     assert(in);//can't store NULLs; we rely on a NULL to indicate a spot in the buffer has not been written yet
 
@@ -61,24 +61,30 @@ void lockfree_ring_buffer_push(lockfree_ring_buffer_t* rb, void* in)
     }
 }
 
-void* lockfree_ring_buffer_pop(lockfree_ring_buffer_t* rb)
+static inline void* lockfree_ring_buffer_trypop(lockfree_ring_buffer_t* rb)
 {
-    while(1) {
-        const uint64_t high = rb->high;
-        load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
-        const uint64_t low = rb->low;
-        const uint64_t index = low % rb->size;
-        void* const ret = rb->buffer[index];
-        if(ret
-           && high > low
-           && __sync_bool_compare_and_swap(&rb->low, low, low + 1)) {
-            rb->buffer[index] = 0;
-            return ret;
-        }
+    const uint64_t high = rb->high;
+    load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
+    const uint64_t low = rb->low;
+    const uint64_t index = low % rb->size;
+    void* const ret = rb->buffer[index];
+    if(ret
+       && high > low
+       && __sync_bool_compare_and_swap(&rb->low, low, low + 1)) {
+        rb->buffer[index] = 0;
+        return ret;
     }
+    return NULL;
 }
 
-size_t lockfree_ring_buffer_size(const lockfree_ring_buffer_t* rb)
+static inline void* lockfree_ring_buffer_pop(lockfree_ring_buffer_t* rb)
+{
+    void* ret;
+    while(!(ret = lockfree_ring_buffer_trypop(rb))) {};
+    return ret;
+}
+
+static inline size_t lockfree_ring_buffer_size(const lockfree_ring_buffer_t* rb)
 {
     const uint64_t high = rb->high;
     load_load_barrier();//read high first; make it look less than or equal to its actual size
