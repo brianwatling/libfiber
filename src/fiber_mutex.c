@@ -32,7 +32,7 @@ int fiber_mutex_lock(fiber_mutex_t* mutex)
     }
 
     //we failed to acquire the lock (there's contention). we'll wait.
-    fiber_manager_wait_in_queue(fiber_manager_get(), &mutex->waiters);
+    fiber_manager_wait_in_mpsc_queue(fiber_manager_get(), &mutex->waiters);
     load_load_barrier();
 
     return FIBER_SUCCESS;
@@ -62,7 +62,7 @@ int fiber_mutex_unlock_internal(fiber_mutex_t* mutex)
     }
 
     //some other fiber is waiting - pop and schedule another fiber
-    fiber_manager_wake_from_queue(fiber_manager_get(), &mutex->waiters, 1);
+    fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &mutex->waiters, 1);
     //now we can unlock the mutex - before this we hold it since the mutex double-purposes as a lock on the consumer side of the fifo
     __sync_add_and_fetch(&mutex->counter, 1);
     return 1;

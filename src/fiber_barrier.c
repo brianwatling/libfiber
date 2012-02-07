@@ -26,10 +26,10 @@ int fiber_barrier_wait(fiber_barrier_t* barrier)
 
     uint64_t const new_value = __sync_add_and_fetch(&barrier->counter, 1);
     if(new_value % barrier->count == 0) {
-        fiber_manager_wake_from_queue(fiber_manager_get(), &barrier->waiters, barrier->count - 1);
+        fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &barrier->waiters, barrier->count - 1);
         return FIBER_BARRIER_SERIAL_FIBER;
     } else {
-        fiber_manager_wait_in_queue(fiber_manager_get(), &barrier->waiters);
+        fiber_manager_wait_in_mpsc_queue(fiber_manager_get(), &barrier->waiters);
         return 0;
     }
 }

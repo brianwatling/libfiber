@@ -6,12 +6,19 @@
 #include "fiber_spinlock.h"
 #include "work_stealing_deque.h"
 #include "mpsc_fifo.h"
+#include "mpmc_fifo.h"
 
 typedef struct fiber_mpsc_to_push
 {
     mpsc_fifo_t* fifo;
     mpsc_fifo_node_t* node;
 } fiber_mpsc_to_push_t;
+
+typedef struct fiber_mpmc_to_push
+{
+    mpmc_fifo_t* fifo;
+    mpmc_fifo_node_t* node;
+} fiber_mpmc_to_push_t;
 
 typedef struct fiber_manager
 {
@@ -20,6 +27,8 @@ typedef struct fiber_manager
     fiber_t* thread_fiber;
     fiber_t* volatile to_schedule;
     fiber_mpsc_to_push_t mpsc_to_push;
+    hazard_pointer_thread_record_t* mpmc_hptr;
+    fiber_mpmc_to_push_t mpmc_to_push;
     fiber_mutex_t* volatile mutex_to_unlock;
     fiber_spinlock_t* volatile spinlock_to_unlock;
     void** volatile set_wait_location;
@@ -63,11 +72,15 @@ extern int fiber_manager_get_kernel_thread_count();
 
 extern void fiber_manager_do_maintenance();
 
-extern void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo);
+extern void fiber_manager_wait_in_mpmc_queue(fiber_manager_t* manager, mpmc_fifo_t* fifo);
 
-extern void fiber_manager_wait_in_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_t* fifo, fiber_mutex_t* mutex);
+extern int fiber_manager_wake_from_mpmc_queue(fiber_manager_t* manager, mpmc_fifo_t* fifo, int count);
 
-extern int fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count);
+extern void fiber_manager_wait_in_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo);
+
+extern void fiber_manager_wait_in_mpsc_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_t* fifo, fiber_mutex_t* mutex);
+
+extern int fiber_manager_wake_from_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count);
 
 extern void fiber_manager_set_and_wait(fiber_manager_t* manager, void** location, void* value);
 
@@ -76,6 +89,12 @@ extern void* fiber_manager_clear_or_wait(fiber_manager_t* manager, void** locati
 extern void* fiber_load_symbol(const char* symbol);
 
 extern void fiber_do_real_sleep(uint32_t seconds, uint32_t useconds);
+
+extern hazard_pointer_thread_record_t* fiber_manager_get_hazard_record(fiber_manager_t* manager);
+
+extern mpmc_fifo_node_t* fiber_manager_get_mpmc_node();
+
+extern void fiber_manager_return_mpmc_node(mpmc_fifo_node_t* node);
 
 #ifdef __cplusplus
 }

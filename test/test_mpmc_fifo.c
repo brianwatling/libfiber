@@ -5,11 +5,12 @@
 #include <unistd.h>
 
 #define PUSH_COUNT 1000000
-#define NUM_THREADS 4
+#define NUM_THREADS 2
 
 mpmc_fifo_t fifo;
 int results[PUSH_COUNT] = {};
 pthread_barrier_t barrier;
+hazard_pointer_thread_record_t* hazard_head = NULL;
 
 void release_node(void* user_data, hazard_node_t* node)
 {
@@ -19,12 +20,13 @@ void release_node(void* user_data, hazard_node_t* node)
 void* push_func(void* p)
 {
     pthread_barrier_wait(&barrier);
-    hazard_node_gc_t gc = { NULL, &release_node};
-    hazard_pointer_thread_record_t* hptr = mpmc_fifo_add_hazard_thread_record(&fifo, gc);
+    hazard_pointer_thread_record_t* hptr = hazard_pointer_thread_record_create_and_push(&hazard_head, MPMC_HAZARD_COUNT);
     intptr_t i;
     for(i = 1; i <= PUSH_COUNT; ++i) {
         mpmc_fifo_node_t* const node = malloc(sizeof(mpmc_fifo_node_t));
         node->value = (void*)i;
+        node->hazard.gc_data = NULL;
+        node->hazard.gc_function = &release_node;
         mpmc_fifo_push(hptr, &fifo, node);
     }
     return NULL;
@@ -33,11 +35,11 @@ void* push_func(void* p)
 void * pop_func(void* p)
 {
     pthread_barrier_wait(&barrier);
-    hazard_node_gc_t gc = { NULL, &release_node};
-    hazard_pointer_thread_record_t* hptr = mpmc_fifo_add_hazard_thread_record(&fifo, gc);
+    hazard_pointer_thread_record_t* hptr = hazard_pointer_thread_record_create_and_push(&hazard_head, MPMC_HAZARD_COUNT);
     intptr_t i;
     for(i = 1; i <= PUSH_COUNT; ++i) {
-        intptr_t const value = (intptr_t)mpmc_fifo_pop(hptr, &fifo);
+        intptr_t value;
+        while(!(value = (intptr_t)mpmc_fifo_trypop(hptr, &fifo))) {};
         test_assert(value > 0);
         test_assert(value <= PUSH_COUNT);
         __sync_fetch_and_add(&results[value - 1], 1);
@@ -48,8 +50,10 @@ void * pop_func(void* p)
 int main()
 {
     pthread_barrier_init(&barrier, NULL, NUM_THREADS * 2);
-    hazard_node_gc_t gc = { NULL, &release_node};
-    mpmc_fifo_init(&fifo, gc, (mpmc_fifo_node_t*)malloc(sizeof(mpmc_fifo_node_t)));
+    mpmc_fifo_node_t* initial_node = (mpmc_fifo_node_t*)malloc(sizeof(mpmc_fifo_node_t));
+    initial_node->hazard.gc_function = &release_node;
+    initial_node->hazard.gc_data = NULL;
+    mpmc_fifo_init(&fifo, initial_node);
 
     pthread_t producers[NUM_THREADS];
     intptr_t i = 0;
@@ -75,7 +79,8 @@ int main()
     }
 
     printf("cleaning...\n");
-    mpmc_fifo_destroy(&fifo);
+    mpmc_fifo_destroy(hazard_head, &fifo);
+    hazard_pointer_thread_record_destroy_all(hazard_head);
 
     return 0;
 }

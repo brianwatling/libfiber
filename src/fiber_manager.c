@@ -11,6 +11,7 @@
 #define __USE_GNU
 #endif
 #include <dlfcn.h>
+#include "lockfree_ring_buffer.h"
 
 static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
 static int fiber_manager_num_threads = 0;
@@ -374,6 +375,11 @@ void fiber_manager_do_maintenance()
         manager->to_schedule = NULL;
     }
 
+    if(manager->mpmc_to_push.fifo) {
+        mpmc_fifo_push(fiber_manager_get_hazard_record(manager), manager->mpmc_to_push.fifo, manager->mpmc_to_push.node);
+        memset(&manager->mpmc_to_push, 0, sizeof(manager->mpmc_to_push));
+    }
+
     if(manager->mpsc_to_push.fifo) {
         mpsc_fifo_push(manager->mpsc_to_push.fifo, manager->mpsc_to_push.node);
         memset(&manager->mpsc_to_push, 0, sizeof(manager->mpsc_to_push));
@@ -398,7 +404,45 @@ void fiber_manager_do_maintenance()
     }
 }
 
-void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo)
+void fiber_manager_wait_in_mpmc_queue(fiber_manager_t* manager, mpmc_fifo_t* fifo)
+{
+    assert(manager);
+    assert(fifo);
+    fiber_t* const this_fiber = manager->current_fiber;
+    assert(this_fiber->state == FIBER_STATE_RUNNING);
+    this_fiber->state = FIBER_STATE_WAITING;
+    manager->mpmc_to_push.fifo = fifo;
+    manager->mpmc_to_push.node = fiber_manager_get_mpmc_node();
+    manager->mpmc_to_push.node->value = this_fiber;
+    fiber_manager_yield(manager);
+}
+
+int fiber_manager_wake_from_mpmc_queue(fiber_manager_t* manager, mpmc_fifo_t* fifo, int count)
+{
+    //wake at least 'count' fibers; if count == 0, simply attempt to wake a fiber
+    void* out = NULL;
+    int spin_counter = 0;
+    int wake_count = 0;
+    hazard_pointer_thread_record_t* hptr = fiber_manager_get_hazard_record(manager);
+    do {
+        if((out = mpmc_fifo_trypop(hptr, fifo))) {
+            count -= 1;
+            fiber_t* const to_schedule = (fiber_t*)out;
+            assert(to_schedule->state == FIBER_STATE_WAITING);
+            to_schedule->state = FIBER_STATE_READY;
+            fiber_manager_schedule(manager, to_schedule);
+            wake_count += 1;
+        }
+        ++spin_counter;
+        if(spin_counter > 100) {
+            sched_yield();
+            spin_counter = 0;
+        }
+    } while(count > 0);
+    return wake_count;
+}
+
+void fiber_manager_wait_in_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo)
 {
     assert(manager);
     assert(fifo);
@@ -413,20 +457,20 @@ void fiber_manager_wait_in_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo)
     fiber_manager_yield(manager);
 }
 
-void fiber_manager_wait_in_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_t* fifo, fiber_mutex_t* mutex)
+void fiber_manager_wait_in_mpsc_queue_and_unlock(fiber_manager_t* manager, mpsc_fifo_t* fifo, fiber_mutex_t* mutex)
 {
     manager->mutex_to_unlock = mutex;
-    fiber_manager_wait_in_queue(manager, fifo);
+    fiber_manager_wait_in_mpsc_queue(manager, fifo);
 }
 
-int fiber_manager_wake_from_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count)
+int fiber_manager_wake_from_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fifo, int count)
 {
     //wake at least 'count' fibers; if count == 0, simply attempt to wake a fiber
     mpsc_fifo_node_t* out = NULL;
     int spin_counter = 0;
     int wake_count = 0;
     do {
-        if((out = mpsc_fifo_pop(fifo))) {
+        if((out = mpsc_fifo_trypop(fifo))) {
             count -= 1;
             fiber_t* const to_schedule = (fiber_t*)out->data;
             assert(to_schedule->state == FIBER_STATE_WAITING);
@@ -488,5 +532,52 @@ void fiber_do_real_sleep(uint32_t seconds, uint32_t useconds)
     if(useconds) {
         fibershim_usleep(useconds);
     }
+}
+
+#define FIBER_MANAGER_MAX_HAZARDS MPMC_HAZARD_COUNT
+static hazard_pointer_thread_record_t* fiber_hazard_head = NULL;
+
+hazard_pointer_thread_record_t* fiber_manager_get_hazard_record(fiber_manager_t* manager)
+{
+    assert(manager);
+    if(!manager->mpmc_hptr) {
+        manager->mpmc_hptr = hazard_pointer_thread_record_create_and_push(&fiber_hazard_head, FIBER_MANAGER_MAX_HAZARDS);
+    }
+    return manager->mpmc_hptr;
+}
+
+static lockfree_ring_buffer_t* volatile fiber_free_mpmc_nodes = NULL;
+
+static void fiber_manager_return_mpmc_node_internal(void* user_data, hazard_node_t* hazard)
+{
+    lockfree_ring_buffer_t* const free_nodes = fiber_free_mpmc_nodes;
+    if(!free_nodes || !lockfree_ring_buffer_trypush(free_nodes, hazard)) {
+        free(hazard);
+    }
+}
+
+void fiber_manager_return_mpmc_node(mpmc_fifo_node_t* node)
+{
+    fiber_manager_return_mpmc_node_internal(NULL, &node->hazard);
+}
+
+mpmc_fifo_node_t* fiber_manager_get_mpmc_node()
+{
+    lockfree_ring_buffer_t* free_nodes = fiber_free_mpmc_nodes;
+    if(!free_nodes) {
+        free_nodes = lockfree_ring_buffer_create(1024);
+        if(!__sync_bool_compare_and_swap(&fiber_free_mpmc_nodes, NULL, free_nodes)) {
+            lockfree_ring_buffer_destroy(free_nodes);
+            free_nodes = fiber_free_mpmc_nodes;
+        }
+    }
+    mpmc_fifo_node_t* ret = lockfree_ring_buffer_trypop(free_nodes);
+    if(!ret) {
+        ret = (mpmc_fifo_node_t*)malloc(sizeof(*ret));
+        assert(ret);
+        ret->hazard.gc_data = NULL;
+        ret->hazard.gc_function = &fiber_manager_return_mpmc_node_internal;
+    }
+    return ret;
 }
 

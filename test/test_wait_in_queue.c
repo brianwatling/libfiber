@@ -11,7 +11,7 @@ void* run_function(void* param)
 {
     int i;
     for(i = 0; i < PER_FIBER_COUNT; ++i) {
-        fiber_manager_wait_in_queue(fiber_manager_get(), &fifo);
+        fiber_manager_wait_in_mpsc_queue(fiber_manager_get(), &fifo);
     }
     return NULL;
 }
@@ -30,7 +30,7 @@ int main()
     fiber_yield();
 
     for(i = 0; i < PER_FIBER_COUNT; ++i) {
-        fiber_manager_wake_from_queue(fiber_manager_get(), &fifo, NUM_FIBERS);
+        fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &fifo, NUM_FIBERS);
     }
 
     for(i = 0; i < NUM_FIBERS; ++i) {

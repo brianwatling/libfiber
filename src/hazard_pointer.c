@@ -1,23 +1,20 @@
 #include "hazard_pointer.h"
-#include "machine_specific.h"
 #include <assert.h>
 #include <string.h>
 #include <malloc.h>
 #include <stdlib.h>
 #include <stdint.h>
 
-hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread, hazard_node_gc_t garbage_collector)
+hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread)
 {
     assert(head);
     assert(pointers_per_thread);
-    assert(garbage_collector.free_function);
 
     //create a new record
     const size_t sizeof_pointers = pointers_per_thread * sizeof(*((*head)->hazard_pointers));
     const size_t required_size = sizeof(hazard_pointer_thread_record_t) + sizeof_pointers;
     hazard_pointer_thread_record_t* const ret = (hazard_pointer_thread_record_t*)calloc(1, required_size);
     ret->head = head;
-    ret->garbage_collector = garbage_collector;
     ret->hazard_pointers_count = pointers_per_thread;
     write_barrier();//finish all writes before exposing the record to the other threads
 
@@ -67,30 +64,6 @@ void hazard_pointer_thread_record_destroy(hazard_pointer_thread_record_t* hptr)
         free(hptr->plist);
     }
     free(hptr);
-}
-
-void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, hazard_node_t* node, size_t n)
-{
-    assert(n < hptr->hazard_pointers_count);
-    hptr->hazard_pointers[n] = node;
-    store_load_barrier();//make sure other processor's can see we're using this pointer
-}
-
-void hazard_pointer_done_using(hazard_pointer_thread_record_t* hptr, size_t n)
-{
-    assert(n < hptr->hazard_pointers_count);
-    hptr->hazard_pointers[n] = 0;
-}
-
-void hazard_pointer_free(hazard_pointer_thread_record_t* hptr, hazard_node_t* node)
-{
-    //push the node to be fully freed later
-    node->next = hptr->retired_list;
-    hptr->retired_list = node;
-    ++hptr->retired_count;
-    if(hptr->retired_count >= hptr->retire_threshold) {
-        hazard_pointer_scan(hptr);
-    }
 }
 
 static inline int hazard_pointer_compare(const void* p_one, const void* p_two)
@@ -174,7 +147,8 @@ void hazard_pointer_scan(hazard_pointer_thread_record_t* hptr)
             hptr->retired_list = node;
             ++hptr->retired_count;
         } else {
-            hptr->garbage_collector.free_function(hptr->garbage_collector.user_data, node);
+            assert(node->gc_function);
+            node->gc_function(node->gc_data, node);
         }
         node = next;
     }

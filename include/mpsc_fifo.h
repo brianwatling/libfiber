@@ -75,7 +75,7 @@ static inline int mpsc_fifo_peek(mpsc_fifo_t* f, void** data)
 }
 
 //the caller owns the node after popping
-static inline mpsc_fifo_node_t* mpsc_fifo_pop(mpsc_fifo_t* f)
+static inline mpsc_fifo_node_t* mpsc_fifo_trypop(mpsc_fifo_t* f)
 {
     assert(f);
     mpsc_fifo_node_t* const prev_head = f->head;

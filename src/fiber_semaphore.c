@@ -5,7 +5,9 @@ int fiber_semaphore_init(fiber_semaphore_t* semaphore, int value)
 {
     assert(semaphore);
     semaphore->counter = value;
-    if(!mpsc_fifo_init(&semaphore->waiters)) {
+    mpmc_fifo_node_t* const initial_node = fiber_manager_get_mpmc_node();
+    if(!mpmc_fifo_init(&semaphore->waiters, initial_node)) {
+        fiber_manager_return_mpmc_node(initial_node);
         return FIBER_ERROR;
     }
     write_barrier();
@@ -16,7 +18,7 @@ int fiber_semaphore_destroy(fiber_semaphore_t* semaphore)
 {
     assert(semaphore);
     semaphore->counter = 0;
-    mpsc_fifo_destroy(&semaphore->waiters);
+    mpmc_fifo_destroy(fiber_manager_get_hazard_record(fiber_manager_get()), &semaphore->waiters);
     return FIBER_SUCCESS;
 }
 
@@ -32,7 +34,7 @@ int fiber_semaphore_wait(fiber_semaphore_t* semaphore)
     }
 
     //we didn't get in, we'll wait
-    fiber_manager_wait_in_queue(fiber_manager_get(), &semaphore->waiters);
+    fiber_manager_wait_in_mpmc_queue(fiber_manager_get(), &semaphore->waiters);
     load_load_barrier();
 
     return FIBER_SUCCESS;
@@ -63,8 +65,7 @@ int fiber_semaphore_post_internal(fiber_semaphore_t* semaphore)
     do {
         while((prev_counter = semaphore->counter) < 0) {
             //another fiber is waiting; attempt to schedule it to take this fiber's place
-            //TODO: this is an mpSC queue; can't have many fibers trying to pop!
-            if(fiber_manager_wake_from_queue(fiber_manager_get(), &semaphore->waiters, 0)) {
+            if(fiber_manager_wake_from_mpmc_queue(fiber_manager_get(), &semaphore->waiters, 0)) {
                 __sync_add_and_fetch(&semaphore->counter, 1);
                 return 1;
             }

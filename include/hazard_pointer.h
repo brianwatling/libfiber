@@ -24,19 +24,19 @@
 */
 
 #include <stddef.h>
+#include <assert.h>
+#include "machine_specific.h"
+
+struct hazard_node;
+
+typedef void (*hazard_node_gc_function)(void* gc_data, struct hazard_node* node);
 
 typedef struct hazard_node
 {
     struct hazard_node* next;
+    void* gc_data;
+    hazard_node_gc_function gc_function;
 } hazard_node_t;
-
-typedef void (*hazard_node_free_function)(void* user_data, hazard_node_t* node);
-
-typedef struct hazard_node_gc
-{
-    void* user_data;
-    hazard_node_free_function free_function;
-} hazard_node_gc_t;
 
 typedef struct hazard_pointer_thread_record
 {
@@ -48,7 +48,6 @@ typedef struct hazard_pointer_thread_record
     size_t plist_size;
     hazard_node_t** plist;//a scratch area used in scan(); it's here to avoid malloc()ing in each scan()
     size_t hazard_pointers_count;
-    hazard_node_gc_t garbage_collector;
     hazard_node_t* hazard_pointers[];
 } hazard_pointer_thread_record_t;
 
@@ -57,22 +56,40 @@ extern "C" {
 #endif
 
 //create a new record and fuse it into the list of records at 'head'
-extern hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread, hazard_node_gc_t garbage_collector);
+extern hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread);
 
 extern void hazard_pointer_thread_record_destroy_all(hazard_pointer_thread_record_t* head);
 
 extern void hazard_pointer_thread_record_destroy(hazard_pointer_thread_record_t* hptr);
 
-//call this when you first grab an unsafe pointer
-extern void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, hazard_node_t* node, size_t n);
+//call this when you first grab an unsafe pointer. make sure to check it's still the pointer you want.
+static inline void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, hazard_node_t* node, size_t n)
+{
+    assert(n < hptr->hazard_pointers_count);
+    hptr->hazard_pointers[n] = node;
+    store_load_barrier();//make sure other processor's can see we're using this pointer
+}
 
 //call this when you're done with the pointer
-extern void hazard_pointer_done_using(hazard_pointer_thread_record_t* hptr, size_t n);
-
-//call this when an unsafe pointer should be cleaned up
-extern void hazard_pointer_free(hazard_pointer_thread_record_t* hptr, hazard_node_t* node);
+static inline void hazard_pointer_done_using(hazard_pointer_thread_record_t* hptr, size_t n)
+{
+    assert(n < hptr->hazard_pointers_count);
+    hptr->hazard_pointers[n] = 0;
+}
 
 extern void hazard_pointer_scan(hazard_pointer_thread_record_t* hptr);
+
+//call this when an unsafe pointer should be cleaned up
+static inline void hazard_pointer_free(hazard_pointer_thread_record_t* hptr, hazard_node_t* node)
+{
+    //push the node to be fully freed later
+    node->next = hptr->retired_list;
+    hptr->retired_list = node;
+    ++hptr->retired_count;
+    if(hptr->retired_count >= hptr->retire_threshold) {
+        hazard_pointer_scan(hptr);
+    }
+}
 
 #ifdef __cplusplus
 }

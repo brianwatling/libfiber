@@ -41,26 +41,32 @@ static inline void lockfree_ring_buffer_destroy(lockfree_ring_buffer_t* rb)
     free(rb);
 }
 
-static inline void lockfree_ring_buffer_push(lockfree_ring_buffer_t* rb, void* in)
+static inline int lockfree_ring_buffer_trypush(lockfree_ring_buffer_t* rb, void* in)
 {
+    assert(rb);
     assert(in);//can't store NULLs; we rely on a NULL to indicate a spot in the buffer has not been written yet
 
-    while(1) {
-        const uint64_t low = rb->low;
-        load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
-        const uint64_t high = rb->high;
-        const uint64_t index = high % rb->size;
-        if(!rb->buffer[index]
-           && high - low <= rb->size
-           && __sync_bool_compare_and_swap(&rb->high, high, high + 1)) {
-            rb->buffer[index] = in;
-            return;
-        }
+    const uint64_t low = rb->low;
+    load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
+    const uint64_t high = rb->high;
+    const uint64_t index = high % rb->size;
+    if(!rb->buffer[index]
+       && high - low <= rb->size
+       && __sync_bool_compare_and_swap(&rb->high, high, high + 1)) {
+        rb->buffer[index] = in;
+        return 1;
     }
+    return 0;
+}
+
+static inline void lockfree_ring_buffer_push(lockfree_ring_buffer_t* rb, void* in)
+{
+    while(!lockfree_ring_buffer_trypush(rb, in)) {};
 }
 
 static inline void* lockfree_ring_buffer_trypop(lockfree_ring_buffer_t* rb)
 {
+    assert(rb);
     const uint64_t high = rb->high;
     load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
     const uint64_t low = rb->low;
@@ -84,6 +90,7 @@ static inline void* lockfree_ring_buffer_pop(lockfree_ring_buffer_t* rb)
 
 static inline size_t lockfree_ring_buffer_size(const lockfree_ring_buffer_t* rb)
 {
+    assert(rb);
     const uint64_t high = rb->high;
     load_load_barrier();//read high first; make it look less than or equal to its actual size
     const int64_t size = high - rb->low;

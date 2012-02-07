@@ -38,7 +38,7 @@ int fiber_rwlock_rdlock(fiber_rwlock_t* rwlock)
 
         fiber_manager_t* const manager = fiber_manager_get();
         manager->current_fiber->scratch = FIBER_RWLOCK_SCRATCH_READ;
-        fiber_manager_wait_in_queue(manager, &rwlock->waiters);
+        fiber_manager_wait_in_mpsc_queue(manager, &rwlock->waiters);
     } else {
         rwlock->counter += 1;
         fiber_spinlock_unlock(&rwlock->lock);
@@ -59,7 +59,7 @@ int fiber_rwlock_wrlock(fiber_rwlock_t* rwlock)
 
         fiber_manager_t* const manager = fiber_manager_get();
         manager->current_fiber->scratch = FIBER_RWLOCK_SCRATCH_WRITE;
-        fiber_manager_wait_in_queue(manager, &rwlock->waiters);
+        fiber_manager_wait_in_mpsc_queue(manager, &rwlock->waiters);
     } else {
         rwlock->counter = -1;
         fiber_spinlock_unlock(&rwlock->lock);
@@ -114,14 +114,14 @@ static void fiber_rwlock_wake_waiters(fiber_rwlock_t* rwlock)
                 rwlock->waiting_writers -= 1;
                 assert(rwlock->waiting_writers >= 0);
                 rwlock->counter = -1;
-                fiber_manager_wake_from_queue(fiber_manager_get(), &rwlock->waiters, 1);
+                fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &rwlock->waiters, 1);
             }
             break;//don't wake anyone else; either the writer got write access or we should not schedule readers until he does
         } else {
             rwlock->waiting_readers -= 1;
             assert(rwlock->waiting_readers >= 0);
             rwlock->counter += 1;
-            fiber_manager_wake_from_queue(fiber_manager_get(), &rwlock->waiters, 1);
+            fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &rwlock->waiters, 1);
         }
     }
 }

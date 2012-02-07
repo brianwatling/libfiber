@@ -22,7 +22,7 @@ void* run_function(void* param)
         fiber_yield();
         const int new_after_release = __sync_sub_and_fetch(&counter, 1);
         test_assert(new_after_release >= 0);
-        __sync_sub_and_fetch(&new_values[new_after_release], 1);
+        __sync_add_and_fetch(&new_values[new_after_release], 1);
         fiber_semaphore_post(&semaphore);
     }
     return NULL;

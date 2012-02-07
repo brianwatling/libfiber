@@ -20,18 +20,20 @@ struct test_object
 pthread_barrier_t barrier;
 lockfree_ring_buffer_t* free_nodes = 0;
 
+void release_node(void* user_data, hazard_node_t* node)
+{
+    lockfree_ring_buffer_push(free_nodes, node);
+}
+
 hazard_node_t* get_node(hazard_pointer_thread_record_t* hptr)
 {
     hazard_node_t* node;
     while(!(node = lockfree_ring_buffer_trypop(free_nodes))) {
         hazard_pointer_scan(hptr);
     }
+    node->gc_data = NULL;
+    node->gc_function = &release_node;
     return node;
-}
-
-void release_node(void* user_data, hazard_node_t* node)
-{
-    lockfree_ring_buffer_push(free_nodes, node);
 }
 
 hazard_pointer_thread_record_t* records[NUM_THREADS];
@@ -39,8 +41,7 @@ hazard_pointer_thread_record_t* records[NUM_THREADS];
 void* run_function(void* param)
 {
     pthread_barrier_wait(&barrier);
-    hazard_node_gc_t gc = { NULL, &release_node};
-    hazard_pointer_thread_record_t* my_record = hazard_pointer_thread_record_create_and_push(&head, POINTERS_PER_THREAD, gc);
+    hazard_pointer_thread_record_t* my_record = hazard_pointer_thread_record_create_and_push(&head, POINTERS_PER_THREAD);
     records[(intptr_t)param] = my_record;
     hazard_node_t* nodes[POINTERS_PER_THREAD];
     int i;
