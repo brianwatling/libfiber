@@ -16,13 +16,6 @@
 #include "hazard_pointer.h"
 #include "machine_specific.h"
 
-#define MPMC_FIFO_SAFE 1
-#if MPMC_FIFO_SAFE
-#define MPMC_FIFO_HAZARD_COUNT (2)
-#else
-#define MPMC_FIFO_HAZARD_COUNT (1)
-#endif
-
 typedef struct mpmc_fifo_node
 {
     hazard_node_t hazard;
@@ -43,7 +36,7 @@ typedef struct mpmc_fifo
 //garbage_collector is bound to hptr. it can be thread-specific, the same as fifo->garbage_collector, or anything
 static inline hazard_pointer_thread_record_t* mpmc_fifo_add_hazard_thread_record(mpmc_fifo_t* fifo, hazard_node_gc_t garbage_collector)
 {
-    return hazard_pointer_thread_record_create_and_push(&fifo->hazard_head, MPMC_FIFO_HAZARD_COUNT, garbage_collector);
+    return hazard_pointer_thread_record_create_and_push(&fifo->hazard_head, 2, garbage_collector);
 }
 
 static inline int mpmc_fifo_init(mpmc_fifo_t* fifo, hazard_node_gc_t garbage_collector, mpmc_fifo_node_t* initial_node)
@@ -77,8 +70,6 @@ static inline void mpmc_fifo_push(hazard_pointer_thread_record_t* hptr, mpmc_fif
     assert(new_node->value);
     new_node->prev = 0;
     while(1) {
-        hazard_pointer_done_using(hptr, 0);
-
         mpmc_fifo_node_t* const tail = fifo->tail;
         hazard_pointer_using(hptr, &tail->hazard, 0);
         load_load_barrier();
@@ -101,14 +92,8 @@ static inline void* mpmc_fifo_pop(hazard_pointer_thread_record_t* hptr, mpmc_fif
     void* ret = NULL;
 
     while(1) {
-        hazard_pointer_done_using(hptr, 0);
-#if MPMC_FIFO_SAFE
-        hazard_pointer_done_using(hptr, 1);
-#endif
-
         mpmc_fifo_node_t* const head = fifo->head;
         hazard_pointer_using(hptr, &head->hazard, 0);
-        load_load_barrier();
         if(head != fifo->head) {
             continue;//head switched while we were 'using' it
         }
@@ -120,22 +105,17 @@ static inline void* mpmc_fifo_pop(hazard_pointer_thread_record_t* hptr, mpmc_fif
             continue;
         }
 
-#if MPMC_FIFO_SAFE
         hazard_pointer_using(hptr, &prev->hazard, 1);
-        load_load_barrier();
         if(head != fifo->head) {
             continue;//head switched while we were 'using' head->prev
         }
-#endif
 
         //push thread has successfully updated prev
         ret = prev->value;
         if(__sync_bool_compare_and_swap(&fifo->head, head, prev)) {
             hazard_pointer_done_using(hptr, 0);
-            hazard_pointer_free(hptr, &head->hazard);
-#if MPMC_FIFO_SAFE
             hazard_pointer_done_using(hptr, 1);
-#endif
+            hazard_pointer_free(hptr, &head->hazard);
             break;
         }
     }

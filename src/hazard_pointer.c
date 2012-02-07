@@ -4,6 +4,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(hazard_pointer_thread_record_t** head, size_t pointers_per_thread, hazard_node_gc_t garbage_collector)
 {
@@ -71,7 +72,6 @@ void hazard_pointer_thread_record_destroy(hazard_pointer_thread_record_t* hptr)
 void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, hazard_node_t* node, size_t n)
 {
     assert(n < hptr->hazard_pointers_count);
-    assert(!hptr->hazard_pointers[n]);
     hptr->hazard_pointers[n] = node;
     store_load_barrier();//make sure other processor's can see we're using this pointer
 }
@@ -93,9 +93,14 @@ void hazard_pointer_free(hazard_pointer_thread_record_t* hptr, hazard_node_t* no
     }
 }
 
-static inline int hazard_pointer_compare(const void* one, const void* two)
+static inline int hazard_pointer_compare(const void* p_one, const void* p_two)
 {
-    return one - two;
+    const uintptr_t one = *(uintptr_t*)p_one;
+    const uintptr_t two = *(uintptr_t*)p_two;
+    if(one == two) {
+        return 0;
+    }
+    return one < two ? -1 : 1;
 }
 
 static int binary_search(void** haystack, ssize_t haystack_size, void* needle)
@@ -163,7 +168,7 @@ void hazard_pointer_scan(hazard_pointer_thread_record_t* hptr)
         hazard_node_t* const next = node->next;
 
         const int is_hazardous = binary_search((void**)hptr->plist, index, node);
-        
+
         if(is_hazardous) {
             node->next = hptr->retired_list;
             hptr->retired_list = node;
