@@ -1,5 +1,5 @@
 
-all: libfiber.so libfiber_pthread.so runtests
+all: libfiber.so runtests
 
 VPATH += src test submodules/libev
 
@@ -23,9 +23,6 @@ CFILES += fiber_event_native.c
 else
 CFILES += fiber_event_ev.c ev.c
 endif
-
-PTHREAD_CFILES = \
-    fiber_pthread.c \
 
 LDFLAGS += -lm
 
@@ -116,16 +113,11 @@ CC ?= /usr/bin/c99
 
 OBJS = $(patsubst %.c,bin/%.o,$(CFILES))
 PICOBJS = $(patsubst %.c,bin/%.pic.o,$(CFILES))
-PTHREAD_OBJS = $(patsubst %.c,bin/%.o,$(CFILES) $(PTHREAD_CFILES))
-PTHREAD_PICOBJS = $(patsubst %.c,bin/%.pic.o,$(CFILES) $(PTHREAD_CFILES))
 TESTBINARIES = $(patsubst %,bin/%,$(TESTS))
 INCLUDES = $(wildcard include/*.h)
 TESTINCLUDES = $(wildcard test/*.h)
 
 libfiber.so: $(PICOBJS)
-	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGSAFTER)
-
-libfiber_pthread.so: $(PTHREAD_PICOBJS)
 	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGSAFTER)
 
 tests: $(TESTBINARIES)
