@@ -1,5 +1,5 @@
-#ifndef _LOCK_FREE_RUNG_BUFFER_H_
-#define _LOCK_FREE_RUNG_BUFFER_H_
+#ifndef _LOCK_FREE_RING_BUFFER_H_
+#define _LOCK_FREE_RING_BUFFER_H_
 
 /*
     Author: Brian Watling
