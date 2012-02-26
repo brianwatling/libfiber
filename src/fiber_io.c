@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <stdarg.h>
+#include <sys/uio.h>
 #ifndef __USE_GNU
 #define __USE_GNU
 #endif
@@ -51,8 +52,8 @@ int __xnet_socketpair(int domain, int type, int protocol, int sv[2])
     return socketpair(domain, type, protocol, sv);
 }
 
-typedef int (*acceptFnType) (int s, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen);
-#define ACCEPTPARAMS int sockfd, struct sockaddr *_RESTRICT_KYWD addr, Psocklen_t addrlen
+typedef int (*acceptFnType) (int s, struct sockaddr* _RESTRICT_KYWD addr, Psocklen_t addrlen);
+#define ACCEPTPARAMS int sockfd, struct sockaddr* _RESTRICT_KYWD addr, Psocklen_t addrlen
 
 typedef ssize_t (*recvfromFnType)(int, void* _RESTRICT_KYWD, size_t, int, struct sockaddr* _RESTRICT_KYWD, Psocklen_t);
 #define RECVFROMPARAMS int sockfd, void* _RESTRICT_KYWD buf, size_t len, int flags, struct sockaddr* _RESTRICT_KYWD src_addr, Psocklen_t addrlen
@@ -65,7 +66,7 @@ typedef int (*ioctlFnType)(int d, int request, ...);
 typedef int (*acceptFnType) (int, struct sockaddr*, socklen_t*);
 #define ACCEPTPARAMS int sockfd, struct sockaddr* addr, socklen_t* addrlen
 
-typedef ssize_t (*recvfromFnType)(int, void*, size_t, int, struct sockaddr*, socklen_t *);
+typedef ssize_t (*recvfromFnType)(int, void*, size_t, int, struct sockaddr*, socklen_t* );
 #define RECVFROMPARAMS int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_addr, socklen_t* addrlen
 
 typedef int (*ioctlFnType)(int d, unsigned long int request, ...);
@@ -80,25 +81,29 @@ typedef int (*ioctlFnType)(int d, unsigned long int request, ...);
 typedef int (*openFnType)(const char*, int, ...);
 typedef int (*fcntlFnType)(int fd, int cmd, ...);
 typedef int (*pipeFnType)(int pipefd[2]);
-typedef ssize_t (*readFnType) (int, void *, size_t);
+typedef ssize_t (*readFnType) (int, void*, size_t);
+typedef ssize_t (*readvFnType)(int, const struct iovec*, int);
 typedef ssize_t (*writeFnType) (int, const void*, size_t);
-typedef int (*selectFnType)(int, fd_set *, fd_set *, fd_set *, struct timeval *);
-typedef int (*pollFnType)(struct pollfd *fds, nfds_t nfds, int timeout);
+typedef ssize_t (*writevFnType) (int, const struct iovec*, int);
+typedef int (*selectFnType)(int, fd_set*, fd_set*, fd_set*, struct timeval*);
+typedef int (*pollFnType)(struct pollfd* fds, nfds_t nfds, int timeout);
 typedef int (*socketFnType)(int socket_family, int socket_type, int protocol);
 typedef int (*socketpairFnType)(int domain, int type, int protocol, int sv[2]);
 typedef int (*connectFnType)(int, const struct sockaddr*, socklen_t);
 typedef ssize_t (*sendFnType)(int, const void*, size_t, int);
-typedef ssize_t (*sendtoFnType)(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-typedef ssize_t (*sendmsgFnType)(int sockfd, const struct msghdr *msg, int flags);
+typedef ssize_t (*sendtoFnType)(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr* dest_addr, socklen_t addrlen);
+typedef ssize_t (*sendmsgFnType)(int sockfd, const struct msghdr* msg, int flags);
 typedef ssize_t (*recvFnType)(int, void*, size_t, int);
-typedef ssize_t (*recvmsgFnType)(int sockfd, struct msghdr *msg, int flags);
+typedef ssize_t (*recvmsgFnType)(int sockfd, struct msghdr* msg, int flags);
 typedef int (*closeFnType)(int fd);
 
 /*static openFnType fibershim_open = NULL;
 static pollFnType fibershim_poll = NULL;
 static selectFnType fibershim_select = NULL;*/
 static readFnType fibershim_read = NULL;
+static readvFnType fibershim_readv = NULL;
 static writeFnType fibershim_write = NULL;
+static writevFnType fibershim_writev = NULL;
 static socketFnType fibershim_socket = NULL;
 static socketpairFnType fibershim_socketpair = NULL;
 static acceptFnType fibershim_accept = NULL;
@@ -144,7 +149,9 @@ int fiber_io_init()
     //fibershim_open = (openFnType)dlsym(RTLD_NEXT, "open");
     fibershim_pipe = (pipeFnType)dlsym(RTLD_NEXT, "pipe");
     fibershim_read = (readFnType)dlsym(RTLD_NEXT, "read");
+    fibershim_readv = (readvFnType)dlsym(RTLD_NEXT, "readv");
     fibershim_write = (writeFnType)dlsym(RTLD_NEXT, "write");
+    fibershim_writev = (writevFnType)dlsym(RTLD_NEXT, "writev");
     //fibershim_select = get_select_fn();
     //fibershim_poll = (pollFnType)dlsym(RTLD_NEXT,"poll");
     fibershim_socket = (socketFnType)dlsym(RTLD_NEXT, "socket");
@@ -285,6 +292,25 @@ ssize_t read(int fd, void* buf, size_t count)
     return ret;
 }
 
+ssize_t readv(int fd, const struct iovec* iov, int iovcnt)
+{
+    if(!fibershim_readv) {
+        fibershim_readv = (readvFnType)dlsym(RTLD_NEXT, "readv");
+    }
+
+    int ret;
+    do {
+        if(should_block(fd)) {
+            if(!fiber_wait_for_event(fd, FIBER_POLL_IN)) {
+                return -1;
+            }
+        }
+        ret = fibershim_readv(fd, iov, iovcnt);
+    } while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(fd));
+
+    return ret;
+}
+
 ssize_t recv(int fd, void* buf, size_t len, int flags)
 {
     if(!fibershim_recv) {
@@ -354,6 +380,23 @@ ssize_t write(int fd, const void* buf, size_t count)
             return -1;
         }
         ret = fibershim_write(fd, buf, count);
+    }
+
+    return ret;
+}
+
+ssize_t writev(int fd, const struct iovec* iov, int iovcnt)
+{
+    if(!fibershim_writev) {
+        fibershim_writev = (writevFnType)dlsym(RTLD_NEXT, "writev");
+    }
+
+    int ret = fibershim_writev(fd, iov, iovcnt);
+    while(ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN) && should_block(fd)) {
+        if(!fiber_wait_for_event(fd, FIBER_POLL_OUT)) {
+            return -1;
+        }
+        ret = fibershim_writev(fd, iov, iovcnt);
     }
 
     return ret;
@@ -452,7 +495,7 @@ int usleep(useconds_t useconds)
     return 0;
 }
 
-int nanosleep(const struct timespec *rqtp,  struct timespec *rmtp)
+int nanosleep(const struct timespec* rqtp,  struct timespec* rmtp)
 {
     fiber_sleep(rqtp->tv_sec, rqtp->tv_nsec / 1000 + 1);
     if(rmtp) {
