@@ -51,7 +51,7 @@ CFLAGS += -pthread -Wall -Iinclude -Isubmodules/libev -D_REENTRANT -ggdb -O3 #-D
 
 USE_VALGRIND ?= 0
 ifeq ($(USE_VALGRIND),1)
-CLFAGS += -DUSE_VALGRIND
+CFLAGS += -DUSE_VALGRIND
 endif
 
 ifeq ($(OS),Darwin)

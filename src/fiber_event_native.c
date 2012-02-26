@@ -331,7 +331,7 @@ int fiber_wait_for_event(int fd, uint32_t events)
     if(events & FIBER_POLL_OUT) {
         info->events |= EPOLLOUT;
     }
-    struct epoll_event e;
+    struct epoll_event e = {};
     e.events = EPOLLONESHOT | info->events;
     e.data.fd = fd;
 
