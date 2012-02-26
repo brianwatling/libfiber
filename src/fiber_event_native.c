@@ -291,6 +291,7 @@ static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds)
         (void)ret;
         abort();
     }
+    return nget;
 #else
 #error OS not supported
 #endif
