@@ -51,7 +51,7 @@ static inline int lockfree_ring_buffer_trypush(lockfree_ring_buffer_t* rb, void*
     const uint64_t high = rb->high;
     const uint64_t index = high % rb->size;
     if(!rb->buffer[index]
-       && high - low <= rb->size
+       && high - low < rb->size
        && __sync_bool_compare_and_swap(&rb->high, high, high + 1)) {
         rb->buffer[index] = in;
         return 1;
