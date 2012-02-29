@@ -1,5 +1,5 @@
-#ifndef _SPSC_FIFI_H_
-#define _SPSC_FIFI_H_
+#ifndef _SPSC_FIFO_H_
+#define _SPSC_FIFO_H_
 
 /*
     Author: Brian Watling
