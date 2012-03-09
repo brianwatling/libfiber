@@ -221,6 +221,9 @@ static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds)
     struct epoll_event events[64];
     const int count = epoll_wait(event_fd, events, 64, seconds * 1000 + useconds / 1000);
     if(count < 0) {
+        if(errno == EINTR) { //interrupted, just try again later (could be gdb'ing etc)
+            return 0;
+        }
         assert(count >= 0 && "epoll_wait failed!");
         const char* err_msg = "epoll_wait failed!";
         const ssize_t ret = write(STDERR_FILENO, err_msg, strlen(err_msg));
