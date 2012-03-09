@@ -1,7 +1,7 @@
 #include "test_helper.h"
 #include "fiber_manager.h"
 #include "fiber_barrier.h"
-#include "spsc_fifo.h"
+#include "mpsc_fifo.h"
 
 int volatile counter = 0;
 #define PER_FIBER_COUNT 100000
@@ -12,26 +12,20 @@ mpsc_fifo_t fifo;
 
 typedef struct fiber_work_queue
 {
-    spsc_fifo_t fifo;
-    fiber_mutex_t mutex;
-    volatile int have_worker;
-    volatile uint64_t in_count;
-    char _cache_padding1[CACHE_SIZE - sizeof(uint64_t)];
-    volatile uint64_t out_count;
+    mpsc_fifo_t fifo;
+    volatile int64_t in_count;
+    char _cache_padding1[CACHE_SIZE - sizeof(int64_t)];
+    volatile int64_t out_count;
 } fiber_work_queue_t;
 
-typedef spsc_node_t fiber_work_queue_item_t;
+typedef mpsc_fifo_node_t fiber_work_queue_item_t;
 
 int fiber_work_queue_init(fiber_work_queue_t* wq)
 {
     assert(wq);
-    wq->have_worker = 0;
     wq->in_count = 0;
     wq->out_count = 0;
-    if(!spsc_fifo_init(&wq->fifo)
-       || !fiber_mutex_init(&wq->mutex)) {
-        spsc_fifo_destroy(&wq->fifo);
-        fiber_mutex_destroy(&wq->mutex);
+    if(!mpsc_fifo_init(&wq->fifo)) {
         return FIBER_ERROR;
     }
     return FIBER_SUCCESS;
@@ -40,8 +34,7 @@ int fiber_work_queue_init(fiber_work_queue_t* wq)
 void fiber_work_queue_destroy(fiber_work_queue_t* wq)
 {
     if(wq) {
-        spsc_fifo_destroy(&wq->fifo);
-        fiber_mutex_destroy(&wq->mutex);
+        mpsc_fifo_destroy(&wq->fifo);
     }
 }
 
@@ -54,14 +47,12 @@ int fiber_work_queue_push(fiber_work_queue_t* wq, fiber_work_queue_item_t* item)
     assert(wq);
     assert(item);
     int ret = FIBER_WORK_QUEUE_QUEUED;
-    fiber_mutex_lock(&wq->mutex);
-    ++wq->in_count;
-    spsc_fifo_push(&wq->fifo, item);
-    if(!wq->have_worker) {
+    const int64_t in_count = __sync_add_and_fetch(&wq->in_count, 1);
+    if(in_count == 1) {
+        //we got here first; we'll be the worker
         ret = FIBER_WORK_QUEUE_START_WORKING;
-        wq->have_worker = 1;
     }
-    fiber_mutex_unlock(&wq->mutex);
+    mpsc_fifo_push(&wq->fifo, item);
     return ret;
 }
 
@@ -74,17 +65,14 @@ int fiber_work_queue_get_work(fiber_work_queue_t* wq, fiber_work_queue_item_t** 
 {
     assert(wq);
     assert(out);
-    while(!(*out = spsc_fifo_pop(&wq->fifo))) {
+    while(!(*out = mpsc_fifo_trypop(&wq->fifo))) {
         if(wq->out_count == wq->in_count) {
-            fiber_mutex_lock(&wq->mutex);
-            if(wq->out_count == wq->in_count) {
-                wq->in_count = 0;
-                wq->have_worker = 0;
-                wq->out_count = 0;
-                fiber_mutex_unlock(&wq->mutex);
+            const int64_t old_out_count = wq->out_count;
+            wq->out_count = 0;
+            const int64_t new_in_count = __sync_sub_and_fetch(&wq->in_count, old_out_count);
+            if(new_in_count == 0) {
                 return FIBER_WORK_QUEUE_EMPTY;
             }
-            fiber_mutex_unlock(&wq->mutex);
         }
     }
     wq->out_count += 1;
@@ -105,6 +93,7 @@ void* run_function(void* param)
         node->next = next;
     }
     fiber_barrier_wait(&barrier);
+
     for(i = 0; i < PER_FIBER_COUNT; ++i) {
         fiber_work_queue_item_t* const to_push = node;
         node = node->next;
@@ -138,7 +127,6 @@ int main()
         fiber_join(fibers[i], NULL);
     }
 
-    printf("counter: %d\n", counter);
     test_assert(counter == NUM_FIBERS * PER_FIBER_COUNT);
     fiber_work_queue_destroy(&work_queue);
 
