@@ -10,6 +10,7 @@ int volatile counter = 0;
 
 mpsc_fifo_t fifo;
 
+//TODO: productize this
 typedef struct fiber_work_queue
 {
     mpsc_fifo_t fifo;
