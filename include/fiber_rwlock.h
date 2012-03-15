@@ -8,15 +8,25 @@
 */
 
 #include "mpsc_fifo.h"
-#include "fiber_spinlock.h"
+
+//21 bits counters; supports up to roughly 2 million readers or writers
+typedef union
+{
+    struct
+    {
+        unsigned int write_locked : 1;
+        unsigned int reader_count : 21;
+        unsigned int waiting_readers : 21;
+        unsigned int waiting_writers : 21;
+    } __attribute__ ((packed)) state;
+    uint64_t blob;
+} fiber_rwlock_state_t;
 
 typedef struct fiber_rwlock
 {
-    volatile int counter;
-    volatile int waiting_writers;
-    volatile int waiting_readers;
-    fiber_spinlock_t lock;
-    mpsc_fifo_t waiters;
+    fiber_rwlock_state_t state;
+    mpsc_fifo_t write_waiters;
+    mpsc_fifo_t read_waiters;
 } fiber_rwlock_t;
 
 #ifdef __cplusplus
