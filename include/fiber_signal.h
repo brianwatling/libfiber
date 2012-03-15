@@ -50,6 +50,7 @@ static inline void fiber_signal_wait(fiber_signal_t* s)
         this_fiber->scratch = NULL;
     }
     //the signal has been raised
+    s->waiter = FIBER_SIGNAL_NO_WAITER;
 }
 
 //returns 1 if a fiber was woken
