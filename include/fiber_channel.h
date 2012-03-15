@@ -13,104 +13,84 @@
 #include <malloc.h>
 
 #include "machine_specific.h"
-#include "fiber_mutex.h"
 #include "fiber_manager.h"
 #include "mpsc_fifo.h"
 
-typedef struct fiber_channel
+//a multi-sender single-receiver channel with a limit on the number of outstanding messages
+typedef struct fiber_bounded_channel
 {
-    fiber_mutex_t mutex;
-    mpsc_fifo_t send_waiters;
-    mpsc_fifo_t recv_waiters;
+    //putting high and low on separate cache lines provides a slight performance increase
+    volatile uint64_t high;
+    char _cache_padding1[CACHE_SIZE - sizeof(uint64_t)];
+    volatile uint64_t low;
+    char _cache_padding2[CACHE_SIZE - sizeof(uint64_t)];
+    mpsc_fifo_t waiters;
     size_t size;
-    volatile ssize_t balance;
-    volatile size_t low;
-    volatile size_t high;
-    void* messages[];
-} fiber_channel_t;
+    void* buffer[];
+} fiber_bounded_channel_t;
 
-static inline fiber_channel_t* fiber_channel_create(size_t buffer_size)
+static inline fiber_bounded_channel_t* fiber_bounded_channel_create(size_t size)
 {
-    assert(buffer_size);
-    const size_t required_size = sizeof(fiber_channel_t) + buffer_size * sizeof(void*);
-    fiber_channel_t* const channel = (fiber_channel_t*)calloc(1, required_size);
+    assert(size);
+    const size_t required_size = sizeof(fiber_bounded_channel_t) + size * sizeof(void*);
+    fiber_bounded_channel_t* const channel = (fiber_bounded_channel_t*)calloc(1, required_size);
     if(channel) {
-        channel->size = buffer_size;
-        if(!fiber_mutex_init(&channel->mutex)
-           || !mpsc_fifo_init(&channel->send_waiters)
-           || !mpsc_fifo_init(&channel->recv_waiters)) {
-            fiber_mutex_destroy(&channel->mutex);//safe to call on uninitialied fifo
-            mpsc_fifo_destroy(&channel->send_waiters);//safe to call on uninitialied fifo
-            mpsc_fifo_destroy(&channel->recv_waiters);//safe to call on uninitialied fifo
+        channel->size = size;
+        if(!mpsc_fifo_init(&channel->waiters)) {
             free(channel);
-            return NULL;
+            return 0;
         }
     }
     return channel;
 }
 
-static inline void fiber_channel_destroy(fiber_channel_t* channel)
+static inline void fiber_bounded_channel_destroy(fiber_bounded_channel_t* channel)
 {
-    fiber_mutex_destroy(&channel->mutex);
-    mpsc_fifo_destroy(&channel->send_waiters);
-    mpsc_fifo_destroy(&channel->recv_waiters);
-    free(channel);
+    if(channel) {
+        mpsc_fifo_destroy(&channel->waiters);
+        free(channel);
+    }
 }
 
-static inline void fiber_channel_send(fiber_channel_t* channel, void* message)
+static inline void fiber_bounded_channel_send(fiber_bounded_channel_t* channel, void* message)
 {
     assert(channel);
-    fiber_mutex_lock(&channel->mutex);
+    assert(message);//can't store NULLs; we rely on a NULL to indicate a spot in the buffer has not been written yet
 
-    ++channel->balance;
-
-    //block if the channel is full
-    while(channel->high - channel->low >= channel->size) {
-        fiber_manager_wait_in_mpsc_queue_and_unlock(fiber_manager_get(), &channel->send_waiters, &channel->mutex);
-        fiber_mutex_lock(&channel->mutex);
+    while(1) {
+        const uint64_t low = channel->low;
+        load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
+        const uint64_t high = channel->high;
+        const uint64_t index = high % channel->size;
+        if(!channel->buffer[index]
+           && high - low < channel->size
+           && __sync_bool_compare_and_swap(&channel->high, high, high + 1)) {
+            channel->buffer[index] = message;//TODO: wake reader?
+            break;
+        }
+        fiber_yield();//TODO: go to sleep?
     }
-
-    //insert the message
-    const size_t high = channel->high;
-    channel->messages[high % channel->size] = message;
-    const size_t new_high = high + 1;
-    channel->high = new_high;
-
-    //wake a receiver if needed
-    if(new_high - channel->low > 0) {
-        fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &channel->recv_waiters, 0);
-    }
-
-    fiber_mutex_unlock(&channel->mutex);
 }
 
-static inline void* fiber_channel_receive(fiber_channel_t* channel)
+static inline void* fiber_bounded_channel_receive(fiber_bounded_channel_t* channel)
 {
     assert(channel);
-    fiber_mutex_lock(&channel->mutex);
 
-    --channel->balance;
-
-    //block if the channel is empty
-    while(channel->high - channel->low == 0) {
-        fiber_manager_wait_in_mpsc_queue_and_unlock(fiber_manager_get(), &channel->recv_waiters, &channel->mutex);
-        fiber_mutex_lock(&channel->mutex);
+    while(1) {
+        const uint64_t high = channel->high;
+        load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
+        const uint64_t low = channel->low;
+        const uint64_t index = low % channel->size;
+        void* const ret = channel->buffer[index];
+        if(ret
+           && high > low
+           && __sync_bool_compare_and_swap(&channel->low, low, low + 1)) {
+            channel->buffer[index] = 0;
+            return ret;
+        }
+        fiber_yield();//TODO: wake senders? go to sleep?
     }
-    assert(channel->high - channel->low > 0);
-
-    //read the message
-    const size_t low = channel->low;
-    void* const message = channel->messages[low % channel->size];
-    const size_t new_low = low + 1;
-    channel->low = new_low;
-
-    //wake a sender if needed
-    if(channel->high - new_low < channel->size) {
-        fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &channel->send_waiters, 0);
-    }
-
-    fiber_mutex_unlock(&channel->mutex);
-    return message;
+    return NULL;
 }
 
 #endif
