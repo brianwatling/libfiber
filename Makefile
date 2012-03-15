@@ -16,6 +16,7 @@ CFILES = \
     fiber_rwlock.c \
     hazard_pointer.c \
     work_stealing_deque.c \
+    work_queue.c \
 
 USE_NATIVE_EVENTS ?= yes
 ifeq ($(USE_NATIVE_EVENTS),yes)
@@ -108,6 +109,7 @@ TESTS= \
     test_lockfree_ring_buffer \
     test_channel \
     test_channel_pingpong \
+    test_work_queue \
 
 #    test_pthread_cond \
 
