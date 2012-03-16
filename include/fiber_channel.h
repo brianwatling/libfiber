@@ -17,7 +17,7 @@
 #include "mpsc_fifo.h"
 #include "fiber_signal.h"
 
-//a multi-sender single-receiver channel with a limit on the number of outstanding messages
+//a multi-sender single-receiver channel with a limit on the number of outstanding messages. careful: senders and receivers spin!
 typedef struct fiber_bounded_channel
 {
     //putting high and low on separate cache lines provides a slight performance increase
@@ -63,7 +63,7 @@ static inline void fiber_bounded_channel_send(fiber_bounded_channel_t* channel, 
             channel->buffer[index] = message;
             break;
         }
-        //fiber_yield();
+        fiber_yield();
     }
 }
 
@@ -77,13 +77,13 @@ static inline void* fiber_bounded_channel_receive(fiber_bounded_channel_t* chann
         const uint64_t low = channel->low;
         const uint64_t index = low % channel->size;
         void* const ret = channel->buffer[index];
-        if(ret
-           && high > low
-           && __sync_bool_compare_and_swap(&channel->low, low, low + 1)) {
+        if(ret && high > low) {
             channel->buffer[index] = 0;
+            write_barrier();
+            channel->low = low + 1;
             return ret;
         }
-        //fiber_yield();
+        fiber_yield();
     }
     return NULL;
 }
@@ -163,10 +163,10 @@ static inline void* fiber_blocking_bounded_channel_receive(fiber_blocking_bounde
         const uint64_t low = channel->low;
         const uint64_t index = low % channel->size;
         void* const ret = channel->buffer[index];
-        if(ret
-           && high > low
-           && __sync_bool_compare_and_swap(&channel->low, low, low + 1)) {
+        if(ret && high > low) {
             channel->buffer[index] = 0;
+            write_barrier();
+            channel->low = low + 1;
             if(high < send_count) {
                 fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &channel->waiters, 0);
             }
@@ -175,6 +175,54 @@ static inline void* fiber_blocking_bounded_channel_receive(fiber_blocking_bounde
         fiber_signal_wait(&channel->ready_signal);
     }
     return NULL;
+}
+
+//mulitple senders are wait free, single receiver will block
+typedef struct fiber_unbounded_channel
+{
+    mpsc_fifo_t queue;
+    fiber_signal_t ready_signal;
+} fiber_unbounded_channel_t;
+
+typedef mpsc_fifo_node_t fiber_unbounded_channel_message_t;
+
+static inline int fiber_unbounded_channel_init(fiber_unbounded_channel_t* channel)
+{
+    assert(channel);
+    fiber_signal_init(&channel->ready_signal);
+    if(!mpsc_fifo_init(&channel->queue)) {
+        return 0;
+    }
+    return 1;
+}
+
+static inline void fiber_unbounded_channel_destroy(fiber_unbounded_channel_t* channel)
+{
+    if(channel) {
+        mpsc_fifo_destroy(&channel->queue);
+    }
+}
+
+//the channel owns message when this function returns
+static inline void fiber_unbounded_channel_send(fiber_unbounded_channel_t* channel, fiber_unbounded_channel_message_t* message)
+{
+    assert(channel);
+    assert(message);
+
+    mpsc_fifo_push(&channel->queue, message);
+    fiber_signal_raise(&channel->ready_signal);
+}
+
+//the caller owns the message when this function returns
+static inline void* fiber_unbounded_channel_receive(fiber_unbounded_channel_t* channel)
+{
+    assert(channel);
+
+    fiber_unbounded_channel_message_t* ret;
+    while(!(ret = mpsc_fifo_trypop(&channel->queue))) {
+        fiber_signal_wait(&channel->ready_signal);
+    }
+    return ret;
 }
 
 #endif

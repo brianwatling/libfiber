@@ -109,6 +109,7 @@ TESTS= \
     test_lockfree_ring_buffer \
     test_channel \
     test_blocking_channel \
+    test_unbounded_channel \
     test_channel_pingpong \
     test_work_queue \
 
