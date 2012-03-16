@@ -128,7 +128,8 @@ static inline void fiber_blocking_bounded_channel_destroy(fiber_blocking_bounded
     }
 }
 
-static inline void fiber_blocking_bounded_channel_send(fiber_blocking_bounded_channel_t* channel, void* message)
+//returns 1 if a fiber was scheduled
+static inline int fiber_blocking_bounded_channel_send(fiber_blocking_bounded_channel_t* channel, void* message)
 {
     assert(channel);
     assert(message);//can't store NULLs; we rely on a NULL to indicate a spot in the buffer has not been written yet
@@ -144,11 +145,11 @@ static inline void fiber_blocking_bounded_channel_send(fiber_blocking_bounded_ch
            && high - low < channel->size
            && __sync_bool_compare_and_swap(&channel->high, high, high + 1)) {
             channel->buffer[index] = message;
-            fiber_signal_raise(&channel->ready_signal);
-            break;
+            return fiber_signal_raise(&channel->ready_signal);
         }
         fiber_manager_wait_in_mpsc_queue(fiber_manager_get(), &channel->waiters);
     }
+    return 0;
 }
 
 static inline void* fiber_blocking_bounded_channel_receive(fiber_blocking_bounded_channel_t* channel)
@@ -203,14 +204,15 @@ static inline void fiber_unbounded_channel_destroy(fiber_unbounded_channel_t* ch
     }
 }
 
-//the channel owns message when this function returns
-static inline void fiber_unbounded_channel_send(fiber_unbounded_channel_t* channel, fiber_unbounded_channel_message_t* message)
+//the channel owns message when this function returns.
+//returns 1 if a fiber was scheduled
+static inline int fiber_unbounded_channel_send(fiber_unbounded_channel_t* channel, fiber_unbounded_channel_message_t* message)
 {
     assert(channel);
     assert(message);
 
     mpsc_fifo_push(&channel->queue, message);
-    fiber_signal_raise(&channel->ready_signal);
+    return fiber_signal_raise(&channel->ready_signal);
 }
 
 //the caller owns the message when this function returns
