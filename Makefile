@@ -69,7 +69,7 @@ endif
 
 ifeq ($(OS),Linux)
 CFLAGS += -DLINUX
-LDFLAGSAFTER += -ldl -lm
+LDFLAGSAFTER += -ldl -lm -lrt
 endif
 
 USE_COMPILER_THREAD_LOCAL ?= 1
@@ -112,6 +112,7 @@ TESTS= \
     test_channel_pingpong \
     test_unbounded_channel_pingpong \
     test_work_queue \
+    test_yield_speed \
 
 #    test_pthread_cond \
 
