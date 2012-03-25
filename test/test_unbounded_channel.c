@@ -36,6 +36,7 @@ int main()
     for(i = 0; i < NUM_FIBERS * PER_FIBER_COUNT; ++i) {
         fiber_unbounded_channel_message_t* node = fiber_unbounded_channel_receive(&channel);
         results[(intptr_t)node->data] += 1;
+        free(node);
     }
 
     for(i = 0; i < NUM_FIBERS; ++i) {
