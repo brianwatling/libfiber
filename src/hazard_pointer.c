@@ -22,7 +22,6 @@ hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(haz
     hazard_pointer_thread_record_t* cur_head;
     do {
         cur_head = *head;
-        load_load_barrier();
         ret->next = cur_head;
 
         //determine the appropriate retire_threshold. head should always have the correct retire_threshold, so this must be done before swapping ret in as head

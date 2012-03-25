@@ -36,7 +36,7 @@ int main()
 
     struct timeval begin;
     gettimeofday(&begin, NULL);
-    const int count = 10000000;
+    const int count = 100000000;
     while(switchCounter < count) {
         switchCounter += 1;
         fiber_context_swap(&ctx[0], &ctx[1]);

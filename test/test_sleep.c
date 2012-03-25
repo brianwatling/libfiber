@@ -2,7 +2,6 @@
 #include "test_helper.h"
 #include "fiber_event.h"
 #include "fiber_io.h"
-#include "fiber_barrier.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>

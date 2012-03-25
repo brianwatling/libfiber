@@ -69,7 +69,6 @@ static inline void mpmc_fifo_push(hazard_pointer_thread_record_t* hptr, mpmc_fif
     while(1) {
         mpmc_fifo_node_t* const tail = fifo->tail;
         hazard_pointer_using(hptr, &tail->hazard, 0);
-        load_load_barrier();
         if(tail != fifo->tail) {
             continue;//tail switched while we were 'using' it
         }

@@ -1,5 +1,4 @@
 #include "fiber_cond.h"
-#include "fiber_barrier.h"
 #include "fiber_manager.h"
 #include "test_helper.h"
 

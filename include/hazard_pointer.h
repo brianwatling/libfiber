@@ -67,7 +67,7 @@ static inline void hazard_pointer_using(hazard_pointer_thread_record_t* hptr, ha
 {
     assert(n < hptr->hazard_pointers_count);
     hptr->hazard_pointers[n] = node;
-    store_load_barrier();//make sure other processor's can see we're using this pointer
+    store_load_barrier();//make sure other processors can see we're using this pointer
 }
 
 //call this when you're done with the pointer

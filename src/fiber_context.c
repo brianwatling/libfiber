@@ -209,9 +209,6 @@ void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_conte
      "%st", "%st(1)", "%st(2)", "%st(3)", "%st(4)", "%st(5)", "%st(6)", "%st(7)",
      "memory"
     );
-
-    /* make any pending writes available to other processors */
-    store_load_barrier();
 }
 
 #elif defined(__x86_64__) && defined(FIBER_FAST_SWITCHING)
@@ -381,9 +378,6 @@ void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_conte
         : "cc",
           "memory"
     );
-
-    /* make any pending writes available to other processors */
-    store_load_barrier();
 }
 
 #else
@@ -459,9 +453,6 @@ void fiber_context_destroy(fiber_context_t* context)
 void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_context)
 {
     swapcontext((ucontext_t*)from_context->ctx_stack_pointer, (ucontext_t*)to_context->ctx_stack_pointer);
-
-    /* make any pending writes available to other processors */
-    store_load_barrier();
 }
 
 #endif

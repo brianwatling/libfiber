@@ -29,13 +29,11 @@ int fiber_semaphore_wait(fiber_semaphore_t* semaphore)
     const int val = __sync_sub_and_fetch(&semaphore->counter, 1);
     if(val >= 0) {
         //we just got in, there was no contention
-        load_load_barrier();
         return FIBER_SUCCESS;
     }
 
     //we didn't get in, we'll wait
     fiber_manager_wait_in_mpmc_queue(fiber_manager_get(), &semaphore->waiters);
-    load_load_barrier();
 
     return FIBER_SUCCESS;
 }
@@ -47,7 +45,6 @@ int fiber_semaphore_trywait(fiber_semaphore_t* semaphore)
     int counter;
     while((counter = semaphore->counter) > 0) {
         if(__sync_bool_compare_and_swap(&semaphore->counter, counter, counter - 1)) {
-            load_load_barrier();
             return FIBER_SUCCESS;
         }
     }
@@ -59,7 +56,7 @@ int fiber_semaphore_post_internal(fiber_semaphore_t* semaphore)
 {
     assert(semaphore);
 
-    store_load_barrier();//flush this fiber's writes
+    //assumption: the atomic operations below provide read/write ordering (ie. read and writes performed before posting actually occur before posting)
 
     int prev_counter;
     do {

@@ -62,8 +62,11 @@ int fiber_spinlock_trylock(fiber_spinlock_t* spinlock)
 int fiber_spinlock_unlock(fiber_spinlock_t* spinlock)
 {
     assert(spinlock);
-    write_barrier();//flush this fiber's writes
-    spinlock->state.counters.ticket += 1;
+
+    write_barrier();//flush this fiber's writes before incrementing the ticket
+    spinlock->state.counters.ticket = spinlock->state.counters.ticket + 1;
+    load_load_barrier();//any future read should happen after reading the ticket as part of the increment
+
     return FIBER_SUCCESS;
 }
 

@@ -9,7 +9,7 @@
 void fiber_join_routine(fiber_t* the_fiber, void* result)
 {
     the_fiber->result = result;
-    write_barrier();
+    write_barrier();//make sure the result is available before changing the state
 
     if(the_fiber->detach_state != FIBER_DETACH_DETACHED) {
         const int old_state = atomic_exchange_int((int*)&the_fiber->detach_state, FIBER_DETACH_WAIT_FOR_JOINER);
@@ -21,13 +21,11 @@ void fiber_join_routine(fiber_t* the_fiber, void* result)
             fiber_t* const to_schedule = fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&the_fiber->join_info);
             to_schedule->result = the_fiber->result;
             to_schedule->state = FIBER_STATE_READY;
-            write_barrier();
             fiber_manager_schedule(fiber_manager_get(), to_schedule);
         }
     }
 
     the_fiber->state = FIBER_STATE_DONE;
-    write_barrier();
 
     fiber_manager_get()->done_fiber = the_fiber;
     fiber_manager_yield(fiber_manager_get());
@@ -140,7 +138,6 @@ int fiber_join(fiber_t* f, void** result)
         fiber_t* const current_fiber = manager->current_fiber;
         fiber_manager_set_and_wait(manager, (void**)&f->join_info, current_fiber);
         if(result) { 
-            load_load_barrier();
             *result = current_fiber->result;
         }
         current_fiber->result = NULL;
@@ -149,7 +146,6 @@ int fiber_join(fiber_t* f, void** result)
         if(result) { 
             *result = f->result;
         }
-        load_load_barrier();
         fiber_t* const to_schedule = fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&f->join_info);
         to_schedule->state = FIBER_STATE_READY;
         fiber_manager_schedule(fiber_manager_get(), to_schedule);
@@ -182,7 +178,6 @@ int fiber_tryjoin(fiber_t* f, void** result)
             if(result) { 
                 *result = f->result;
             }
-            load_load_barrier();
             fiber_t* const to_schedule = fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&f->join_info);
             to_schedule->state = FIBER_STATE_READY;
             fiber_manager_schedule(fiber_manager_get(), to_schedule);
