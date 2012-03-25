@@ -20,7 +20,7 @@ typedef union
         unsigned int waiting_writers : 21;
     } __attribute__ ((packed)) state;
     uint64_t blob;
-} fiber_rwlock_state_t;
+} __attribute__ ((packed)) fiber_rwlock_state_t;
 
 typedef struct fiber_rwlock
 {

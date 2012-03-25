@@ -46,7 +46,7 @@ static inline void load_load_barrier()
 static inline void* atomic_exchange_pointer(void** location, void* value)
 {
     void* result = value;
-    __asm__ volatile (
+    __asm__ __volatile__ (
         "lock xchg %1,%0"
         :"+r" (result), "+m" (*location)
         : /* no input-only operands */
@@ -57,7 +57,7 @@ static inline void* atomic_exchange_pointer(void** location, void* value)
 static inline int atomic_exchange_int(int* location, int value)
 {
     int result = value;
-    __asm__ volatile (
+    __asm__ __volatile__ (
         "lock xchg %1,%0"
         :"+r" (result), "+m" (*location)
         : /* no input-only operands */
@@ -69,5 +69,15 @@ static inline int atomic_exchange_int(int* location, int value)
 #define FIBER_NO_XCHG_POINTER
 #endif
 
+static inline void cpu_relax()
+{
+#if defined(ARCH_x86) || defined(ARCH_x86_64)
+    __asm__ __volatile__ (
+        "pause": : : "memory"
+    );
+#else
+#warning no cpu_relax() defined for this architecture. please consider defining one if possible.
+#endif
+}
 #endif
 

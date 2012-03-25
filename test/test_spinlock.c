@@ -4,7 +4,7 @@
 
 int volatile counter = 0;
 fiber_spinlock_t mutex;
-#define PER_FIBER_COUNT 100000
+#define PER_FIBER_COUNT 1000000
 #define NUM_FIBERS 100
 #define NUM_THREADS 2
 
@@ -36,8 +36,8 @@ int main()
     }
 
     test_assert(counter == NUM_FIBERS * PER_FIBER_COUNT);
-    test_assert(fiber_spinlock_trylock(&mutex, 1));
-    test_assert(!fiber_spinlock_trylock(&mutex, 100));
+    test_assert(fiber_spinlock_trylock(&mutex));
+    test_assert(!fiber_spinlock_trylock(&mutex));
     fiber_spinlock_unlock(&mutex);
     fiber_spinlock_destroy(&mutex);
 
