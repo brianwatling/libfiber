@@ -20,6 +20,7 @@ typedef struct fiber_signal
 
 #define FIBER_SIGNAL_NO_WAITER ((fiber_t*)0)
 #define FIBER_SIGNAL_RAISED ((fiber_t*)(intptr_t)-1)
+#define FIBER_SIGNAL_READY_TO_WAKE ((fiber_t*)(intptr_t)-1)
 
 static inline void fiber_signal_init(fiber_signal_t* s)
 {
@@ -45,7 +46,7 @@ static inline void fiber_signal_wait(fiber_signal_t* s)
         this_fiber->state = FIBER_STATE_WAITING;
         //the raiser will not wake this fiber until scratch has been set to FIBER_SIGNAL_RAISED, which the fiber manager will set after the context switch
         manager->set_wait_location = (void**)&this_fiber->scratch;
-        manager->set_wait_value = FIBER_SIGNAL_RAISED;
+        manager->set_wait_value = FIBER_SIGNAL_READY_TO_WAKE;
         fiber_manager_yield(manager);
         this_fiber->scratch = NULL;
     }
@@ -62,7 +63,9 @@ static inline int fiber_signal_raise(fiber_signal_t* s)
     if(old != FIBER_SIGNAL_NO_WAITER && old != FIBER_SIGNAL_RAISED) {
         //we successfully signalled while a fiber was waiting
         s->waiter = FIBER_SIGNAL_NO_WAITER;
-        while(old->scratch != FIBER_SIGNAL_RAISED) {};
+        while(old->scratch != FIBER_SIGNAL_READY_TO_WAKE) {
+            cpu_relax();//the other fiber is still in the process of going to sleep
+        }
         old->state = FIBER_STATE_READY;
         fiber_manager_schedule(fiber_manager_get(), old);
         return 1;

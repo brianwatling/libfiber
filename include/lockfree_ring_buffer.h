@@ -41,6 +41,15 @@ static inline void lockfree_ring_buffer_destroy(lockfree_ring_buffer_t* rb)
     free(rb);
 }
 
+static inline size_t lockfree_ring_buffer_size(const lockfree_ring_buffer_t* rb)
+{
+    assert(rb);
+    const uint64_t high = rb->high;
+    load_load_barrier();//read high first; make it look less than or equal to its actual size
+    const int64_t size = high - rb->low;
+    return size >= 0 ? size : 0;
+}
+
 static inline int lockfree_ring_buffer_trypush(lockfree_ring_buffer_t* rb, void* in)
 {
     assert(rb);
@@ -61,7 +70,11 @@ static inline int lockfree_ring_buffer_trypush(lockfree_ring_buffer_t* rb, void*
 
 static inline void lockfree_ring_buffer_push(lockfree_ring_buffer_t* rb, void* in)
 {
-    while(!lockfree_ring_buffer_trypush(rb, in)) {};
+    while(!lockfree_ring_buffer_trypush(rb, in)) {
+        if(rb->high - rb->low >= rb->size) {
+            cpu_relax();//the buffer is full
+        }
+    };
 }
 
 static inline void* lockfree_ring_buffer_trypop(lockfree_ring_buffer_t* rb)
@@ -84,17 +97,12 @@ static inline void* lockfree_ring_buffer_trypop(lockfree_ring_buffer_t* rb)
 static inline void* lockfree_ring_buffer_pop(lockfree_ring_buffer_t* rb)
 {
     void* ret;
-    while(!(ret = lockfree_ring_buffer_trypop(rb))) {};
+    while(!(ret = lockfree_ring_buffer_trypop(rb))) {
+        if(rb->high <= rb->low) {
+            cpu_relax();//the buffer is empty
+        }
+    }
     return ret;
-}
-
-static inline size_t lockfree_ring_buffer_size(const lockfree_ring_buffer_t* rb)
-{
-    assert(rb);
-    const uint64_t high = rb->high;
-    load_load_barrier();//read high first; make it look less than or equal to its actual size
-    const int64_t size = high - rb->low;
-    return size >= 0 ? size : 0;
 }
 
 #endif

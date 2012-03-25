@@ -390,7 +390,6 @@ int fiber_manager_wake_from_mpmc_queue(fiber_manager_t* manager, mpmc_fifo_t* fi
 {
     //wake at least 'count' fibers; if count == 0, simply attempt to wake a fiber
     void* out = NULL;
-    int spin_counter = 0;
     int wake_count = 0;
     hazard_pointer_thread_record_t* hptr = fiber_manager_get_hazard_record(manager);
     do {
@@ -401,13 +400,10 @@ int fiber_manager_wake_from_mpmc_queue(fiber_manager_t* manager, mpmc_fifo_t* fi
             to_schedule->state = FIBER_STATE_READY;
             fiber_manager_schedule(manager, to_schedule);
             wake_count += 1;
+        } else if(count > 0) {
+            cpu_relax();//back off if we failed to pop something
         }
-        ++spin_counter;
-        if(spin_counter > 100) {
-            sched_yield();
-            spin_counter = 0;
-        }
-    } while(count > 0);
+    } while(wake_count < count);
     return wake_count;
 }
 
@@ -436,11 +432,9 @@ int fiber_manager_wake_from_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fi
 {
     //wake at least 'count' fibers; if count == 0, simply attempt to wake a fiber
     mpsc_fifo_node_t* out = NULL;
-    int spin_counter = 0;
     int wake_count = 0;
     do {
         if((out = mpsc_fifo_trypop(fifo))) {
-            count -= 1;
             fiber_t* const to_schedule = (fiber_t*)out->data;
             assert(to_schedule->state == FIBER_STATE_WAITING);
             assert(!to_schedule->mpsc_fifo_node);
@@ -448,13 +442,10 @@ int fiber_manager_wake_from_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fi
             to_schedule->state = FIBER_STATE_READY;
             fiber_manager_schedule(manager, to_schedule);
             wake_count += 1;
+        } else if(count > 0) {
+            cpu_relax();//back off if we failed to pop something
         }
-        ++spin_counter;
-        if(spin_counter > 100) {
-            sched_yield();
-            spin_counter = 0;
-        }
-    } while(count > 0);
+    } while(wake_count < count);
     return wake_count;
 }
 

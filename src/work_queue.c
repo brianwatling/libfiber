@@ -45,6 +45,7 @@ int work_queue_get_work(work_queue_t* wq, work_queue_item_t** out)
                 return WORK_QUEUE_EMPTY;
             }
         }
+        cpu_relax();//another thread has pushed work, but hasn't finished pushing to the mpsc_fifo
     }
     wq->out_count += 1;
     return WORK_QUEUE_MORE_WORK;
