@@ -4,8 +4,7 @@
 
 fiber_bounded_channel_t* channel_one = NULL;
 fiber_bounded_channel_t* channel_two = NULL;
-#define PER_FIBER_COUNT 100000
-#define NUM_FIBERS 100
+#define PER_FIBER_COUNT 10000000
 #define NUM_THREADS 2
 
 void* ping_function(void* param)
@@ -35,18 +34,12 @@ int main()
     channel_one = fiber_bounded_channel_create(128);
     channel_two = fiber_bounded_channel_create(128);
 
-    fiber_t* ping_fibers[NUM_FIBERS];
-    fiber_t* pong_fibers[NUM_FIBERS];
-    int i;
-    for(i = 0; i < NUM_FIBERS; ++i) {
-        ping_fibers[i] = fiber_create(20000, &ping_function, NULL);
-        pong_fibers[i] = fiber_create(20000, &pong_function, NULL);
-    }
+    fiber_t* ping_fiber;
+    ping_fiber = fiber_create(20000, &ping_function, NULL);
 
-    for(i = 0; i < NUM_FIBERS; ++i) {
-        fiber_join(ping_fibers[i], NULL);
-        fiber_join(pong_fibers[i], NULL);
-    }
+    pong_function(NULL);
+
+    fiber_join(ping_fiber, NULL);
 
     fiber_bounded_channel_destroy(channel_one);
     fiber_bounded_channel_destroy(channel_two);
