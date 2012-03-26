@@ -60,10 +60,6 @@ extern __thread fiber_manager_t* fiber_the_manager;
 
 static inline fiber_manager_t* fiber_manager_get()
 {
-    if(!fiber_the_manager) {
-        fiber_the_manager = fiber_manager_create();
-        assert(fiber_the_manager);
-    }
     return fiber_the_manager;
 }
 #elif defined(NO_COMPILER_THREAD_LOCAL)

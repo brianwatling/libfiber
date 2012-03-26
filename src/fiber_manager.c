@@ -255,7 +255,19 @@ int fiber_manager_init(size_t num_threads)
     fiber_managers = calloc(num_threads, sizeof(*fiber_managers));
     assert(fiber_managers);
 
-    fiber_manager_t* const main_manager = fiber_manager_get();
+    fiber_manager_t* const main_manager = fiber_manager_create();
+    assert(main_manager);
+
+#ifdef USE_COMPILER_THREAD_LOCAL
+    fiber_the_manager = main_manager;
+#else
+    const int ret = pthread_setspecific(fiber_manager_key, main_manager);
+    if(ret) {
+        assert(0 && "pthread_setspecific() failed!");
+        abort();
+    }
+#endif
+
     fiber_mananger_thread_queues[0] = main_manager->queue_one;
     fiber_mananger_thread_queues[1] = main_manager->queue_two;
     fiber_managers[0] = main_manager;
