@@ -55,18 +55,7 @@ extern void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber)
 
 extern void fiber_manager_yield(fiber_manager_t* manager);
 
-#if defined(USE_COMPILER_THREAD_LOCAL)
-extern __thread fiber_manager_t* fiber_the_manager;
-
-static inline fiber_manager_t* fiber_manager_get()
-{
-    return fiber_the_manager;
-}
-#elif defined(NO_COMPILER_THREAD_LOCAL)
 extern fiber_manager_t* fiber_manager_get();
-#else
-#error must define either USE_COMPILER_THREAD_LOCAL or NO_COMPILER_THREAD_LOCAL
-#endif
 
 /* this should be called immediately when the applicaion starts */
 extern int fiber_manager_init(size_t num_threads);

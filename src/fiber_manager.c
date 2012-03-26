@@ -165,6 +165,11 @@ void* fiber_load_symbol(const char* symbol)
 
 #ifdef USE_COMPILER_THREAD_LOCAL
 __thread fiber_manager_t* fiber_the_manager = NULL;
+
+fiber_manager_t* fiber_manager_get()
+{
+    return fiber_the_manager;
+}
 #else
 static pthread_key_t fiber_manager_key;
 static pthread_once_t fiber_manager_key_once = PTHREAD_ONCE_INIT;
