@@ -164,7 +164,7 @@ void* fiber_load_symbol(const char* symbol)
 }
 
 #ifdef USE_COMPILER_THREAD_LOCAL
-static __thread fiber_manager_t* fiber_the_manager = NULL;
+__thread fiber_manager_t* fiber_the_manager = NULL;
 #else
 static pthread_key_t fiber_manager_key;
 static pthread_once_t fiber_manager_key_once = PTHREAD_ONCE_INIT;
@@ -177,17 +177,9 @@ static void fiber_manager_make_key()
         abort();
     }
 }
-#endif
 
 fiber_manager_t* fiber_manager_get()
 {
-#ifdef USE_COMPILER_THREAD_LOCAL
-    if(!fiber_the_manager) {
-        fiber_the_manager = fiber_manager_create();
-        assert(fiber_the_manager);
-    }
-    return fiber_the_manager;
-#else
     fiber_manager_t* ret = (fiber_manager_t*)pthread_getspecific(fiber_manager_key);
     if(!ret) {
         ret = fiber_manager_create();
@@ -198,8 +190,8 @@ fiber_manager_t* fiber_manager_get()
         }
     }
     return ret;
-#endif
 }
+#endif
 
 static void* fiber_manager_thread_func(void* param)
 {
