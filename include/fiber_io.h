@@ -7,6 +7,10 @@ extern "C" {
 
 extern int fiber_io_init();
 
+extern int fiber_io_lock_thread();
+
+extern int fiber_io_unlock_thread();
+
 #ifdef __cplusplus
 }
 #endif

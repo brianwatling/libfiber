@@ -184,10 +184,24 @@ int fiber_io_init()
     return FIBER_SUCCESS;
 }
 
+static __thread int thread_locked = 0;
+
+int fiber_io_lock_thread()
+{
+    thread_locked = 1;
+    return FIBER_SUCCESS;
+}
+
+int fiber_io_unlock_thread()
+{
+    thread_locked = 0;
+    return FIBER_SUCCESS;
+}
+
 static inline int should_block(int fd)
 {
     assert(fd >= 0);
-    if(fd_info && fd < max_fd && fd_info[fd].blocking) {
+    if(!thread_locked && fd_info && fd < max_fd && fd_info[fd].blocking) {
         return 1;
     }
     return 0;
@@ -195,8 +209,13 @@ static inline int should_block(int fd)
 
 static int setup_socket(int sock)
 {
+    if(thread_locked) {
+        return 0;
+    }
+
     assert(sock < max_fd);
-    fd_info[sock].blocking = 1;
+    __sync_bool_compare_and_swap(&fd_info[sock].blocking, fd_info[sock].blocking, 1);
+    assert(fd_info[sock].blocking);
 
     if(!fibershim_fcntl) {
         fibershim_fcntl = (fcntlFnType)dlsym(RTLD_NEXT, "fcntl");
@@ -483,26 +502,56 @@ int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
     return ret;
 }
 
+typedef unsigned int (*sleepFnType) (unsigned int);
+typedef int (*usleepFnType) (useconds_t);
+typedef int (*nanosleepFnType) (const struct timespec*,  struct timespec*);
+
+static sleepFnType fibershim_sleep = NULL;
+static usleepFnType fibershim_usleep = NULL;
+static nanosleepFnType fibershim_nanosleep = NULL;
+
 unsigned int sleep(unsigned int seconds)
 {
-    fiber_sleep(seconds, 0);
-    return 0;
+     if(!thread_locked && fiber_manager_get()) {
+         fiber_sleep(seconds, 0);
+     } else {
+         if(!fibershim_sleep) {
+             fibershim_sleep = (sleepFnType)dlsym(RTLD_NEXT, "sleep");
+         }
+         fibershim_sleep(seconds);
+     }
+     return 0;
 }
 
 int usleep(useconds_t useconds)
 {
-    fiber_sleep(useconds / 1000000, useconds % 1000000);
-    return 0;
+     if(!thread_locked && fiber_manager_get()) {
+         fiber_sleep(useconds / 1000000, useconds % 1000000);
+     } else {
+         if(!fibershim_usleep) {
+             fibershim_usleep = (usleepFnType)dlsym(RTLD_NEXT, "usleep");
+         }
+         fibershim_usleep(useconds);
+     }
+     return 0;
 }
 
 int nanosleep(const struct timespec* rqtp,  struct timespec* rmtp)
 {
-    fiber_sleep(rqtp->tv_sec, rqtp->tv_nsec / 1000 + 1);
-    if(rmtp) {
-        rmtp->tv_sec = 0;
-        rmtp->tv_nsec = 0;
-    }
-    return 0;
+     if(!thread_locked && fiber_manager_get()) {
+         fiber_sleep(rqtp->tv_sec, rqtp->tv_nsec / 1000 + 1);
+         if(rmtp) {
+             rmtp->tv_sec = 0;
+             rmtp->tv_nsec = 0;
+         }
+     } else {
+         if(!fibershim_nanosleep) {
+             fibershim_nanosleep = (nanosleepFnType)dlsym(RTLD_NEXT, 
+"nanosleep");
+         }
+         fibershim_nanosleep(rqtp, rmtp);
+     }
+     return 0;
 }
 
 int pipe(int pipefd[2])
@@ -512,7 +561,7 @@ int pipe(int pipefd[2])
     }
 
     int ret = fibershim_pipe(pipefd);
-    if(ret == 0 && fd_info) {
+    if(ret == 0 && fd_info && !thread_locked) {
         if(!fibershim_fcntl) {
             fibershim_fcntl = (fcntlFnType)dlsym(RTLD_NEXT, "fcntl");
         }
@@ -532,9 +581,11 @@ int pipe(int pipefd[2])
         }
 
         assert(pipefd[0] < max_fd);
-        fd_info[pipefd[0]].blocking = 1;
+        __sync_bool_compare_and_swap(&fd_info[pipefd[0]].blocking, fd_info[pipefd[0]].blocking, 1);
+        assert(fd_info[pipefd[0]].blocking);
         assert(pipefd[1] < max_fd);
-        fd_info[pipefd[1]].blocking = 1;
+        __sync_bool_compare_and_swap(&fd_info[pipefd[1]].blocking, fd_info[pipefd[1]].blocking, 1);
+        assert(fd_info[pipefd[1]].blocking);
     }
 
     return ret;
@@ -559,14 +610,17 @@ int fcntl(int fd, int cmd, ...)
     long val = va_arg(args, long);
     va_end(args);
 
-    if(cmd == F_SETFL && (val == O_NONBLOCK || val == O_NDELAY)) {
-        assert(fd < max_fd);
-        fd_info[fd].blocking = 0;
-        return 0;
-    }
-    //make sure O_NONBLOCK stays set
-    if(cmd == F_SETFL) {
-        val |= O_NONBLOCK;
+    if(!thread_locked) {
+        if(cmd == F_SETFL && (val == O_NONBLOCK || val == O_NDELAY)) {
+            assert(fd < max_fd);
+            __sync_bool_compare_and_swap(&fd_info[fd].blocking, fd_info[fd].blocking, 0);
+            assert(!fd_info[fd].blocking);
+            return 0;
+        }
+        //make sure O_NONBLOCK stays set
+        if(cmd == F_SETFL) {
+            val |= O_NONBLOCK;
+        }
     }
 
     if(!fibershim_fcntl) {
@@ -583,13 +637,19 @@ int ioctl(IOCTLPARAMS)
     void* val = va_arg(args, void*);
     va_end(args);
 
-    if(request == FIONBIO) {
+    if(!thread_locked && request == FIONBIO) {
         if(!val) {
             errno = EINVAL;
             return -1;
         }
         assert(d < max_fd);
-        fd_info[d].blocking = *(int*)val ? 0 : 1;
+        if(*(int*)val) {
+            __sync_bool_compare_and_swap(&fd_info[d].blocking, fd_info[d].blocking, 0);
+            assert(!fd_info[d].blocking);
+        } else {
+            __sync_bool_compare_and_swap(&fd_info[d].blocking, fd_info[d].blocking, 1);
+            assert(fd_info[d].blocking);
+        }
         return 0;
     }
 
