@@ -20,7 +20,8 @@
 
 typedef struct fd_wait_info
 {
-    int volatile events;
+    int events;
+    int added;
     fiber_spinlock_t spinlock;
     void* waiters;
 } fd_wait_info_t;
@@ -252,8 +253,6 @@ static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds)
                 e.events = EPOLLONESHOT | info->events;
                 e.data.fd = the_fd;
                 epoll_ctl(event_fd, EPOLL_CTL_MOD, e.data.fd, &e);
-            } else {
-                epoll_ctl(event_fd, EPOLL_CTL_DEL, the_fd, NULL);
             }
             fiber_event_wake_waiters(manager, info, 0);
             fiber_spinlock_unlock(&info->spinlock);
@@ -328,7 +327,6 @@ int fiber_wait_for_event(int fd, uint32_t events)
     fiber_spinlock_lock(&info->spinlock);
 
 #if defined(LINUX)
-    const int need_add = info->events ? 0 : 1;
     if(events & FIBER_POLL_IN) {
         info->events |= EPOLLIN;
     }
@@ -339,8 +337,9 @@ int fiber_wait_for_event(int fd, uint32_t events)
     e.events = EPOLLONESHOT | info->events;
     e.data.fd = fd;
 
-    if(need_add) {
+    if(!info->added) {
         epoll_ctl(event_fd, EPOLL_CTL_ADD, fd, &e);
+        info->added = 1;
     } else {
         epoll_ctl(event_fd, EPOLL_CTL_MOD, fd, &e);
     }
@@ -405,9 +404,10 @@ void fiber_fd_closed(int fd)
     fd_wait_info_t* const info = &wait_info[fd];
     fiber_spinlock_lock(&info->spinlock);
 #if defined(LINUX)
-    if(info->events) {
+    if(info->events || info->added) {
         epoll_ctl(event_fd, EPOLL_CTL_DEL, fd, NULL);
         info->events = 0;
+        info->added = 0;
     }
 #elif defined(SOLARIS)
     if(info->events) {
