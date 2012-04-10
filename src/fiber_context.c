@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <sys/mman.h>
 #include <string.h>
+#include <stdint.h>
 #ifdef FIBER_CONTEXT_MALLOC
 #include <stdlib.h>
 #endif
@@ -89,9 +90,13 @@ int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_fu
     }
 
     context->ctx_stack_pointer = (void**)((char*)context->ctx_stack + context->ctx_stack_size) - 1;
+    context->ctx_stack_pointer = (void*)((uintptr_t)context->ctx_stack_pointer & ~0x0f);//16 byte stack alignment
+    --context->ctx_stack_pointer;//ctx_stack_pointer must be decremented a-multiple-of-4 times to maintain 16 byte alignement. this decrement is a dummy/filler decrement
     *--context->ctx_stack_pointer = param;
     *--context->ctx_stack_pointer = NULL; /*dummy return address*/
     *--context->ctx_stack_pointer = (void*)run_function;
+
+    assert(((uintptr_t)context->ctx_stack_pointer & 0x0f) == 0);//verify 16 byte alignment
 
     STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
@@ -228,6 +233,8 @@ int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_fu
     }
 
     context->ctx_stack_pointer = (void**)((char*)context->ctx_stack + context->ctx_stack_size) - 1;
+    context->ctx_stack_pointer = (void*)((uintptr_t)context->ctx_stack_pointer & ~0x0f);//16 byte stack alignment
+    --context->ctx_stack_pointer;//ctx_stack_pointer must be decremented an even number of times to maintain 16 byte alignement. this decrement is a dummy/filler decrement
     *--context->ctx_stack_pointer = param;
     *--context->ctx_stack_pointer = NULL; /*dummy return address*/
     *--context->ctx_stack_pointer = (void*)run_function;
@@ -237,6 +244,8 @@ int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_fu
     *--context->ctx_stack_pointer = 0;// r13
     *--context->ctx_stack_pointer = 0;// r14
     *--context->ctx_stack_pointer = 0;// r15
+
+    assert(((uintptr_t)context->ctx_stack_pointer & 0x0f) == 0);//verify 16 byte alignment
 
     STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
