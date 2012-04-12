@@ -27,12 +27,13 @@ typedef struct fiber_bounded_channel
     char _cache_padding2[CACHE_SIZE - sizeof(uint64_t)];
     volatile uint64_t send_count;
     mpsc_fifo_t waiters;
-    fiber_signal_t ready_signal;
+    fiber_signal_t* ready_signal;
     size_t size;
     void* buffer[];
 } fiber_bounded_channel_t;
 
-static inline fiber_bounded_channel_t* fiber_bounded_channel_create(size_t size)
+//specifying a NULL signal means this channel will spin. 'signal' must out-live this channel
+static inline fiber_bounded_channel_t* fiber_bounded_channel_create(size_t size, fiber_signal_t* signal)
 {
     assert(size);
     const size_t required_size = sizeof(fiber_bounded_channel_t) + size * sizeof(void*);
@@ -40,7 +41,7 @@ static inline fiber_bounded_channel_t* fiber_bounded_channel_create(size_t size)
     if(channel) {
         channel->size = size;
         channel->send_count = 0;
-        fiber_signal_init(&channel->ready_signal);
+        channel->ready_signal = signal;
         if(!mpsc_fifo_init(&channel->waiters)) {
             free(channel);
             return 0;
@@ -74,7 +75,10 @@ static inline int fiber_bounded_channel_send(fiber_bounded_channel_t* channel, v
            && high - low < channel->size
            && __sync_bool_compare_and_swap(&channel->high, high, high + 1)) {
             channel->buffer[index] = message;
-            return fiber_signal_raise(&channel->ready_signal);
+            if(channel->ready_signal) {
+                return fiber_signal_raise(channel->ready_signal);
+            }
+            return 0;
         }
         fiber_manager_wait_in_mpsc_queue(fiber_manager_get(), &channel->waiters);
     }
@@ -102,7 +106,9 @@ static inline void* fiber_bounded_channel_receive(fiber_bounded_channel_t* chann
             }
             return ret;
         }
-        fiber_signal_wait(&channel->ready_signal);
+        if(channel->ready_signal) {
+            fiber_signal_wait(channel->ready_signal);
+        }
     }
     return NULL;
 }
@@ -111,15 +117,16 @@ static inline void* fiber_bounded_channel_receive(fiber_bounded_channel_t* chann
 typedef struct fiber_unbounded_channel
 {
     mpsc_fifo_t queue;
-    fiber_signal_t ready_signal;
+    fiber_signal_t* ready_signal;
 } fiber_unbounded_channel_t;
 
 typedef mpsc_fifo_node_t fiber_unbounded_channel_message_t;
 
-static inline int fiber_unbounded_channel_init(fiber_unbounded_channel_t* channel)
+//specifying a NULL signal means this channel will spin. 'signal' must out-live this channel
+static inline int fiber_unbounded_channel_init(fiber_unbounded_channel_t* channel, fiber_signal_t* signal)
 {
     assert(channel);
-    fiber_signal_init(&channel->ready_signal);
+    channel->ready_signal = signal;
     if(!mpsc_fifo_init(&channel->queue)) {
         return 0;
     }
@@ -141,7 +148,10 @@ static inline int fiber_unbounded_channel_send(fiber_unbounded_channel_t* channe
     assert(message);
 
     mpsc_fifo_push(&channel->queue, message);
-    return fiber_signal_raise(&channel->ready_signal);
+    if(channel->ready_signal) {
+        return fiber_signal_raise(channel->ready_signal);
+    }
+    return 0;
 }
 
 //the caller owns the message when this function returns
@@ -151,7 +161,9 @@ static inline void* fiber_unbounded_channel_receive(fiber_unbounded_channel_t* c
 
     fiber_unbounded_channel_message_t* ret;
     while(!(ret = mpsc_fifo_trypop(&channel->queue))) {
-        fiber_signal_wait(&channel->ready_signal);
+        if(channel->ready_signal) {
+            fiber_signal_wait(channel->ready_signal);
+        }
     }
     return ret;
 }

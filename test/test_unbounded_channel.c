@@ -21,11 +21,14 @@ void* send_function(void* param)
     return NULL;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     fiber_manager_init(NUM_THREADS);
 
-    fiber_unbounded_channel_init(&channel);
+    fiber_signal_t signal;
+    fiber_signal_init(&signal);
+    //specifying an argument will make the channels spin
+    fiber_unbounded_channel_init(&channel, argc > 1 ? NULL : &signal);
 
     fiber_t* send_fibers[NUM_FIBERS];
     int i;
@@ -47,6 +50,7 @@ int main()
         test_assert(results[i] == NUM_FIBERS);
     }
     fiber_unbounded_channel_destroy(&channel);
+    fiber_signal_destroy(&signal);
 
     return 0;
 }

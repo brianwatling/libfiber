@@ -27,12 +27,18 @@ void* pong_function(void* param)
     return NULL;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     fiber_manager_init(NUM_THREADS);
 
-    channel_one = fiber_bounded_channel_create(128);
-    channel_two = fiber_bounded_channel_create(128);
+    fiber_signal_t signal_one;
+    fiber_signal_init(&signal_one);
+    fiber_signal_t signal_two;
+    fiber_signal_init(&signal_two);
+
+    //specifying an argument will make the channels spin
+    channel_one = fiber_bounded_channel_create(128, argc > 1 ? NULL : &signal_one);
+    channel_two = fiber_bounded_channel_create(128, argc > 1 ? NULL : &signal_two);
 
     fiber_t* ping_fiber;
     ping_fiber = fiber_create(20000, &ping_function, NULL);
@@ -43,6 +49,9 @@ int main()
 
     fiber_bounded_channel_destroy(channel_one);
     fiber_bounded_channel_destroy(channel_two);
+
+    fiber_signal_destroy(&signal_one);
+    fiber_signal_destroy(&signal_two);
 
     return 0;
 }
