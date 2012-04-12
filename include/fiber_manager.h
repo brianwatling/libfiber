@@ -42,7 +42,12 @@ typedef struct fiber_manager
     /* TODO: done_fibers may be better as a global queue to increase re-use, with the cost of added contention */
     /* TODO: done_fibers could also be setup to allow a thread to steal done fibers from other threads */
     int id;
-    size_t yield_count;
+    uint64_t yield_count;
+    uint64_t steal_count;
+    uint64_t failed_steal_count;
+    uint64_t spin_count;
+    uint64_t poll_count;
+    uint64_t event_wait_count;
 } fiber_manager_t;
 
 #ifdef __cplusplus
@@ -95,6 +100,22 @@ extern hazard_pointer_thread_record_t* fiber_manager_get_hazard_record(fiber_man
 extern mpmc_fifo_node_t* fiber_manager_get_mpmc_node();
 
 extern void fiber_manager_return_mpmc_node(mpmc_fifo_node_t* node);
+
+typedef struct fiber_manager_stats
+{
+    uint64_t yield_count;
+    uint64_t steal_count;
+    uint64_t failed_steal_count;
+    uint64_t spin_count;
+    uint64_t poll_count;
+    uint64_t event_wait_count;
+} fiber_manager_stats_t;
+
+//stats are *added* to the values currently in *out
+extern void fiber_manager_stats(fiber_manager_t* manager, fiber_manager_stats_t* out);
+
+//stats are *added* to the values currently in *out
+extern void fiber_manager_all_stats(fiber_manager_stats_t* out);
 
 #ifdef __cplusplus
 }

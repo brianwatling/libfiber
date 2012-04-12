@@ -232,6 +232,7 @@ static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds)
         abort();
     }
     fiber_manager_t* const manager = fiber_manager_get();
+    manager->poll_count += 1;
     int i;
     for(i = 0; i < count; ++i) {
         const int the_fd = events[i].data.fd;
@@ -356,6 +357,7 @@ int fiber_wait_for_event(int fd, uint32_t events)
 #endif
 
     fiber_manager_t* const manager = fiber_manager_get();
+    manager->event_wait_count += 1;
     fiber_t* const this_fiber = manager->current_fiber;
     this_fiber->scratch = info->waiters;//use scratch field as a linked list of waiters
     info->waiters = this_fiber;

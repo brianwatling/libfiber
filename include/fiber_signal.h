@@ -63,11 +63,13 @@ static inline int fiber_signal_raise(fiber_signal_t* s)
     if(old != FIBER_SIGNAL_NO_WAITER && old != FIBER_SIGNAL_RAISED) {
         //we successfully signalled while a fiber was waiting
         s->waiter = FIBER_SIGNAL_NO_WAITER;
+        fiber_manager_t* const manager = fiber_manager_get();
         while(old->scratch != FIBER_SIGNAL_READY_TO_WAKE) {
             cpu_relax();//the other fiber is still in the process of going to sleep
+            manager->spin_count += 1;
         }
         old->state = FIBER_STATE_READY;
-        fiber_manager_schedule(fiber_manager_get(), old);
+        fiber_manager_schedule(manager, old);
         return 1;
     }
     return 0;

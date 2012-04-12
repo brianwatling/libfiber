@@ -1,4 +1,5 @@
 #include "fiber_spinlock.h"
+#include "fiber_manager.h"
 #include "fiber.h"
 #include "sched.h"
 
@@ -36,6 +37,7 @@ int fiber_spinlock_lock(fiber_spinlock_t* spinlock)
     const uint32_t my_ticket = __sync_fetch_and_add(&spinlock->state.counters.users, 1);
     while(spinlock->state.counters.ticket != my_ticket) {
         cpu_relax();
+        fiber_manager_get()->spin_count += 1;
     }
     load_load_barrier();//any future reads should happen after reading the new ticket
 

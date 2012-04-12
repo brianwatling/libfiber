@@ -15,7 +15,6 @@
 
 static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
 static int fiber_manager_num_threads = 0;
-static int fiber_manager_active_threads = 0;
 static wsd_work_stealing_deque_t** fiber_mananger_thread_queues = NULL;
 static pthread_t* fiber_manager_threads = NULL;
 static fiber_manager_t** fiber_managers = NULL;
@@ -87,6 +86,7 @@ static int fiber_load_balance(fiber_manager_t* manager)
         while(remote_count > local_count && max_steal > 0) {
             fiber_t* const stolen = (fiber_t*)wsd_work_stealing_deque_steal(remote_queue);
             if(stolen == WSD_EMPTY || stolen == WSD_ABORT) {
+                ++manager->failed_steal_count;
                 break;
             }
             assert(stolen->state == FIBER_STATE_READY);
@@ -94,6 +94,7 @@ static int fiber_load_balance(fiber_manager_t* manager)
             --remote_count;
             ++local_count;
             --max_steal;
+            ++manager->steal_count;
         }
     }
     return 1;
@@ -256,7 +257,6 @@ int fiber_manager_init(size_t num_threads)
     fiber_manager_threads = calloc(num_threads, sizeof(*fiber_manager_threads));
     assert(fiber_manager_threads);
     fiber_manager_num_threads = num_threads;
-    fiber_manager_active_threads = num_threads;
     fiber_managers = calloc(num_threads, sizeof(*fiber_managers));
     assert(fiber_managers);
 
@@ -410,6 +410,7 @@ int fiber_manager_wake_from_mpmc_queue(fiber_manager_t* manager, mpmc_fifo_t* fi
             wake_count += 1;
         } else if(count > 0) {
             cpu_relax();//back off if we failed to pop something
+            manager->spin_count += 1;
         }
     } while(wake_count < count);
     return wake_count;
@@ -452,6 +453,7 @@ int fiber_manager_wake_from_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fi
             wake_count += 1;
         } else if(count > 0) {
             cpu_relax();//back off if we failed to pop something
+            manager->spin_count += 1;
         }
     } while(wake_count < count);
     return wake_count;
@@ -547,5 +549,27 @@ mpmc_fifo_node_t* fiber_manager_get_mpmc_node()
         ret->hazard.gc_function = &fiber_manager_return_mpmc_node_internal;
     }
     return ret;
+}
+
+void fiber_manager_stats(fiber_manager_t* manager, fiber_manager_stats_t* out)
+{
+    assert(manager);
+    assert(out);
+    out->yield_count += manager->yield_count;
+    out->steal_count += manager->steal_count;
+    out->failed_steal_count += manager->failed_steal_count;
+    out->spin_count += manager->spin_count;
+    out->poll_count += manager->poll_count;
+    out->event_wait_count += manager->event_wait_count;
+}
+
+void fiber_manager_all_stats(fiber_manager_stats_t* out)
+{
+    if(fiber_managers) {
+        int i;
+        for(i = 0; i < fiber_manager_num_threads; ++i) {
+            fiber_manager_stats(fiber_managers[i], out);
+        }
+    }
 }
 

@@ -61,6 +61,7 @@ int fiber_poll_events()
         return FIBER_EVENT_NOTINIT;
     }
 
+    fiber_manager_get()->poll_count += 1;
     num_events_triggered = 0;
     ev_run(fiber_loop, EVRUN_NOWAIT);
     const int local_copy = num_events_triggered;
@@ -98,6 +99,7 @@ size_t fiber_poll_events_blocking(uint32_t seconds, uint32_t useconds)
     }
 
     num_events_triggered = 0;
+    fiber_manager_get()->poll_count += 1;
     ev_run(fiber_loop, EVRUN_ONCE);
     const int local_copy = num_events_triggered;
     fiber_spinlock_unlock(&fiber_loop_spinlock);
@@ -133,6 +135,7 @@ int fiber_wait_for_event(int fd, uint32_t events)
     fiber_spinlock_lock(&fiber_loop_spinlock);
 
     fiber_manager_t* const manager = fiber_manager_get();
+    manager->event_wait_count += 1;
     fiber_t* const this_fiber = manager->current_fiber;
 
     fd_event.data = this_fiber;
