@@ -113,6 +113,30 @@ static inline void* fiber_bounded_channel_receive(fiber_bounded_channel_t* chann
     return NULL;
 }
 
+static inline int fiber_bounded_channel_try_receive(fiber_bounded_channel_t* channel, void** out)
+{
+    assert(channel);
+
+    const uint64_t send_count = channel->send_count;
+    load_load_barrier();
+    const uint64_t high = channel->high;
+    load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
+    const uint64_t low = channel->low;
+    const uint64_t index = low % channel->size;
+    void* const ret = channel->buffer[index];
+    if(ret && high > low) {
+        channel->buffer[index] = 0;
+        write_barrier();
+        channel->low = low + 1;
+        if(high < send_count) {
+            fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &channel->waiters, 0);
+        }
+        *out = ret;
+        return 1;
+    }
+    return 0;
+}
+
 //a unbounded channel. send and receive will block. there can be many senders but only one receiver
 typedef struct fiber_unbounded_channel
 {
@@ -166,6 +190,12 @@ static inline void* fiber_unbounded_channel_receive(fiber_unbounded_channel_t* c
         }
     }
     return ret;
+}
+
+static inline void* fiber_unbounded_channel_try_receive(fiber_unbounded_channel_t* channel)
+{
+    assert(channel);
+    return mpsc_fifo_trypop(&channel->queue);
 }
 
 #endif
