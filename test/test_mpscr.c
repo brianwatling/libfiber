@@ -40,7 +40,7 @@ int main()
 
     spsc_node_t* node = NULL;
     for(i = 0; i < PUSH_COUNT * (NUM_THREADS-1); ++i) {
-        while(!(node = mpscr_fifo_pop(fifo))) {};
+        while(!(node = mpscr_fifo_trypop(fifo))) {};
         ++results[(intptr_t)node->data];
         free(node);
     }

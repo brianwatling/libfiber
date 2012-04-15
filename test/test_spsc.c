@@ -15,7 +15,7 @@ void* pop_func(void* p)
     intptr_t i;
     spsc_node_t* node = NULL;
     for(i = 0; i < PUSH_COUNT; ++i) {
-        while(!(node = spsc_fifo_pop(&fifo))) {};
+        while(!(node = spsc_fifo_trypop(&fifo))) {};
         test_assert((intptr_t)node->data == i);
         free(node);
     }

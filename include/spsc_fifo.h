@@ -38,7 +38,7 @@ typedef struct spsc_fifo
 static inline int spsc_fifo_init(spsc_fifo_t* f)
 {
     assert(f);
-    f->tail = calloc(1, sizeof(*f->tail));
+    f->tail = (spsc_node_t*)calloc(1, sizeof(*f->tail));
     f->head = f->tail;
     if(!f->tail) {
         return 0;
@@ -70,7 +70,7 @@ static inline void spsc_fifo_push(spsc_fifo_t* f, spsc_node_t* new_node)
 }
 
 //the caller owns the node after popping
-static inline spsc_node_t* spsc_fifo_pop(spsc_fifo_t* f)
+static inline spsc_node_t* spsc_fifo_trypop(spsc_fifo_t* f)
 {
     assert(f);
     spsc_node_t* const prev_head = f->head;

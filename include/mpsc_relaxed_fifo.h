@@ -78,7 +78,7 @@ static inline void mpscr_fifo_push(mpscr_fifo_t* f, size_t producer_number, spsc
 }
 
 //the caller owns the node after popping
-static inline spsc_node_t* mpscr_fifo_pop(mpscr_fifo_t* f)
+static inline spsc_node_t* mpscr_fifo_trypop(mpscr_fifo_t* f)
 {
     const size_t num_producers = f->num_producers;
     size_t i;
@@ -86,7 +86,7 @@ static inline spsc_node_t* mpscr_fifo_pop(mpscr_fifo_t* f)
         const size_t index = f->counter % num_producers;
         ++f->counter;
         spsc_fifo_t* const the_fifo = &f->fifos[index];
-        spsc_node_t* const out = spsc_fifo_pop(the_fifo);
+        spsc_node_t* const out = spsc_fifo_trypop(the_fifo);
         if(out) {
             return out;
         }
