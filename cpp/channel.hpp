@@ -18,6 +18,7 @@ public:
 
     struct event
     {
+        friend class UnboundedMultiProducerChannel;
     public:
         event(event_descriptor type, event_wrapper* wrapper)
         : type(type), wrapper(wrapper)
@@ -45,9 +46,7 @@ public:
 
     private:
         event_descriptor type;
-    public:        
         event_wrapper* wrapper;
-    private:
         event_payload payload;
     };
 
@@ -140,6 +139,7 @@ public:
 
     struct event
     {
+        friend class UnboundedSingleProducerChannel;
     public:
         event(event_descriptor type, event_wrapper* wrapper)
         : type(type), wrapper(wrapper)
@@ -167,9 +167,7 @@ public:
 
     private:
         event_descriptor type;
-    public:        
         event_wrapper* wrapper;
-    private:
         event_payload payload;
     };
 
