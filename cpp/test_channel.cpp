@@ -53,17 +53,16 @@ uint64_t getUsecs(const timeval& t)
 
 int main()
 {
-    fiber_signal_t signal;
-    fiber_signal_init(&signal);
+    Signal signal;
     fiber_barrier_init(&barrier, 4);
 
     fiber_manager_init(NUM_THREADS);
 
-    ChannelType channelOne(&signal);
-    ChannelType channelTwo(&signal);
-    ChannelType channelThree(&signal);
+    ChannelType channelOne(signal);
+    ChannelType channelTwo(signal);
+    ChannelType channelThree(signal);
     ChannelType* channelsToSelect[] = {&channelOne, &channelTwo, &channelThree};
-    ChannelSelector<ChannelType> selector(3, channelsToSelect, &signal);
+    ChannelSelector<ChannelType> selector(3, channelsToSelect, signal);
 
     fiber_create(102400, &run_function, &channelOne);
     fiber_create(102400, &run_function, &channelTwo);
@@ -80,7 +79,7 @@ int main()
     gettimeofday(&end, NULL);
     std::cout << "multi sender, many channel took: " << (getUsecs(end) - getUsecs(begin)) << " usecs" << std::endl;
 
-    ChannelType manyChannel(&signal);
+    ChannelType manyChannel(signal);
     fiber_create(102400, &run_function, &manyChannel);
     fiber_create(102400, &run_function, &manyChannel);
     fiber_create(102400, &run_function, &manyChannel);
@@ -94,11 +93,11 @@ int main()
     gettimeofday(&end, NULL);
     std::cout << "multi sender, same channel took: " << (getUsecs(end) - getUsecs(begin)) << " usecs" << std::endl;
 
-    SingleChannelType singleChannelOne(&signal);
-    SingleChannelType singleChannelTwo(&signal);
-    SingleChannelType singleChannelThree(&signal);
+    SingleChannelType singleChannelOne(signal);
+    SingleChannelType singleChannelTwo(signal);
+    SingleChannelType singleChannelThree(signal);
     SingleChannelType* singleChannelsToSelect[] = {&singleChannelOne, &singleChannelTwo, &singleChannelThree};
-    ChannelSelector<SingleChannelType> singleSelector(3, singleChannelsToSelect, &signal);
+    ChannelSelector<SingleChannelType> singleSelector(3, singleChannelsToSelect, signal);
     fiber_create(102400, &single_function, &singleChannelOne);
     fiber_create(102400, &single_function, &singleChannelTwo);
     fiber_create(102400, &single_function, &singleChannelThree);

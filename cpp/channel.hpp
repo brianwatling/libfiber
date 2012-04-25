@@ -3,6 +3,7 @@
 
 #include <stdexcept>
 #include <fiber_channel.h>
+#include <signal.hpp>
 
 namespace fiberpp {
 
@@ -53,7 +54,7 @@ public:
     UnboundedMultiProducerChannel(fiber_signal_t* signal)
     {
         if(!fiber_unbounded_channel_init(&channel, signal)) {
-            throw std::runtime_error("UnboundedMultiProducerEventSource() - error creating channel");
+            throw std::runtime_error("fiberpp::UnboundedMultiProducerEventSource() - error creating channel");
         }
     }
 
@@ -174,7 +175,7 @@ public:
     UnboundedSingleProducerChannel(fiber_signal_t* signal)
     {
         if(!fiber_unbounded_sp_channel_init(&channel, signal)) {
-            throw std::runtime_error("UnboundedMultiProducerEventSource() - error creating channel");
+            throw std::runtime_error("fiberpp::UnboundedMultiProducerEventSource() - error creating channel");
         }
     }
 
@@ -260,11 +261,11 @@ public:
     : signal(signal), numChannels(numChannels), channels(channels)
     {
         if(!numChannels || !channels) {
-            throw std::runtime_error("MultiChannel() - must provide channels");
+            throw std::runtime_error("fiberpp::ChannelSelector() - must provide channels");
         }
         for(size_t i = 0; i < numChannels; ++i) {
             if(!channels[i]) {
-                throw std::runtime_error("MultiChannel() - NULL channel provided");
+                throw std::runtime_error("fiberpp::ChannelSelector() - NULL channel provided");
             }
         }
     }
