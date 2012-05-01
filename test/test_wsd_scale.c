@@ -55,9 +55,9 @@ void* run_function(void* param)
 
     intptr_t i;
     for(i = 0; i < PER_THREAD_COUNT; ++i) {
-        const int action = rand_r(&seed) % 3;
+        const int action = rand_r(&seed) % 10;
 //printf("action: %d\n", action);
-        if(action == 0) {
+        if(action < 5) {//50% push
             node_t* n;
             do {
                 n = (node_t*)wsd_work_stealing_deque_pop_bottom(my_fifo);
@@ -68,7 +68,7 @@ void* run_function(void* param)
                     my_data->dummy = do_some_work(i);
                 }
             } while(n == WSD_ABORT);
-        } else if(action == 1) {
+        } else if(action < 9) {//40% pop
             node_t* n = NULL;
             if(local_nodes) {
                 n = local_nodes;
@@ -79,7 +79,7 @@ void* run_function(void* param)
             n->data = (void*)i;
             wsd_work_stealing_deque_push_bottom(my_fifo, n);
             ++my_data->push_count;
-        } else if(action == 2) {
+        } else {//10% steal
             intptr_t j = thread_id + 1;
             intptr_t tries = NUM_THREADS - 1;//don't steal from yourself
             int stole = 0;

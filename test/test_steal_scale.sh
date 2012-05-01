@@ -17,3 +17,5 @@ do
     echo >> $WSDFILE
     echo >> $DISTFILE
 done
+
+echo "set ticslevel 0; set term png size 1024,768; set xlabel 'Threads'; set ylabel 'Work Factor'; set zlabel 'Events Per Second';set zlabel 'Ops Per Second'; splot './wsd_scale_data.txt' with lines, './dist_scale_data.txt' with lines" | gnuplot > steal_perf.png
