@@ -2,9 +2,27 @@
 #include <pthread.h>
 #include "test_helper.h"
 #include <stdlib.h>
+#include <sys/time.h>
 
-#define NUM_THREADS 4
-#define PER_THREAD_COUNT 100000000
+int NUM_THREADS = 4;
+int PER_THREAD_COUNT = 100000000;
+int WORK_FACTOR = 0;
+pthread_barrier_t barrier;
+
+long long getusecs(struct timeval* tv)
+{
+    return (long long)tv->tv_sec * 1000000 + tv->tv_usec;
+}
+
+intptr_t do_some_work(intptr_t start)
+{
+    intptr_t i;
+    intptr_t result = start;
+    for(i = 0; i < WORK_FACTOR; ++i) {
+        result += i + (result & 7);
+    }
+    return result;
+}
 
 typedef struct thread_data
 {
@@ -13,10 +31,11 @@ typedef struct thread_data
     long long steal_count;
     long long empty_count;
     long long attempt_count;
+    volatile intptr_t dummy;
 } __attribute__((__aligned__(CACHE_SIZE))) thread_data_t;
 
-wsd_work_stealing_deque_t* fifo[NUM_THREADS] = {};
-thread_data_t data[NUM_THREADS] = {};
+wsd_work_stealing_deque_t** fifo = NULL;
+thread_data_t* data = NULL;
 
 typedef struct node
 {
@@ -26,6 +45,7 @@ typedef struct node
 
 void* run_function(void* param)
 {
+    pthread_barrier_wait(&barrier);
     intptr_t thread_id = (intptr_t)param;
     unsigned int seed = thread_id;
 
@@ -45,6 +65,7 @@ void* run_function(void* param)
                     n->next = local_nodes;
                     local_nodes = n;
                     ++my_data->pop_count;
+                    my_data->dummy = do_some_work(i);
                 }
             } while(n == WSD_ABORT);
         } else if(action == 1) {
@@ -74,6 +95,7 @@ void* run_function(void* param)
                     local_nodes = n;
                     stole = 1;
                     ++my_data->steal_count;
+                    my_data->dummy = do_some_work(i);
                     break;//stole one
                 }
                 --tries;
@@ -87,8 +109,22 @@ void* run_function(void* param)
     return NULL;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    NUM_THREADS = 4;
+    if(argc > 1) {
+        NUM_THREADS = atoi(argv[1]);
+    }
+    if(argc > 2) {
+        PER_THREAD_COUNT = atoi(argv[2]);
+    }
+    if(argc > 3) {
+        WORK_FACTOR = atoi(argv[3]);
+    }
+    fifo = calloc(NUM_THREADS, sizeof(*fifo));
+    data = calloc(NUM_THREADS, sizeof(*data));
+    pthread_barrier_init(&barrier, NULL, NUM_THREADS);
+
     intptr_t i;
     for(i = 0; i < NUM_THREADS; ++i) {
         fifo[i] = wsd_work_stealing_deque_create();
@@ -99,11 +135,15 @@ int main()
         pthread_create(&(threads[i]), NULL, &run_function, (void*)i);
     }
 
+    struct timeval begin;
+    gettimeofday(&begin, NULL);
     run_function(NULL);
 
     for(i = 1; i < NUM_THREADS; ++i) {
         pthread_join(threads[i], NULL);
     }
+    struct timeval end;
+    gettimeofday(&end, NULL);
 
     thread_data_t total = {};
     for(i = 0; i < NUM_THREADS; ++i) {
@@ -116,6 +156,9 @@ int main()
         total.attempt_count += data[i].attempt_count;
     }
     printf("\ntotal - push: %lld pop: %lld steal: %lld attempt: %lld empty: %lld\n", total.push_count, total.pop_count, total.steal_count, total.attempt_count, total.empty_count);
+
+    double seconds = (getusecs(&end) - getusecs(&begin)) / 1000000.0;
+    printf("timing: %d threads %d events %d work %lf seconds\n", NUM_THREADS, PER_THREAD_COUNT, WORK_FACTOR, seconds);
 
     return 0;
 }

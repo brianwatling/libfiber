@@ -55,6 +55,7 @@ static inline int dist_fifo_init(dist_fifo_t* fifo)
     assert(fifo);
     assert(sizeof(dist_fifo_pointer_wrapper_t) == 2 * sizeof(void*));
     assert(sizeof(dist_fifo_pointer_t) == sizeof(pointer_pair_t));
+    assert((uintptr_t)fifo % (2 * sizeof(void*)) == 0);
     memset((void*)&fifo->head, 0, sizeof(fifo->head));
     fifo->tail = (dist_fifo_node_t*)calloc(1, sizeof(*fifo->tail));
     fifo->head.pointer.node = fifo->tail;

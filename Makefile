@@ -113,7 +113,9 @@ TESTS= \
     test_unbounded_channel_pingpong \
     test_work_queue \
     test_yield_speed \
-
+    test_dist_fifo \
+    test_wsd_scale \
+    
 #    test_pthread_cond \
 
 CC ?= /usr/bin/c99
