@@ -10,8 +10,8 @@ do
     while [ $WORK -lt 250 ]
     do
         echo "$THREADS threads with $WORK work"
-        ./bin/test_wsd_scale $THREADS 10000000 $WORK | awk '/timing/{print $2, $6, $8}' >> $WSDFILE
-        ./bin/test_dist_fifo $THREADS 10000000 $WORK | awk '/timing/{print $2, $6, $8}' >> $DISTFILE
+        ./bin/test_wsd_scale $THREADS 10000000 $WORK | awk '/timing/{print $2, $6, $4/$8}' >> $WSDFILE
+        ./bin/test_dist_fifo $THREADS 10000000 $WORK | awk '/timing/{print $2, $6, $4/$8}' >> $DISTFILE
         WORK=`expr $WORK + 50`
     done
     echo >> $WSDFILE
