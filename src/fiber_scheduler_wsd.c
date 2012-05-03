@@ -26,6 +26,8 @@ int fiber_scheduler_wsd_init(fiber_scheduler_wsd_t* scheduler, size_t id)
     scheduler->schedule_from = scheduler->queue_one;
     scheduler->store_to = scheduler->queue_two;
     scheduler->id = id;
+    scheduler->steal_count = 0;
+    scheduler->failed_steal_count = 0;
 
     if(!scheduler->queue_one || !scheduler->queue_two) {
         wsd_work_stealing_deque_destroy(scheduler->queue_one);

@@ -23,12 +23,9 @@
 #include <stdint.h>
 #include "hazard_pointer.h"
 #include "machine_specific.h"
+#include "mpsc_fifo.h"
 
-typedef struct dist_fifo_node
-{
-    struct dist_fifo_node* volatile next;
-    void* data;
-} dist_fifo_node_t;
+typedef mpsc_fifo_node_t dist_fifo_node_t;
 
 typedef struct dist_fifo_pointer
 {
