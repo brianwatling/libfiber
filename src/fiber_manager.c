@@ -1,6 +1,7 @@
 #include "fiber_manager.h"
 #include "fiber_event.h"
 #include "fiber_io.h"
+#include "mpmc_lifo.h"
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -39,10 +40,8 @@ fiber_manager_t* fiber_manager_create(fiber_scheduler_t* scheduler)
     manager->thread_fiber = fiber_create_from_thread();
     manager->current_fiber = manager->thread_fiber;
     manager->scheduler = scheduler;
-    manager->done_fibers = wsd_work_stealing_deque_create();
 
-    if(!manager->thread_fiber || !manager->done_fibers) {
-        wsd_work_stealing_deque_destroy(manager->done_fibers);
+    if(!manager->thread_fiber) {
         fiber_destroy(manager->thread_fiber);
         free(manager);
         return NULL;
@@ -270,12 +269,16 @@ int fiber_manager_get_kernel_thread_count()
 
 extern int fiber_mutex_unlock_internal(fiber_mutex_t* mutex);
 
+extern mpmc_lifo_t fiber_free_fibers;
+
 void fiber_manager_do_maintenance()
 {
     fiber_manager_t* const manager = fiber_manager_get();
     if(manager->done_fiber) {
-        wsd_work_stealing_deque_push_bottom(manager->done_fibers, manager->done_fiber);
+        mpsc_fifo_node_t* const node = manager->done_fiber->mpsc_fifo_node;
+        node->data = manager->done_fiber;
         manager->done_fiber = NULL;
+        mpmc_lifo_push(&fiber_free_fibers, node);
     }
 
     if(manager->to_schedule) {

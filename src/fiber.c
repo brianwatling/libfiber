@@ -1,5 +1,6 @@
 #include "fiber.h"
 #include "fiber_manager.h"
+#include "mpmc_lifo.h"
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
@@ -46,11 +47,13 @@ static void* fiber_go_function(void* param)
     return NULL;
 }
 
+mpmc_lifo_t fiber_free_fibers = MPMC_LIFO_INITIALIZER;
+
 fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run_function, void* param)
 {
-    fiber_manager_t* const manager = fiber_manager_get();
-    fiber_t* ret = wsd_work_stealing_deque_pop_bottom(manager->done_fibers);
-    if(ret == WSD_EMPTY || ret == WSD_ABORT) {
+    mpsc_fifo_node_t* const node = mpmc_lifo_pop(&fiber_free_fibers);
+    fiber_t* ret = NULL;
+    if(!node) {
         ret = calloc(1, sizeof(*ret));
         if(!ret) {
             errno = ENOMEM;
@@ -63,6 +66,8 @@ fiber_t* fiber_create_no_sched(size_t stack_size, fiber_run_function_t run_funct
             return NULL;
         }
     } else {
+        ret = (fiber_t*)node->data;
+        ret->mpsc_fifo_node = node;
         //we got an old fiber for re-use - destroy the old stack
         fiber_context_destroy(&ret->context);
     }

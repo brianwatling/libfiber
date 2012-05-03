@@ -16,6 +16,8 @@ typedef union
     pointer_pair_t blob;
 } __attribute__ ((__packed__)) mpmc_lifo_t;
 
+#define MPMC_LIFO_INITIALIZER {}
+
 static inline void mpmc_lifo_init(mpmc_lifo_t* lifo)
 {
     assert(lifo);
