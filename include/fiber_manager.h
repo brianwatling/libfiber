@@ -7,6 +7,7 @@
 #include "work_stealing_deque.h"
 #include "mpsc_fifo.h"
 #include "mpmc_fifo.h"
+#include "fiber_scheduler.h"
 
 typedef struct fiber_mpsc_to_push
 {
@@ -33,18 +34,13 @@ typedef struct fiber_manager
     fiber_spinlock_t* volatile spinlock_to_unlock;
     void** volatile set_wait_location;
     void* volatile set_wait_value;
-    wsd_work_stealing_deque_t* queue_one;
-    wsd_work_stealing_deque_t* queue_two;
-    wsd_work_stealing_deque_t* volatile schedule_from;
-    wsd_work_stealing_deque_t* volatile store_to;
+    fiber_scheduler_t* scheduler;
     wsd_work_stealing_deque_t* done_fibers;
     fiber_t* volatile done_fiber;
     /* TODO: done_fibers may be better as a global queue to increase re-use, with the cost of added contention */
     /* TODO: done_fibers could also be setup to allow a thread to steal done fibers from other threads */
     int id;
     uint64_t yield_count;
-    uint64_t steal_count;
-    uint64_t failed_steal_count;
     uint64_t spin_count;
     uint64_t poll_count;
     uint64_t event_wait_count;
@@ -54,9 +50,15 @@ typedef struct fiber_manager
 extern "C" {
 #endif
 
-extern fiber_manager_t* fiber_manager_create();
+extern fiber_manager_t* fiber_manager_create(fiber_scheduler_t* scheduler);
 
-extern void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber);
+static inline void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the_fiber)
+{
+    assert(manager);
+    assert(the_fiber);
+    assert(the_fiber->state == FIBER_STATE_READY);
+    fiber_scheduler_schedule(manager->scheduler, the_fiber);
+}
 
 extern void fiber_manager_yield(fiber_manager_t* manager);
 

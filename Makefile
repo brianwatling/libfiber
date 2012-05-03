@@ -17,6 +17,7 @@ CFILES = \
     hazard_pointer.c \
     work_stealing_deque.c \
     work_queue.c \
+    fiber_scheduler_wsd.c \
 
 USE_NATIVE_EVENTS ?= yes
 ifeq ($(USE_NATIVE_EVENTS),yes)
