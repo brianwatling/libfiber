@@ -114,7 +114,12 @@ static inline dist_fifo_node_t* dist_fifo_trysteal(dist_fifo_t* fifo)
 {
     assert(fifo);
 
-    dist_fifo_pointer_wrapper_t const old_head = fifo->head;
+    dist_fifo_pointer_wrapper_t old_head;
+    old_head.pointer.counter = fifo->head.pointer.counter;
+    load_load_barrier();//read the counter first - this ensures nothing changes while we're trying to steal (ie. prevents ABA)
+    old_head.pointer.lock = fifo->head.pointer.lock;
+    old_head.pointer.node = fifo->head.pointer.node;
+    
     if(old_head.pointer.lock) {
         return DIST_FIFO_RETRY;
     }
