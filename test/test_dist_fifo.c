@@ -5,7 +5,7 @@
 #include <sys/time.h>
 
 int NUM_THREADS = 4;
-int PER_THREAD_COUNT = 100000000;
+int PER_THREAD_COUNT = 100000;
 int WORK_FACTOR = 0;
 pthread_barrier_t barrier;
 
@@ -52,7 +52,10 @@ void* run_function(void* param)
         const int action = rand_r(&seed) % 10;
 //printf("action: %d\n", action);
         if(action < 5) {//50% push
-            dist_fifo_node_t* const n = dist_fifo_trypop(my_fifo);
+            dist_fifo_node_t* n = NULL;
+            do {
+                n = dist_fifo_trypop(my_fifo);
+            } while(n == DIST_FIFO_RETRY);
             if(n) {
                 n->next = local_nodes;
                 local_nodes = n;
@@ -78,7 +81,7 @@ void* run_function(void* param)
                 dist_fifo_t* const steal_fifo = &(fifo[j % NUM_THREADS]);
                 dist_fifo_node_t* n;
                 do {
-                    n = dist_fifo_trysteal(steal_fifo);
+                    n = dist_fifo_trypop(steal_fifo);
                     ++my_data->attempt_count;
                 } while(n == DIST_FIFO_RETRY);
                 if(n != DIST_FIFO_EMPTY) {

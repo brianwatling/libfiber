@@ -9,12 +9,10 @@
     Notes: A "Distinguished FIFO"
         1. Many threads can pop from the fifo
         2. One distinguished thread can push in a wait free manner
-        3. One distinguished thread can pop in a wait free manner
 
     Assumptions:
         1. Reading data from a node that has already been popped is safe (even if it's reclaimed etc). Use hazard pointers if this is not a valid assumption.
         2. The CPU supports a double-word CAS operation
-        3. The CPU/compiler will write a byte without also writing the surrounding bytes (see dist_fifo_pointer_t.lock)
 */
 
 #include <assert.h>
@@ -30,8 +28,7 @@ typedef mpsc_fifo_node_t dist_fifo_node_t;
 typedef struct dist_fifo_pointer
 {
     dist_fifo_node_t* volatile node;
-    uint8_t volatile lock;
-    uintptr_t counter : sizeof(void*) * 8 - 8;
+    uintptr_t counter;
 } __attribute__ ((__packed__)) dist_fifo_pointer_t;
 
 typedef union
@@ -86,43 +83,17 @@ static inline void dist_fifo_push(dist_fifo_t* fifo, dist_fifo_node_t* new_node)
     fifo->tail = new_node;
 }
 
-static inline dist_fifo_node_t* dist_fifo_trypop(dist_fifo_t* fifo)
-{
-    assert(fifo);
-    fifo->head.pointer.lock = 1;
-    store_load_barrier();//lock out other threads from stealing
-
-    dist_fifo_node_t* const prev_head = fifo->head.pointer.node;
-    dist_fifo_node_t* const prev_head_next = prev_head->next;
-    if(prev_head_next) {
-        fifo->head.pointer.node = prev_head_next;
-        prev_head->data = prev_head_next->data;
-        fifo->head.pointer.counter += 1;
-        write_barrier();
-        fifo->head.pointer.lock = 0;
-        return prev_head;
-    }
-
-    fifo->head.pointer.lock = 0;
-    return NULL;
-}
-
 #define DIST_FIFO_EMPTY ((dist_fifo_node_t*)(0))
 #define DIST_FIFO_RETRY ((dist_fifo_node_t*)(-1))
 
-static inline dist_fifo_node_t* dist_fifo_trysteal(dist_fifo_t* fifo)
+static inline dist_fifo_node_t* dist_fifo_trypop(dist_fifo_t* fifo)
 {
     assert(fifo);
 
     dist_fifo_pointer_wrapper_t old_head;
     old_head.pointer.counter = fifo->head.pointer.counter;
     load_load_barrier();//read the counter first - this ensures nothing changes while we're trying to steal (ie. prevents ABA)
-    old_head.pointer.lock = fifo->head.pointer.lock;
     old_head.pointer.node = fifo->head.pointer.node;
-    
-    if(old_head.pointer.lock) {
-        return DIST_FIFO_RETRY;
-    }
 
     dist_fifo_node_t* const prev_head = old_head.pointer.node;
     dist_fifo_node_t* const prev_head_next = prev_head->next;
@@ -130,7 +101,6 @@ static inline dist_fifo_node_t* dist_fifo_trysteal(dist_fifo_t* fifo)
         void* const data = prev_head_next->data;
         dist_fifo_pointer_wrapper_t new_head;
         new_head.pointer.node = prev_head_next;
-        new_head.pointer.lock = 0;
         new_head.pointer.counter = old_head.pointer.counter + 1;
         if(!compare_and_swap2(&fifo->head.blob, &old_head.blob, &new_head.blob)) {
             return DIST_FIFO_RETRY;
