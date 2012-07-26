@@ -33,6 +33,9 @@ void fiber_join_routine(fiber_t* the_fiber, void* result)
     assert(0 && "should never get here");
 }
 
+#ifdef FIBER_STACK_SPLIT
+__attribute__((__no_split_stack__))
+#endif
 static void* fiber_go_function(void* param)
 {
     fiber_t* the_fiber = (fiber_t*)param;

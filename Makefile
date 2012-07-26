@@ -49,7 +49,31 @@ ifeq ($(ARCH),x86)
 CFLAGS += -m32 -march=i686 -DARCH_x86
 endif
 
-CFLAGS += -pthread -Wall -Iinclude -Isubmodules/libev -D_REENTRANT -ggdb -O3 #-DFIBER_CONTEXT_MALLOC
+CFLAGS += -pthread -Wall -Iinclude -Isubmodules/libev -D_REENTRANT -ggdb -O3
+
+#don't use split-stack on gcc 4.6 since it doesn't implement getcontext, setcontext, or makecontext
+GCC46 = $(shell $(CC) -v 2>&1 | grep "gcc.*4.6" > /dev/null; echo $$?)
+ifeq ($(GCC46),0)
+SPLIT_STACK = 0
+endif
+
+#detect if CC supports -fsplit-stack. SPLIT_STACK should be '1' if it does
+SPLIT_STACK ?= $(shell echo "int i;" | $(CC) -xc -fsplit-stack -c -o /dev/null - 2> /dev/null; if [ $$? -eq 0 ] ; then echo 1; else echo 0; fi)
+ifeq ($(SPLIT_STACK),1)
+STACK_STRATEGY ?= split
+endif
+
+STACK_STRATEGY ?= mmap
+
+ifeq ($(STACK_STRATEGY),split)
+CFLAGS += -fsplit-stack -DFIBER_STACK_SPLIT
+endif
+ifeq ($(STACK_STRATEGY),malloc)
+CFLAGS += -DFIBER_STACK_MALLOC
+endif
+ifeq ($(STACK_STRATEGY),mmap)
+CFLAGS += -DFIBER_STACK_MMAP
+endif
 
 USE_VALGRIND ?= 0
 ifeq ($(USE_VALGRIND),1)

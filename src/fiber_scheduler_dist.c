@@ -55,6 +55,7 @@ void fiber_scheduler_schedule(fiber_scheduler_t* scheduler, fiber_t* the_fiber)
     assert(scheduler);
     assert(the_fiber);
     mpsc_fifo_node_t* const node = the_fiber->mpsc_fifo_node;
+    assert(node);
     the_fiber->mpsc_fifo_node = NULL;
     node->data = the_fiber;
     dist_fifo_push(&((fiber_scheduler_dist_t*)scheduler)->queue, node);

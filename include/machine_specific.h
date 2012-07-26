@@ -9,6 +9,8 @@
 #endif
 #endif
 
+#include <stdint.h>
+
 /* this barrier orders writes against other writes */
 static inline void write_barrier()
 {
@@ -89,19 +91,7 @@ typedef struct pointer_pair
 static inline int compare_and_swap2(volatile pointer_pair_t* location, const pointer_pair_t* original_value, const pointer_pair_t* new_value)
 {
 #if defined(ARCH_x86)
-    char result;
-    __asm__ __volatile__ (
-        "lock cmpxchg8b %1\n\t"
-        "setz %0"
-        :  "=q" (result)
-         , "+m" (*location)
-        :  "d" (original_value->high)
-         , "a" (original_value->low)
-         , "c" (new_value->high)
-         , "b" (new_value->low)
-        : "cc"
-    );
-    return result;
+    return __sync_bool_compare_and_swap((uint64_t*)location, *(uint64_t*)original_value, *(uint64_t*)new_value);
 #elif defined(ARCH_x86_64)
     char result;
     __asm__ __volatile__ (

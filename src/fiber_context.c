@@ -6,7 +6,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <stdint.h>
-#ifdef FIBER_CONTEXT_MALLOC
+#ifdef FIBER_STACK_MALLOC
 #include <stdlib.h>
 #endif
 
@@ -30,6 +30,16 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#ifdef FIBER_STACK_SPLIT
+//see http://gcc.gnu.org/svn/gcc/trunk/libgcc/generic-morestack.c
+extern void __splitstack_block_signals_context(splitstack_context_t context, int* new, int* old);
+extern void __splitstack_getcontext(splitstack_context_t context);
+extern void __splitstack_setcontext(splitstack_context_t context);
+extern void* __splitstack_makecontext(size_t stack_size, splitstack_context_t context, size_t* size);
+extern void __splitstack_releasecontext(splitstack_context_t context);
+#endif
+
+#ifdef FIBER_STACK_MMAP
 static long fiberPageSize = 0;
 static size_t fiber_round_to_page_size(size_t size)
 {
@@ -42,35 +52,45 @@ static size_t fiber_round_to_page_size(size_t size)
     const size_t numPagesAfterMin = numPages >= 2 ? numPages : 2;
     return fiberPageSize * numPagesAfterMin;
 }
+#endif
 
-static void* fiber_alloc_stack(size_t stack_size)
+//allocates a stack and sets context->ctx_stack and context->ctx_stack_size
+static int fiber_context_alloc_stack(fiber_context_t* context, size_t stack_size)
 {
-#ifdef FIBER_CONTEXT_MALLOC
-    void* const ret = malloc(stack_size);
-    if(!ret) {
-        errno = ENOMEM;
+#if defined(FIBER_STACK_SPLIT)
+    context->ctx_stack = __splitstack_makecontext(stack_size, context->splitstack_context, &context->ctx_stack_size);
+    int off = 0;
+    __splitstack_block_signals_context(context->splitstack_context, &off, NULL);
+#elif defined(FIBER_STACK_MALLOC)
+    context->ctx_stack = malloc(stack_size);
+    context->ctx_stack_size = stack_size;
+#elif defined(FIBER_STACK_MMAP)
+    context->ctx_stack_size = fiber_round_to_page_size(stack_size);
+    context->ctx_stack = mmap(0, context->ctx_stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if(context->ctx_stack == MAP_FAILED) {
+        return 0;
+    }
+
+    if(mprotect(context->ctx_stack, 1, PROT_NONE)) {
+        munmap(context->ctx_stack, context->ctx_stack_size);
+        return 0;
     }
 #else
-    void* const ret = mmap(0, stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if(ret == MAP_FAILED) {
-        errno = ENOMEM;
-        return NULL;
-    }
-
-    if(mprotect(ret, 1, PROT_NONE)) {
-        munmap(ret, stack_size);
-        return NULL;
-    }
+    #error select a stack allocation strategy
 #endif
-    return ret;
+    return context->ctx_stack ? 1 : 0;
 }
 
-static void fiber_free_stack(void* stack_ptr, size_t stack_size)
+static void fiber_free_stack(fiber_context_t* context)
 {
-#ifdef FIBER_CONTEXT_MALLOC
-    free(stack_ptr);
+#if defined(FIBER_STACK_SPLIT)
+    __splitstack_releasecontext(context->splitstack_context);
+#elif defined(FIBER_STACK_MALLOC)
+    free(context->ctx_stack);
+#elif defined(FIBER_STACK_MMAP)
+    munmap(context->ctx_stack, context->ctx_stack_size);
 #else
-    munmap(stack_ptr, stack_size);
+    #error select a stack allocation strategy
 #endif
 }
 
@@ -83,9 +103,7 @@ int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_fu
         return FIBER_ERROR;
     }
 
-    context->ctx_stack_size = fiber_round_to_page_size(stack_size);
-    context->ctx_stack = fiber_alloc_stack(context->ctx_stack_size);
-    if(!context->ctx_stack) {
+    if(!fiber_context_alloc_stack(context, stack_size)) {
         return FIBER_ERROR;
     }
 
@@ -119,7 +137,7 @@ void fiber_context_destroy(fiber_context_t* context)
 {
     if(context && !context->is_thread) {
         STACK_DEREGISTER(context);
-        fiber_free_stack(context->ctx_stack, context->ctx_stack_size);
+        fiber_free_stack(context);
     }
 }
 
@@ -182,6 +200,11 @@ void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_conte
         DEALINGS IN THE SOFTWARE.
     */
 
+#ifdef FIBER_STACK_SPLIT
+    __splitstack_getcontext(from_context->splitstack_context);
+    __splitstack_setcontext(to_context->splitstack_context);
+#endif
+
     __builtin_prefetch (to_sp, 1, 3);
     __builtin_prefetch (to_sp, 0, 3);
     __builtin_prefetch (to_sp+64/4, 1, 3);
@@ -226,9 +249,7 @@ int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_fu
         return FIBER_ERROR;
     }
 
-    context->ctx_stack_size = fiber_round_to_page_size(stack_size);
-    context->ctx_stack = fiber_alloc_stack(context->ctx_stack_size);
-    if(!context->ctx_stack) {
+    if(!fiber_context_alloc_stack(context, stack_size)) {
         return FIBER_ERROR;
     }
 
@@ -268,7 +289,7 @@ void fiber_context_destroy(fiber_context_t* context)
 {
     if(context && !context->is_thread) {
         STACK_DEREGISTER(context);
-        fiber_free_stack(context->ctx_stack, context->ctx_stack_size);
+        fiber_free_stack(context);
     }
 }
 
@@ -347,6 +368,11 @@ void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_conte
         DEALINGS IN THE SOFTWARE.
     */
 
+#ifdef FIBER_STACK_SPLIT
+    __splitstack_getcontext(from_context->splitstack_context);
+    __splitstack_setcontext(to_context->splitstack_context);
+#endif
+
     __builtin_prefetch ((void**)to_sp, 1, 3);
     __builtin_prefetch ((void**)to_sp, 0, 3);
     __builtin_prefetch ((void**)to_sp+64/4, 1, 3);
@@ -399,8 +425,6 @@ int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_fu
     if(stack_size < MINSIGSTKSZ)
         stack_size = MINSIGSTKSZ;
 
-    context->ctx_stack_size = fiber_round_to_page_size(stack_size);
-
     context->ctx_stack_pointer = malloc(sizeof(ucontext_t));
     if(!context->ctx_stack_pointer) {
         errno = ENOMEM;
@@ -410,8 +434,7 @@ int fiber_context_init(fiber_context_t* context, size_t stack_size, fiber_run_fu
     getcontext(uctx);
     uctx->uc_link = 0;
 
-    context->ctx_stack = fiber_alloc_stack(context->ctx_stack_size);
-    if(!context->ctx_stack) {
+    if(!fiber_context_alloc_stack(context, stack_size)) {
         free(context->ctx_stack_pointer);
         return FIBER_ERROR;
     }
@@ -452,7 +475,7 @@ void fiber_context_destroy(fiber_context_t* context)
     if(!context->is_thread) {
         free(context->ctx_stack_pointer);
         STACK_DEREGISTER(context);
-        fiber_free_stack(context->ctx_stack, context->ctx_stack_size);
+        fiber_free_stack(context);
     } else {
         /* this context was created from a thread */
         free(context->ctx_stack_pointer);
@@ -461,6 +484,10 @@ void fiber_context_destroy(fiber_context_t* context)
 
 void fiber_context_swap(fiber_context_t* from_context, fiber_context_t* to_context)
 {
+#ifdef FIBER_STACK_SPLIT
+    __splitstack_getcontext(from_context->splitstack_context);
+    __splitstack_setcontext(to_context->splitstack_context);
+#endif
     swapcontext((ucontext_t*)from_context->ctx_stack_pointer, (ucontext_t*)to_context->ctx_stack_pointer);
 }
 

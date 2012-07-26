@@ -8,6 +8,10 @@
 
 typedef void* (*fiber_run_function_t)(void*);
 
+#ifdef FIBER_STACK_SPLIT
+typedef void* splitstack_context_t[10];
+#endif
+
 typedef struct fiber_context
 {
     void* ctx_stack;
@@ -18,6 +22,9 @@ typedef struct fiber_context
     void** ctx_stack_pointer;
     unsigned int ctx_stack_id;
     int is_thread;
+#ifdef FIBER_STACK_SPLIT
+    splitstack_context_t splitstack_context;
+#endif
 } fiber_context_t;
 
 #ifdef __cplusplus

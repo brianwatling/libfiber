@@ -14,6 +14,21 @@
 #include <dlfcn.h>
 #include "lockfree_ring_buffer.h"
 
+#ifdef FIBER_STACK_SPLIT
+void __splitstack_block_signals(int* new, int* old);
+
+void splitstack_disable_block_signals()
+{
+    int off = 0;
+    __splitstack_block_signals(&off, NULL);
+}
+#else
+void splitstack_disable_block_signals()
+{
+    //nothing - splitstack is not enabled
+}
+#endif
+
 static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
 static int fiber_manager_num_threads = 0;
 static pthread_t* fiber_manager_threads = NULL;
@@ -154,6 +169,8 @@ static void* fiber_manager_thread_func(void* param)
     }
 #endif
 
+    splitstack_disable_block_signals();
+
     fiber_manager_t* manager = (fiber_manager_t*)param;
     if(!manager->maintenance_fiber) {
         manager->maintenance_fiber = manager->thread_fiber;
@@ -179,6 +196,8 @@ static void* fiber_manager_thread_func(void* param)
 
 int fiber_manager_init(size_t num_threads)
 {
+    splitstack_disable_block_signals();
+
     if(fiber_manager_get_state() != FIBER_MANAGER_STATE_NONE) {
         errno = EINVAL;
         return FIBER_ERROR;

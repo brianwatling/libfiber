@@ -124,7 +124,7 @@ int fiber_event_init()
 
     const int the_event_fd = epoll_create(1);
     assert(the_event_fd >= 0);
-    struct epoll_event e;
+    struct epoll_event e = {};
     e.events = EPOLLIN;
     e.data.fd = timer_fd;
     ret = epoll_ctl(the_event_fd, EPOLL_CTL_ADD, timer_fd, &e);
