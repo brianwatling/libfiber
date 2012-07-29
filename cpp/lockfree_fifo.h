@@ -232,22 +232,8 @@ struct tagged_pointer
 
     bool compare_and_swap(snapshot_type const& original, T updated)
     {
-        tagged_pointer temp(original.t + 1, updated);
-
         #if defined(ARCH_x86)
-            char result;
-            __asm__ __volatile__ (
-                "lock cmpxchg8b %1\n\t"
-                "setz %0"
-                :  "=q" (result)
-                 , "+m" (tag)
-                :  "d" (original.v)
-                 , "a" (original.t)
-                 , "c" (updated)
-                 , "b" (original.t + 1)
-                : "cc"
-            );
-            return result;
+            return __sync_bool_compare_and_swap(reinterpret_cast<uint64_t*>(&tag), *reinterpret_cast<const uint64_t*>(&original), *reinterpret_cast<uint64_t*>(&updated));
         #elif defined(ARCH_x86_64)
             char result;
             __asm__ __volatile__ (
