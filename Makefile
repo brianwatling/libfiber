@@ -140,6 +140,8 @@ TESTS= \
     test_yield_speed \
     test_dist_fifo \
     test_wsd_scale \
+    test_multi_channel \
+    test_bounded_mpmc_channel \
     
 #    test_pthread_cond \
 
