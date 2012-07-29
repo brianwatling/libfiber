@@ -10,8 +10,8 @@ typedef mpsc_fifo_node_t mpmc_lifo_node_t;
 typedef union
 {
     struct {
-        mpmc_lifo_node_t* volatile head;
         uintptr_t volatile counter;
+        mpmc_lifo_node_t* volatile head;
     } data;
     pointer_pair_t blob;
 } __attribute__ ((__packed__)) mpmc_lifo_t;
@@ -41,8 +41,11 @@ static inline void mpmc_lifo_push(mpmc_lifo_t* lifo, mpmc_lifo_node_t* node)
 {
     assert(lifo);
     assert(node);
+    mpmc_lifo_t snapshot;
     while(1) {
-        const mpmc_lifo_t snapshot = *lifo;
+        snapshot.data.counter = lifo->data.counter;
+        load_load_barrier();//read the counter first - this ensures nothing changes while we're trying to push
+        snapshot.data.head = lifo->data.head;
         node->next = snapshot.data.head;
         mpmc_lifo_t temp;
         temp.data.head = node;
@@ -56,8 +59,11 @@ static inline void mpmc_lifo_push(mpmc_lifo_t* lifo, mpmc_lifo_node_t* node)
 static inline mpmc_lifo_node_t* mpmc_lifo_pop(mpmc_lifo_t* lifo)
 {
     assert(lifo);
+    mpmc_lifo_t snapshot;
     while(1) {
-        const mpmc_lifo_t snapshot = *lifo;
+        snapshot.data.counter = lifo->data.counter;
+        load_load_barrier();//read the counter first - this ensures nothing changes while we're trying to pop
+        snapshot.data.head = lifo->data.head;
         if(!snapshot.data.head) {
             return NULL;
         }

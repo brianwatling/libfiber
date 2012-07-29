@@ -27,8 +27,8 @@ typedef mpsc_fifo_node_t dist_fifo_node_t;
 
 typedef struct dist_fifo_pointer
 {
-    dist_fifo_node_t* volatile node;
     uintptr_t counter;
+    dist_fifo_node_t* volatile node;
 } __attribute__ ((__packed__)) dist_fifo_pointer_t;
 
 typedef union
