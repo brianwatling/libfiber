@@ -41,7 +41,6 @@ static inline fiber_bounded_channel_t* fiber_bounded_channel_create(size_t size,
     fiber_bounded_channel_t* const channel = (fiber_bounded_channel_t*)calloc(1, required_size);
     if(channel) {
         channel->size = size;
-        channel->send_count = 0;
         channel->ready_signal = signal;
         if(!mpsc_fifo_init(&channel->waiters)) {
             free(channel);

@@ -22,6 +22,7 @@ typedef struct lockfree_ring_buffer
     volatile uint64_t low;
     char _cache_padding2[CACHE_SIZE - sizeof(uint64_t)];
     size_t size;
+    //buffer must be last - it spills outside of this struct
     void* buffer[];
 } lockfree_ring_buffer_t;
 
