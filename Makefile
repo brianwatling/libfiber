@@ -19,8 +19,8 @@ CFILES = \
     work_queue.c \
     fiber_scheduler_dist.c \
 
-USE_NATIVE_EVENTS ?= 0
-ifeq ($(USE_NATIVE_EVENTS),0)
+USE_NATIVE_EVENTS ?= 1
+ifeq ($(USE_NATIVE_EVENTS),1)
 CFILES += fiber_event_native.c
 else
 CFILES += fiber_event_ev.c ev.c
