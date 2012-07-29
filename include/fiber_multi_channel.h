@@ -173,6 +173,9 @@ static inline void* fiber_multi_channel_receive(fiber_multi_channel_t* channel)
             }
         }
     }
+    if(locked) {
+        fiber_mutex_unlock(&channel->reader_signal_mutex);
+    }
     fiber_signal_raise(&channel->writer_signal);
     return ret;
 }
