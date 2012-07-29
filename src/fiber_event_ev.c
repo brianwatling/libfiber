@@ -52,7 +52,7 @@ int fiber_poll_events()
         return FIBER_EVENT_NOTINIT;
     }
 
-    if(!fiber_spinlock_trylock(&fiber_loop_spinlock, 128)) {
+    if(!fiber_spinlock_trylock(&fiber_loop_spinlock)) {
         return FIBER_EVENT_TRYAGAIN;
     }
 
