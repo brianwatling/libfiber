@@ -3,11 +3,11 @@
 #include "test_helper.h"
 
 fiber_unbounded_channel_t channel;
-#define PER_FIBER_COUNT 100000
-#define NUM_FIBERS 100
-#define NUM_THREADS 2
+int PER_FIBER_COUNT = 100000;
+int NUM_FIBERS = 100;
+#define NUM_THREADS 4
 
-int results[PER_FIBER_COUNT] = {};
+int* results = NULL;
 
 void* send_function(void* param)
 {
@@ -24,6 +24,15 @@ void* send_function(void* param)
 int main(int argc, char* argv[])
 {
     fiber_manager_init(NUM_THREADS);
+
+    if(argc > 1) {
+        NUM_FIBERS = atoi(argv[1]);
+    }
+    if(argc > 2) {
+        PER_FIBER_COUNT = atoi(argv[2]);
+    }
+
+    results = calloc(PER_FIBER_COUNT, sizeof(*results));
 
     fiber_signal_t signal;
     fiber_signal_init(&signal);
