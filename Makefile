@@ -142,6 +142,7 @@ TESTS= \
     test_wsd_scale \
     test_multi_channel \
     test_bounded_mpmc_channel \
+    test_bounded_mpmc_channel2 \
     
 #    test_pthread_cond \
 

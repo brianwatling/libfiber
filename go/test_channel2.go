@@ -27,6 +27,7 @@ func sender(ch chan int) {
 
 func main() {
     count := flag.Int("count", 2, "number of senders/receivers")
+    flag.Parse()
     ch1 := make(chan int, 1000)
     done := make(chan int)
     for i := 0; i < *count; i++ {
