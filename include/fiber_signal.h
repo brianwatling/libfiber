@@ -141,6 +141,7 @@ static inline void fiber_multi_signal_wait(fiber_multi_signal_t* s)
                 break;
             }
         }
+        cpu_relax();
     }
 }
 
@@ -182,6 +183,7 @@ static inline int fiber_multi_signal_raise(fiber_multi_signal_t* s)
                 return 1;
             }
         }
+        cpu_relax();
     }
     return 0;
 }
