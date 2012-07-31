@@ -59,14 +59,11 @@ static inline int lockfree_ring_buffer_trypush(lockfree_ring_buffer_t* rb, void*
     assert(rb);
     assert(in);//can't store NULLs; we rely on a NULL to indicate a spot in the buffer has not been written yet
 
-    const uint64_t low = rb->low;
-    load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
     const uint64_t high = rb->high;
     const uint64_t index = high & rb->power_of_2_mod;
-    if(!rb->buffer[index]
-       && high - low < rb->size
-       && __sync_bool_compare_and_swap(&rb->high, high, high + 1)) {
-        rb->buffer[index] = in;
+    void** const spot = &(rb->buffer[index]);
+    if(!*spot && __sync_bool_compare_and_swap(&rb->high, high, high + 1)) {
+        *spot = in;
         return 1;
     }
     return 0;
@@ -75,24 +72,19 @@ static inline int lockfree_ring_buffer_trypush(lockfree_ring_buffer_t* rb, void*
 static inline void lockfree_ring_buffer_push(lockfree_ring_buffer_t* rb, void* in)
 {
     while(!lockfree_ring_buffer_trypush(rb, in)) {
-        if(rb->high - rb->low >= rb->size) {
-            cpu_relax();//the buffer is full
-        }
+        cpu_relax();//the buffer is full
     };
 }
 
 static inline void* lockfree_ring_buffer_trypop(lockfree_ring_buffer_t* rb)
 {
     assert(rb);
-    const uint64_t high = rb->high;
-    load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
     const uint64_t low = rb->low;
     const uint64_t index = low & rb->power_of_2_mod;
-    void* const ret = rb->buffer[index];
-    if(ret
-       && high > low
-       && __sync_bool_compare_and_swap(&rb->low, low, low + 1)) {
-        rb->buffer[index] = 0;
+    void** const spot = &(rb->buffer[index]);
+    void* const ret = *spot;
+    if(ret && __sync_bool_compare_and_swap(&rb->low, low, low + 1)) {
+        *spot = 0;
         return ret;
     }
     return NULL;
@@ -102,9 +94,7 @@ static inline void* lockfree_ring_buffer_pop(lockfree_ring_buffer_t* rb)
 {
     void* ret;
     while(!(ret = lockfree_ring_buffer_trypop(rb))) {
-        if(rb->high <= rb->low) {
-            cpu_relax();//the buffer is empty
-        }
+        cpu_relax();//the buffer is empty
     }
     return ret;
 }
