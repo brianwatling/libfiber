@@ -66,7 +66,7 @@ static inline int fiber_signal_raise(fiber_signal_t* s)
         fiber_manager_t* const manager = fiber_manager_get();
         while(old->scratch != FIBER_SIGNAL_READY_TO_WAKE) {
             cpu_relax();//the other fiber is still in the process of going to sleep
-            manager->spin_count += 1;
+            manager->signal_spin_count += 1;
         }
         old->state = FIBER_STATE_READY;
         fiber_manager_schedule(manager, old);
@@ -176,7 +176,7 @@ static inline int fiber_multi_signal_raise(fiber_multi_signal_t* s)
                 fiber_manager_t* const manager = fiber_manager_get();
                 while(to_wake->scratch != FIBER_SIGNAL_READY_TO_WAKE) {
                     cpu_relax();//the other fiber is still in the process of going to sleep
-                    manager->spin_count += 1;
+                    manager->multi_signal_spin_count += 1;
                 }
                 to_wake->state = FIBER_STATE_READY;
                 fiber_manager_schedule(manager, to_wake);

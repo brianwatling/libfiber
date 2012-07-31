@@ -35,6 +35,8 @@ extern int fiber_mutex_lock(fiber_mutex_t* mutex);
 
 extern int fiber_mutex_trylock(fiber_mutex_t* mutex);
 
+extern int fiber_mutex_unlock_internal(fiber_mutex_t* mutex);
+
 extern int fiber_mutex_unlock(fiber_mutex_t* mutex);
 
 #ifdef __cplusplus

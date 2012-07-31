@@ -267,6 +267,7 @@ static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds)
     timespec_t timeout = {seconds, useconds * 1000};
     const int ret = port_getn(event_fd, events, 64, &nget, &timeout);
     fiber_manager_t* const manager = fiber_manager_get();
+    manager->poll_count += 1;
     uint_t i;
     for(i = 0; i < nget; ++i) {
         port_event_t* const this_event = &events[i];

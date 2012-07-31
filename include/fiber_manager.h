@@ -39,6 +39,10 @@ typedef struct fiber_manager
     int id;
     uint64_t yield_count;
     uint64_t spin_count;
+    uint64_t signal_spin_count;
+    uint64_t multi_signal_spin_count;
+    uint64_t wake_mpsc_spin_count;
+    uint64_t wake_mpmc_spin_count;
     uint64_t poll_count;
     uint64_t event_wait_count;
 } fiber_manager_t;
@@ -106,6 +110,10 @@ typedef struct fiber_manager_stats
     uint64_t steal_count;
     uint64_t failed_steal_count;
     uint64_t spin_count;
+    uint64_t signal_spin_count;
+    uint64_t multi_signal_spin_count;
+    uint64_t wake_mpsc_spin_count;
+    uint64_t wake_mpmc_spin_count;
     uint64_t poll_count;
     uint64_t event_wait_count;
 } fiber_manager_stats_t;

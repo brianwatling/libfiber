@@ -13,6 +13,7 @@ int64_t time_diff(const struct timespec* start, const struct timespec* end) {
 }
 
 void receiver(fiber_multi_channel_t* ch) {
+    fiber_t* this_fiber = fiber_manager_get()->current_fiber;
     struct timespec last;
     clock_gettime(CLOCK_MONOTONIC, &last);
     int i;
@@ -21,7 +22,7 @@ void receiver(fiber_multi_channel_t* ch) {
         if(n % 10000000 == 0) {
             struct timespec now;
             clock_gettime(CLOCK_MONOTONIC, &now);
-            printf("Received 10000000 in %lf seconds\n", 0.000000001 * time_diff(&last, &now));
+            printf("%p Received 10000000 in %lf seconds\n", this_fiber, 0.000000001 * time_diff(&last, &now));
             last = now;
         }
     }
@@ -59,6 +60,30 @@ int main(int argc, char* argv[]) {
     for(i = 0; i < count; ++i) {
         fiber_join(fibers[i], NULL);
     }
+
+    fiber_manager_stats_t stats;
+    fiber_manager_all_stats(&stats);
+    printf("yield_count: %" PRIu64
+           "\nsteal_count: %" PRIu64
+           "\nfailed_steal_count: %" PRIu64
+           "\nspin_count: %" PRIu64
+           "\nsignal_spin_count: %" PRIu64
+           "\nmulti_signal_spin_count: %" PRIu64
+           "\nwake_mpsc_spin_count: %" PRIu64
+           "\nwake_mpmc_spin_count: %" PRIu64
+           "\npoll_count: %" PRIu64
+           "\nevent_wait_count: %" PRIu64
+           "\n",
+           stats.yield_count,
+           stats.steal_count,
+           stats.failed_steal_count,
+           stats.spin_count,
+           stats.signal_spin_count,
+           stats.multi_signal_spin_count,
+           stats.wake_mpsc_spin_count,
+           stats.wake_mpmc_spin_count,
+           stats.poll_count,
+           stats.event_wait_count);
 
     return 0;
 }

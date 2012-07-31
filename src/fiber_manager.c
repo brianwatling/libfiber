@@ -364,7 +364,7 @@ int fiber_manager_wake_from_mpmc_queue(fiber_manager_t* manager, mpmc_fifo_t* fi
             wake_count += 1;
         } else if(count > 0) {
             cpu_relax();//back off if we failed to pop something
-            manager->spin_count += 1;
+            manager->wake_mpmc_spin_count += 1;
         }
     } while(wake_count < count);
     return wake_count;
@@ -407,7 +407,7 @@ int fiber_manager_wake_from_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fi
             wake_count += 1;
         } else if(count > 0) {
             cpu_relax();//back off if we failed to pop something
-            manager->spin_count += 1;
+            manager->wake_mpsc_spin_count += 1;
         }
     } while(wake_count < count);
     return wake_count;
@@ -512,12 +512,17 @@ void fiber_manager_stats(fiber_manager_t* manager, fiber_manager_stats_t* out)
     out->yield_count += manager->yield_count;
     fiber_scheduler_stats(manager->scheduler, &out->steal_count, &out->failed_steal_count);
     out->spin_count += manager->spin_count;
+    out->signal_spin_count += manager->signal_spin_count;
+    out->multi_signal_spin_count += manager->multi_signal_spin_count;
+    out->wake_mpsc_spin_count += manager->wake_mpsc_spin_count;
+    out->wake_mpmc_spin_count += manager->wake_mpmc_spin_count;
     out->poll_count += manager->poll_count;
     out->event_wait_count += manager->event_wait_count;
 }
 
 void fiber_manager_all_stats(fiber_manager_stats_t* out)
 {
+    memset(out, 0, sizeof(*out));
     if(fiber_managers) {
         int i;
         for(i = 0; i < fiber_manager_num_threads; ++i) {
