@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
         send_count = atoi(argv[2]);
     }
 
-    fiber_multi_channel_t* ch1 = fiber_multi_channel_create(1000, 0);
+    fiber_multi_channel_t* ch1 = fiber_multi_channel_create(10, 0);
 
     fiber_t** fibers = calloc(count, sizeof(fiber_t*));
     int i;

@@ -21,18 +21,21 @@ typedef struct lockfree_ring_buffer
     char _cache_padding1[CACHE_SIZE - sizeof(uint64_t)];
     volatile uint64_t low;
     char _cache_padding2[CACHE_SIZE - sizeof(uint64_t)];
-    size_t size;
+    uint32_t size;
+    uint32_t power_of_2_mod;
     //buffer must be last - it spills outside of this struct
     void* buffer[];
 } lockfree_ring_buffer_t;
 
-static inline lockfree_ring_buffer_t* lockfree_ring_buffer_create(size_t size)
+static inline lockfree_ring_buffer_t* lockfree_ring_buffer_create(uint32_t power_of_2_size)
 {
-    assert(size);
-    const size_t required_size = sizeof(lockfree_ring_buffer_t) + size * sizeof(void*);
+    assert(power_of_2_size && power_of_2_size < 32);
+    const uint32_t size = 1 << power_of_2_size;
+    const uint32_t required_size = sizeof(lockfree_ring_buffer_t) + size * sizeof(void*);
     lockfree_ring_buffer_t* const ret = (lockfree_ring_buffer_t*)calloc(1, required_size);
     if(ret) {
         ret->size = size;
+        ret->power_of_2_mod = size - 1;
     }
     return ret;
 }
@@ -59,7 +62,7 @@ static inline int lockfree_ring_buffer_trypush(lockfree_ring_buffer_t* rb, void*
     const uint64_t low = rb->low;
     load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
     const uint64_t high = rb->high;
-    const uint64_t index = high % rb->size;
+    const uint64_t index = high & rb->power_of_2_mod;
     if(!rb->buffer[index]
        && high - low < rb->size
        && __sync_bool_compare_and_swap(&rb->high, high, high + 1)) {
@@ -84,7 +87,7 @@ static inline void* lockfree_ring_buffer_trypop(lockfree_ring_buffer_t* rb)
     const uint64_t high = rb->high;
     load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
     const uint64_t low = rb->low;
-    const uint64_t index = low % rb->size;
+    const uint64_t index = low & rb->power_of_2_mod;
     void* const ret = rb->buffer[index];
     if(ret
        && high > low

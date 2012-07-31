@@ -68,7 +68,8 @@ int main()
 {
     pthread_barrier_init(&barrier, NULL, NUM_THREADS);
     const size_t BUFFER_SIZE = NUM_THREADS * 2 * NUM_THREADS * POINTERS_PER_THREAD; //each thread can have up to 2 * N * K, so we need up to N * 2 * N * K nodes available at any given time
-    free_nodes = lockfree_ring_buffer_create(BUFFER_SIZE);
+    test_assert(BUFFER_SIZE <= (1 << 10));
+    free_nodes = lockfree_ring_buffer_create(10);
     size_t node_count;
     for(node_count = 0; node_count < BUFFER_SIZE; ++node_count) {
         lockfree_ring_buffer_push(free_nodes, malloc(sizeof(hazard_node_t)));

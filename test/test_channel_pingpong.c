@@ -37,8 +37,8 @@ int main(int argc, char* argv[])
     fiber_signal_init(&signal_two);
 
     //specifying an argument will make the channels spin
-    channel_one = fiber_bounded_channel_create(128, argc > 1 ? NULL : &signal_one);
-    channel_two = fiber_bounded_channel_create(128, argc > 1 ? NULL : &signal_two);
+    channel_one = fiber_bounded_channel_create(7, argc > 1 ? NULL : &signal_one);
+    channel_two = fiber_bounded_channel_create(7, argc > 1 ? NULL : &signal_two);
 
     fiber_t* ping_fiber;
     ping_fiber = fiber_create(20000, &ping_function, NULL);

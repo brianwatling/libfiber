@@ -25,23 +25,29 @@ typedef struct fiber_multi_channel
     fiber_signal_t writer_signal;
     fiber_mutex_t reader_signal_mutex;
     fiber_signal_t reader_signal;
+    char padding1[CACHE_SIZE - sizeof(fiber_signal_t)];
     volatile uint64_t high;
     volatile uint64_t low;
+    char padding2[CACHE_SIZE - 2 * sizeof(uint64_t)];
     void* sentinel;
     uint32_t size;
+    uint32_t power_of_2_mod;
+    char padding3[CACHE_SIZE - sizeof(void*) - 2 * sizeof(uint32_t)];
     //buffer must be last - it spills outside of this struct
     void* buffer[];
 } fiber_multi_channel_t;
 
-static inline fiber_multi_channel_t* fiber_multi_channel_create(uint32_t size, void* sentinel)
+static inline fiber_multi_channel_t* fiber_multi_channel_create(uint32_t power_of_2_size, void* sentinel)
 {
-    assert(size);
+    assert(power_of_2_size && power_of_2_size < 32);
+    const size_t size = 1 << power_of_2_size;
     const size_t required_size = sizeof(fiber_multi_channel_t) + size * sizeof(void*);
     //NOTE: here we abuse the lockfree_ring_buffer by not initializing it via a function. this works because everything in it is zero except size
     fiber_multi_channel_t* const channel = (fiber_multi_channel_t*)calloc(1, required_size);
     if(channel) {
         channel->sentinel = sentinel;
         channel->size = size;
+        channel->power_of_2_mod = size - 1;
         fiber_signal_init(&channel->writer_signal);
         fiber_signal_init(&channel->reader_signal);
         if(!fiber_mutex_init(&channel->writer_signal_mutex)
@@ -81,11 +87,11 @@ typedef enum {
 
 static inline fiber_multi_channel_result_t fiber_multi_channel_send_internal(fiber_multi_channel_t* channel, void* message)
 {
-    const size_t size = channel->size;
+    const uint64_t size = channel->size;
     const uint64_t low = channel->low;
     load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
     const uint64_t high = channel->high;
-    const uint64_t index = high % size;
+    const uint64_t index = high & channel->power_of_2_mod;
     void** const spot = &(channel->buffer[index]);
     if(*spot == channel->sentinel && (high - low < size)) {
         if(__sync_bool_compare_and_swap(&channel->high, high, high + 1)) {
@@ -124,7 +130,7 @@ static inline int fiber_multi_channel_send(fiber_multi_channel_t* channel, void*
         }
     }
     if(locked) {
-        fiber_mutex_unlock(&channel->writer_signal_mutex);
+        fiber_mutex_unlock_internal(&channel->writer_signal_mutex);
     }
     //potentially wake up a blocked reader
     return fiber_signal_raise(&channel->reader_signal);
@@ -136,7 +142,7 @@ static inline fiber_multi_channel_result_t fiber_multi_channel_receive_internal(
     const uint64_t high = channel->high;
     load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
     const uint64_t low = channel->low;
-    const uint64_t index = low % channel->size;
+    const uint64_t index = low & channel->power_of_2_mod;
     void** const spot = &(channel->buffer[index]);
     void* const ret = *spot;
     if(ret != sentinel && high > low) {
@@ -174,7 +180,7 @@ static inline void* fiber_multi_channel_receive(fiber_multi_channel_t* channel)
         }
     }
     if(locked) {
-        fiber_mutex_unlock(&channel->reader_signal_mutex);
+        fiber_mutex_unlock_internal(&channel->reader_signal_mutex);
     }
     fiber_signal_raise(&channel->writer_signal);
     return ret;

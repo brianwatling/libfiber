@@ -489,7 +489,7 @@ mpmc_fifo_node_t* fiber_manager_get_mpmc_node()
 {
     lockfree_ring_buffer_t* free_nodes = fiber_free_mpmc_nodes;
     if(!free_nodes) {
-        free_nodes = lockfree_ring_buffer_create(1024);
+        free_nodes = lockfree_ring_buffer_create(10);
         if(!__sync_bool_compare_and_swap(&fiber_free_mpmc_nodes, NULL, free_nodes)) {
             lockfree_ring_buffer_destroy(free_nodes);
             free_nodes = fiber_free_mpmc_nodes;

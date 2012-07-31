@@ -29,18 +29,21 @@ typedef struct fiber_bounded_channel
     volatile uint64_t send_count;
     mpsc_fifo_t waiters;
     fiber_signal_t* ready_signal;
-    size_t size;
+    uint32_t size;
+    uint32_t power_of_2_mod;
     void* buffer[];
 } fiber_bounded_channel_t;
 
 //specifying a NULL signal means this channel will spin. 'signal' must out-live this channel
-static inline fiber_bounded_channel_t* fiber_bounded_channel_create(size_t size, fiber_signal_t* signal)
+static inline fiber_bounded_channel_t* fiber_bounded_channel_create(uint32_t power_of_2_size, fiber_signal_t* signal)
 {
-    assert(size);
-    const size_t required_size = sizeof(fiber_bounded_channel_t) + size * sizeof(void*);
+    assert(power_of_2_size && power_of_2_size < 32);
+    const uint32_t size = 1 << power_of_2_size;
+    const uint32_t required_size = sizeof(fiber_bounded_channel_t) + size * sizeof(void*);
     fiber_bounded_channel_t* const channel = (fiber_bounded_channel_t*)calloc(1, required_size);
     if(channel) {
         channel->size = size;
+        channel->power_of_2_mod = size - 1;
         channel->ready_signal = signal;
         if(!mpsc_fifo_init(&channel->waiters)) {
             free(channel);
@@ -70,7 +73,7 @@ static inline int fiber_bounded_channel_send(fiber_bounded_channel_t* channel, v
         const uint64_t low = channel->low;
         load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
         const uint64_t high = channel->high;
-        const uint64_t index = high % channel->size;
+        const uint64_t index = high & channel->power_of_2_mod;
         if(!channel->buffer[index]
            && high - low < channel->size
            && __sync_bool_compare_and_swap(&channel->high, high, high + 1)) {
@@ -95,7 +98,7 @@ static inline void* fiber_bounded_channel_receive(fiber_bounded_channel_t* chann
         const uint64_t high = channel->high;
         load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
         const uint64_t low = channel->low;
-        const uint64_t index = low % channel->size;
+        const uint64_t index = low & channel->power_of_2_mod;
         void* const ret = channel->buffer[index];
         if(ret && high > low) {
             channel->buffer[index] = 0;
@@ -122,7 +125,7 @@ static inline int fiber_bounded_channel_try_receive(fiber_bounded_channel_t* cha
     const uint64_t high = channel->high;
     load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
     const uint64_t low = channel->low;
-    const uint64_t index = low % channel->size;
+    const uint64_t index = low & channel->power_of_2_mod;
     void* const ret = channel->buffer[index];
     if(ret && high > low) {
         channel->buffer[index] = 0;

@@ -26,7 +26,7 @@ void* run_function(void* param)
 
 int main()
 {
-    rb = lockfree_ring_buffer_create(128);
+    rb = lockfree_ring_buffer_create(7);
     pthread_barrier_init(&barrier, NULL, NUM_THREADS);
 
     pthread_t threads[NUM_THREADS];

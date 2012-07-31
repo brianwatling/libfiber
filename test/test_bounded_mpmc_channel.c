@@ -37,8 +37,8 @@ void sender(fiber_multi_channel_t* ch) {
 int main(int argc, char* argv[]) {
     fiber_manager_init(NUM_THREADS);
 
-    fiber_multi_channel_t* ch1 = fiber_multi_channel_create(1000, 0);
-    fiber_multi_channel_t* ch2 = fiber_multi_channel_create(1000, 0);
+    fiber_multi_channel_t* ch1 = fiber_multi_channel_create(10, 0);
+    fiber_multi_channel_t* ch2 = fiber_multi_channel_create(10, 0);
     fiber_t* r1 = fiber_create(1024, (fiber_run_function_t)&receiver, (void*)ch1);
     fiber_t* r2 = fiber_create(1024, (fiber_run_function_t)&receiver, (void*)ch2);
     fiber_create(1024, (fiber_run_function_t)&sender, (void*)ch2);
