@@ -3,7 +3,7 @@
 #include "test_helper.h"
 
 fiber_bounded_channel_t* channel = NULL;
-int PER_FIBER_COUNT = 100000;
+int PER_FIBER_COUNT = 10000000;
 int NUM_FIBERS = 100;
 #define NUM_THREADS 4
 
