@@ -111,5 +111,8 @@ static inline int compare_and_swap2(volatile pointer_pair_t* location, const poi
 #endif
 }
 
+#define fiber_unlikely(x) (__builtin_expect((x),0))
+#define fiber_likely(x) (__builtin_expect((x),1))
+
 #endif // _FIBER_MACHINE_SPECIFIC_H_
 
