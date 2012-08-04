@@ -21,18 +21,12 @@
 //a bounded channel with many senders and receivers. send and receive will block if necessary.
 typedef struct fiber_multi_channel
 {
-    fiber_mutex_t writer_signal_mutex;
-    fiber_signal_t writer_signal;
-    fiber_mutex_t reader_signal_mutex;
-    fiber_signal_t reader_signal;
-    char padding1[CACHE_SIZE - sizeof(fiber_signal_t)];
-    volatile uint64_t high;
-    volatile uint64_t low;
-    char padding2[CACHE_SIZE - 2 * sizeof(uint64_t)];
-    void* sentinel;
+    fiber_mutex_t lock;
+    uint64_t high;
+    uint64_t low;
     uint32_t size;
     uint32_t power_of_2_mod;
-    char padding3[CACHE_SIZE - sizeof(void*) - 2 * sizeof(uint32_t)];
+    fiber_t* waiters;
     //buffer must be last - it spills outside of this struct
     void* buffer[];
 } fiber_multi_channel_t;
@@ -45,24 +39,11 @@ static inline fiber_multi_channel_t* fiber_multi_channel_create(uint32_t power_o
     //NOTE: here we abuse the lockfree_ring_buffer by not initializing it via a function. this works because everything in it is zero except size
     fiber_multi_channel_t* const channel = (fiber_multi_channel_t*)calloc(1, required_size);
     if(channel) {
-        channel->sentinel = sentinel;
         channel->size = size;
         channel->power_of_2_mod = size - 1;
-        fiber_signal_init(&channel->writer_signal);
-        fiber_signal_init(&channel->reader_signal);
-        if(!fiber_mutex_init(&channel->writer_signal_mutex)
-           || !fiber_mutex_init(&channel->reader_signal_mutex)) {
-            fiber_mutex_destroy(&channel->writer_signal_mutex);
-            fiber_mutex_destroy(&channel->reader_signal_mutex);
-            fiber_signal_destroy(&channel->writer_signal);
-            fiber_signal_destroy(&channel->reader_signal);
+        if(!fiber_mutex_init(&channel->lock)) {
             free(channel);
             return 0;
-        }
-        size_t i;
-        void** buffer = channel->buffer;
-        for(i = 0; i < size; ++i) {
-            buffer[i] = sentinel;
         }
     }
     return channel;
@@ -71,118 +52,69 @@ static inline fiber_multi_channel_t* fiber_multi_channel_create(uint32_t power_o
 static inline void fiber_multi_channel_destroy(fiber_multi_channel_t* channel)
 {
     if(channel) {
-        fiber_mutex_destroy(&channel->writer_signal_mutex);
-        fiber_mutex_destroy(&channel->reader_signal_mutex);
-        fiber_signal_destroy(&channel->writer_signal);
-        fiber_signal_destroy(&channel->reader_signal);
+        fiber_mutex_destroy(&channel->lock);
         free(channel);
     }
 }
 
-typedef enum {
-    FIBER_MULTI_CHANNEL_SUCCESS,
-    FIBER_MULTI_CHANNEL_FAIL,
-    FIBER_MULTI_CHANNEL_CONTENTION,
-} fiber_multi_channel_result_t;
-
-static inline fiber_multi_channel_result_t fiber_multi_channel_send_internal(fiber_multi_channel_t* channel, void* message)
+static inline void fiber_multi_channel_internal_wait(fiber_multi_channel_t* channel)
 {
-    const uint64_t size = channel->size;
-    const uint64_t low = channel->low;
-    load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
-    const uint64_t high = channel->high;
-    const uint64_t index = high & channel->power_of_2_mod;
-    void** const spot = &(channel->buffer[index]);
-    if(*spot == channel->sentinel && (high - low < size)) {
-        if(__sync_bool_compare_and_swap(&channel->high, high, high + 1)) {
-            *spot = message;
-            return FIBER_MULTI_CHANNEL_SUCCESS;
-        }
-        return FIBER_MULTI_CHANNEL_CONTENTION;
-    }
-    return FIBER_MULTI_CHANNEL_FAIL;
+    fiber_manager_t* const manager = fiber_manager_get();
+    fiber_t* const this_fiber = manager->current_fiber;
+    this_fiber->scratch = channel->waiters;
+    channel->waiters = this_fiber;
+    assert(this_fiber->state == FIBER_STATE_RUNNING);
+    this_fiber->state = FIBER_STATE_WAITING;
+    manager->mutex_to_unlock = &channel->lock;
+    fiber_manager_yield(manager);
 }
 
-static inline int fiber_multi_channel_send(fiber_multi_channel_t* channel, void* message)
+static inline void fiber_multi_channel_internal_wake(fiber_multi_channel_t* channel)
+{
+    if(channel->waiters) {
+        fiber_t* const to_wake = channel->waiters;
+        channel->waiters = to_wake->scratch;
+        to_wake->scratch = NULL;
+        to_wake->state = FIBER_STATE_READY;
+        fiber_manager_schedule(fiber_manager_get(), to_wake);
+    }
+}
+
+static inline void fiber_multi_channel_send(fiber_multi_channel_t* channel, void* message)
 {
     assert(channel);
-    if(message == channel->sentinel) {
-        assert(message != channel->sentinel);
-        *(int*)NULL = 0;//no. just no.
-    }
 
-    int locked = 0;
     while(1) {
-        const fiber_multi_channel_result_t result = fiber_multi_channel_send_internal(channel, message);
-        if(result == FIBER_MULTI_CHANNEL_SUCCESS) {
+        fiber_mutex_lock(&channel->lock);
+        if(channel->high - channel->low < channel->size) {
             break;
-        } else if(result == FIBER_MULTI_CHANNEL_FAIL) {
-            //the buffer was full - we may need to wait for a reader to receive something
-            if(!locked) {
-                //lock the signal and try again
-                locked = 1;
-                fiber_mutex_lock(&channel->writer_signal_mutex);
-                continue;
-            } else {
-                //it's full and we own the signal - so wait for a signal
-                fiber_signal_wait(&channel->writer_signal);
-            }
         }
+        fiber_multi_channel_internal_wait(channel);
     }
-    if(locked) {
-        fiber_mutex_unlock_internal(&channel->writer_signal_mutex);
-    }
-    //potentially wake up a blocked reader
-    return fiber_signal_raise(&channel->reader_signal);
-}
-
-static inline fiber_multi_channel_result_t fiber_multi_channel_receive_internal(fiber_multi_channel_t* channel, void** result)
-{
-    void* const sentinel = channel->sentinel;
-    const uint64_t high = channel->high;
-    load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
-    const uint64_t low = channel->low;
-    const uint64_t index = low & channel->power_of_2_mod;
-    void** const spot = &(channel->buffer[index]);
-    void* const ret = *spot;
-    if(ret != sentinel && high > low) {
-        if(__sync_bool_compare_and_swap(&channel->low, low, low + 1)) {
-            *spot = sentinel;
-            *result = ret;
-            return FIBER_MULTI_CHANNEL_SUCCESS;
-        }
-        return FIBER_MULTI_CHANNEL_CONTENTION;
-    }
-    return FIBER_MULTI_CHANNEL_FAIL;
+    const uint32_t index = channel->high & channel->power_of_2_mod;
+    channel->buffer[index] = message;
+    channel->high += 1;
+    fiber_multi_channel_internal_wake(channel);
+    fiber_mutex_unlock(&channel->lock);
 }
 
 static inline void* fiber_multi_channel_receive(fiber_multi_channel_t* channel)
 {
     assert(channel);
 
-    void* ret;
-    int locked = 0;
     while(1) {
-        fiber_multi_channel_result_t result = fiber_multi_channel_receive_internal(channel, &ret);
-        if(result == FIBER_MULTI_CHANNEL_SUCCESS) {
+        fiber_mutex_lock(&channel->lock);
+        if(channel->high > channel->low) {
             break;
-        } else if(result == FIBER_MULTI_CHANNEL_FAIL) {
-            //the buffer was empty - we may need to wait for a writer to send something
-            if(!locked) {
-                //lock the signal and try again
-                locked = 1;
-                fiber_mutex_lock(&channel->reader_signal_mutex);
-                continue;
-            } else {
-                //it's full and we own the signal - so wait for a signal
-                fiber_signal_wait(&channel->reader_signal);
-            }
         }
+        fiber_multi_channel_internal_wait(channel);
     }
-    if(locked) {
-        fiber_mutex_unlock_internal(&channel->reader_signal_mutex);
-    }
-    fiber_signal_raise(&channel->writer_signal);
+    const uint32_t index = channel->low & channel->power_of_2_mod;
+    void* const ret = channel->buffer[index];
+    channel->buffer[index] = 0;
+    channel->low += 1;
+    fiber_multi_channel_internal_wake(channel);
+    fiber_mutex_unlock(&channel->lock);
     return ret;
 }
 
