@@ -187,7 +187,7 @@ static void* fiber_manager_thread_func(void* param)
         } else {
             const int num_events = fiber_poll_events();
             if(num_events == 0) {
-                fiber_poll_events_blocking(0, 1000);
+                fiber_poll_events_blocking(0, FIBER_TIME_RESOLUTION_MS * 1000);
             }
         }
     }

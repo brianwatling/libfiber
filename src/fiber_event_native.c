@@ -114,8 +114,8 @@ int fiber_event_init()
     timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     assert(timer_fd >= 0);
     struct itimerspec in = {};
-    in.it_interval.tv_nsec = 1000000;//1ms
-    in.it_value.tv_nsec = 1000000;//1ms
+    in.it_interval.tv_nsec = FIBER_TIME_RESOLUTION_MS * 1000000;//ms
+    in.it_value.tv_nsec = FIBER_TIME_RESOLUTION_MS * 1000000;//ms
     struct itimerspec out;
     int ret = timerfd_settime(timer_fd, 0, &in, &out);
     assert(!ret);
@@ -146,9 +146,9 @@ int fiber_event_init()
 
     itimerspec_t itimeout = {};
     itimeout.it_value.tv_sec = 0;
-    itimeout.it_value.tv_nsec = 1000000;//1ms
+    itimeout.it_value.tv_nsec = FIBER_TIME_RESOLUTION_MS * 1000000;//ms
     itimeout.it_interval.tv_sec = 0;
-    itimeout.it_interval.tv_nsec = 1000000;//1ms
+    itimeout.it_interval.tv_nsec = FIBER_TIME_RESOLUTION_MS * 1000000;//ms
     ret = timer_settime(timer_id, 0, &itimeout, NULL);
     assert(!ret);
 #else
@@ -273,8 +273,8 @@ static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds)
         port_event_t* const this_event = &events[i];
         if(this_event->portev_source == PORT_SOURCE_TIMER) {
             hrtime_t const now = gethrtime();
-            const int timer_count = (now - last_timer_trigger) / 1000000;
-            last_timer_trigger += timer_count * 1000000;
+            const int timer_count = (now - last_timer_trigger) / (FIBER_TIME_RESOLUTION_MS * 1000000);
+            last_timer_trigger += timer_count * (FIBER_TIME_RESOLUTION_MS * 1000000);
             fiber_event_wake_sleepers(manager, timer_count);
         } else if(this_event->portev_source == PORT_SOURCE_FD) {
             fd_wait_info_t* const info = &wait_info[this_event->portev_object];

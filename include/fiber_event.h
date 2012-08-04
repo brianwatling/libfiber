@@ -4,6 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+//this variable controls how long idle threads wait for events, in milliseconds.
+//the value is important: high values may be better for workloads which are not truly parallel,
+//while lower values may allow idle threads to pick up new work sooner
+//TODO: make this a runtime config option?
+#define FIBER_TIME_RESOLUTION_MS 5 //ms
+
 #ifdef __cplusplus
 extern "C" {
 #endif
