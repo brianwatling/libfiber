@@ -45,6 +45,7 @@ typedef struct fiber_manager
     uint64_t wake_mpmc_spin_count;
     uint64_t poll_count;
     uint64_t event_wait_count;
+    uint64_t lock_contention_count;
 } fiber_manager_t;
 
 #ifdef __cplusplus
@@ -116,6 +117,7 @@ typedef struct fiber_manager_stats
     uint64_t wake_mpmc_spin_count;
     uint64_t poll_count;
     uint64_t event_wait_count;
+    uint64_t lock_contention_count;
 } fiber_manager_stats_t;
 
 //stats are *added* to the values currently in *out

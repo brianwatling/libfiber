@@ -31,7 +31,9 @@ int fiber_mutex_lock(fiber_mutex_t* mutex)
     }
 
     //we failed to acquire the lock (there's contention). we'll wait.
-    fiber_manager_wait_in_mpsc_queue(fiber_manager_get(), &mutex->waiters);
+    fiber_manager_t* const manager = fiber_manager_get();
+    manager->lock_contention_count += 1;
+    fiber_manager_wait_in_mpsc_queue(manager, &mutex->waiters);
 
     return FIBER_SUCCESS;
 }

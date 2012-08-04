@@ -518,6 +518,7 @@ void fiber_manager_stats(fiber_manager_t* manager, fiber_manager_stats_t* out)
     out->wake_mpmc_spin_count += manager->wake_mpmc_spin_count;
     out->poll_count += manager->poll_count;
     out->event_wait_count += manager->event_wait_count;
+    out->lock_contention_count += manager->lock_contention_count;
 }
 
 void fiber_manager_all_stats(fiber_manager_stats_t* out)

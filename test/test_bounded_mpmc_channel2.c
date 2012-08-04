@@ -4,8 +4,6 @@
 #include <inttypes.h>
 #include <time.h>
 
-#define NUM_THREADS 4
-
 int send_count = 100000000;
 
 int64_t time_diff(const struct timespec* start, const struct timespec* end) {
@@ -40,8 +38,7 @@ void sender(fiber_multi_channel_t* ch) {
 fiber_multi_channel_t* ch1 = NULL;
 
 int main(int argc, char* argv[]) {
-    fiber_manager_init(NUM_THREADS);
-
+    int num_threads = 4;
     int count = 2;
     if(argc > 1) {
         count = atoi(argv[1]);
@@ -49,6 +46,10 @@ int main(int argc, char* argv[]) {
     if(argc > 2) {
         send_count = atoi(argv[2]);
     }
+    if(argc > 3) {
+        num_threads = atoi(argv[3]);
+    }
+    fiber_manager_init(num_threads);
 
     ch1 = fiber_multi_channel_create(10, 0);
 
@@ -75,6 +76,7 @@ int main(int argc, char* argv[]) {
            "\nwake_mpmc_spin_count: %" PRIu64
            "\npoll_count: %" PRIu64
            "\nevent_wait_count: %" PRIu64
+           "\nlock_contention_count: %" PRIu64
            "\n",
            stats.yield_count,
            stats.steal_count,
@@ -85,7 +87,8 @@ int main(int argc, char* argv[]) {
            stats.wake_mpsc_spin_count,
            stats.wake_mpmc_spin_count,
            stats.poll_count,
-           stats.event_wait_count);
+           stats.event_wait_count,
+           stats.lock_contention_count);
 
     return 0;
 }
