@@ -145,7 +145,7 @@ static inline void fiber_multi_signal_wait(fiber_multi_signal_t* s)
     }
 }
 
-//returns 1 if a fiber was woken
+//potentially wakes a fiber. if the signal is already raised, the signal will be left in the raised state without waking a fiber. returns 1 if a fiber was woken
 static inline int fiber_multi_signal_raise(fiber_multi_signal_t* s)
 {
     assert(s);
@@ -186,6 +186,40 @@ static inline int fiber_multi_signal_raise(fiber_multi_signal_t* s)
         cpu_relax();
     }
     return 0;
+}
+
+//wakes exactly one fiber
+static inline void fiber_multi_signal_raise_strict(fiber_multi_signal_t* s)
+{
+    assert(s);
+
+    fiber_multi_signal_t snapshot;
+    while(1) {
+        snapshot.data.counter = s->data.counter;
+        load_load_barrier();//read the counter first - this ensures nothing changes while we're working
+        snapshot.data.head = s->data.head;
+
+        if(snapshot.data.head && snapshot.data.head != FIBER_MULTI_SIGNAL_RAISED) {
+            //there's a waiter -> try to wake him
+            fiber_multi_signal_t new_value;
+            new_value.data.counter = snapshot.data.counter + 1;
+            new_value.data.head = snapshot.data.head->next;
+            if(compare_and_swap2(&s->blob, &snapshot.blob, &new_value.blob)) {
+                //we successfully signalled a waiting fiber
+                fiber_t* to_wake = (fiber_t*)snapshot.data.head->data;
+                to_wake->mpsc_fifo_node = snapshot.data.head;
+                fiber_manager_t* const manager = fiber_manager_get();
+                while(to_wake->scratch != FIBER_SIGNAL_READY_TO_WAKE) {
+                    cpu_relax();//the other fiber is still in the process of going to sleep
+                    manager->multi_signal_spin_count += 1;
+                }
+                to_wake->state = FIBER_STATE_READY;
+                fiber_manager_schedule(manager, to_wake);
+                return;
+            }
+        }
+        cpu_relax();
+    }
 }
 
 #endif
