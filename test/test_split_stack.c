@@ -46,6 +46,7 @@ int main(int argc, char* argv[])
         fiber_join(fibers[i], NULL);
     }
 
+    fiber_manager_print_stats();
     return 0;
 }
 

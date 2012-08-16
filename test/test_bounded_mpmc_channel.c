@@ -1,7 +1,6 @@
 #include "fiber_multi_channel.h"
 #include "fiber_manager.h"
-#include <stdio.h>
-#include <inttypes.h>
+#include "test_helper.h"
 #include <time.h>
 
 #define NUM_THREADS 4
@@ -47,6 +46,7 @@ int main(int argc, char* argv[]) {
     fiber_join(r1, NULL);
     fiber_join(r2, NULL);
 
+    fiber_manager_print_stats();
     return 0;
 }
 

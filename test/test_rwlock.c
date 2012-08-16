@@ -81,6 +81,7 @@ int main()
 
     printf("try_rd %d try_wr %d count_rd %d count_wr %d\n", try_rd, try_wr, count_rd, count_wr);
 
+    fiber_manager_print_stats();
     return 0;
 }
 

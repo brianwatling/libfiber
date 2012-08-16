@@ -41,6 +41,7 @@ int main()
     fiber_mutex_unlock(&mutex);
     fiber_mutex_destroy(&mutex);
 
+    fiber_manager_print_stats();
     return 0;
 }
 

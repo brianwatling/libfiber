@@ -39,5 +39,6 @@ int main()
 
     mpsc_fifo_destroy(&fifo);
 
+    fiber_manager_print_stats();
     return 0;
 }

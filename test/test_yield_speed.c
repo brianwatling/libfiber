@@ -56,5 +56,6 @@ int main()
     double total_switches = (NUM_FIBERS + 1) * PER_FIBER_COUNT;
     printf("executed %lf context switches in %lld nsec (%lf seconds) = %lf switches per second\n", total_switches, diff, (double)diff / 1000000000.0, total_switches / ((double)diff / 1000000000.0));
 
+    fiber_manager_print_stats();
     return 0;
 }

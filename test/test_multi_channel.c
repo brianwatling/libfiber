@@ -70,6 +70,7 @@ int main(int argc, char* argv[])
     fiber_unbounded_channel_destroy(&unbounded_channel);
     fiber_signal_destroy(&signal);
 
+    fiber_manager_print_stats();
     return 0;
 }
 

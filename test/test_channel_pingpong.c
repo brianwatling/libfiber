@@ -53,6 +53,7 @@ int main(int argc, char* argv[])
     fiber_signal_destroy(&signal_one);
     fiber_signal_destroy(&signal_two);
 
+    fiber_manager_print_stats();
     return 0;
 }
 

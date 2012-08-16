@@ -57,6 +57,7 @@ int main(int argc, char* argv[])
     fiber_bounded_channel_destroy(channel);
     fiber_signal_destroy(&signal);
 
+    fiber_manager_print_stats();
     return 0;
 }
 

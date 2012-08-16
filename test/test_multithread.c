@@ -47,5 +47,7 @@ int main()
     }
     printf("switch_count: %d\n", switch_count);
     fflush(stdout);
+
+    fiber_manager_print_stats();
     return 0;
 }

@@ -48,6 +48,7 @@ int main()
 
     fiber_event_destroy();
 
+    fiber_manager_print_stats();
     return 0;
 }
 

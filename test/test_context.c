@@ -34,7 +34,7 @@ int main()
     fiber_context_destroy(&ctx[1]);
     fiber_context_destroy(&ctx[0]);
 
-    printf("SUCCESS\n");    
+    printf("SUCCESS\n");
     return 0;
 }
 

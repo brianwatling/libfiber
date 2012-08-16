@@ -63,5 +63,6 @@ int main()
 
     fiber_cond_destroy(&cond);
 
+    fiber_manager_print_stats();
     return 0;
 }

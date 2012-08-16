@@ -67,6 +67,7 @@ int main()
 
     fiber_barrier_destroy(&barrier);
 
+    fiber_manager_print_stats();
     return 0;
 }
 

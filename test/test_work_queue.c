@@ -59,6 +59,7 @@ int main()
     test_assert(counter == NUM_FIBERS * PER_FIBER_COUNT);
     work_queue_destroy(&work_queue);
 
+    fiber_manager_print_stats();
     return 0;
 }
 
