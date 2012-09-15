@@ -14,7 +14,6 @@
 
 #include "machine_specific.h"
 #include "fiber_manager.h"
-#include "lockfree_ring_buffer.h"
 #include "fiber_mutex.h"
 #include "fiber_signal.h"
 
@@ -36,7 +35,6 @@ static inline fiber_multi_channel_t* fiber_multi_channel_create(uint32_t power_o
     assert(power_of_2_size && power_of_2_size < 32);
     const size_t size = 1 << power_of_2_size;
     const size_t required_size = sizeof(fiber_multi_channel_t) + size * sizeof(void*);
-    //NOTE: here we abuse the lockfree_ring_buffer by not initializing it via a function. this works because everything in it is zero except size
     fiber_multi_channel_t* const channel = (fiber_multi_channel_t*)calloc(1, required_size);
     if(channel) {
         channel->size = size;
