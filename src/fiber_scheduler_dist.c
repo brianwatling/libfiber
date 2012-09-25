@@ -66,13 +66,20 @@ fiber_t* fiber_scheduler_next(fiber_scheduler_t* sched)
     fiber_scheduler_dist_t* const scheduler = (fiber_scheduler_dist_t*)sched;
     assert(scheduler);
     dist_fifo_node_t* node = NULL;
-    do {
-        node = dist_fifo_trypop(&scheduler->queue);
-    } while(node == DIST_FIFO_RETRY);
-    if(node) {
+    while(1) {
+        do {
+            node = dist_fifo_trypop(&scheduler->queue);
+        } while(node == DIST_FIFO_RETRY);
+        if(!node) {
+            break;
+        }
         fiber_t* const new_fiber = (fiber_t*)node->data;
-        new_fiber->mpsc_fifo_node = node;
-        return new_fiber;
+        if(new_fiber->state == FIBER_STATE_SAVING_STATE_TO_WAIT) {
+            dist_fifo_push(&scheduler->queue, node);
+        } else {
+            new_fiber->mpsc_fifo_node = node;
+            return new_fiber;
+        }
     }
     return NULL;
 }
@@ -97,7 +104,6 @@ void fiber_scheduler_load_balance(fiber_scheduler_t* sched)
                 ++scheduler->failed_steal_count;
                 break;
             }
-            assert(((fiber_t*)stolen->data)->state == FIBER_STATE_READY);
             dist_fifo_push(&scheduler->queue, stolen);
             --max_steal;
             ++scheduler->steal_count;

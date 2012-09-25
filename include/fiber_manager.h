@@ -25,6 +25,7 @@ typedef struct fiber_manager
 {
     fiber_t* maintenance_fiber;
     fiber_t* volatile current_fiber;
+    fiber_t* volatile old_fiber;
     fiber_t* thread_fiber;
     fiber_t* volatile to_schedule;
     fiber_mpsc_to_push_t mpsc_to_push;
@@ -58,7 +59,6 @@ static inline void fiber_manager_schedule(fiber_manager_t* manager, fiber_t* the
 {
     assert(manager);
     assert(the_fiber);
-    assert(the_fiber->state == FIBER_STATE_READY);
     fiber_scheduler_schedule(manager->scheduler, the_fiber);
 }
 

@@ -133,7 +133,6 @@ TESTS= \
     test_hazard_pointers \
     test_lockfree_ring_buffer \
     test_lockfree_ring_buffer2 \
-    test_channel \
     test_unbounded_channel \
     test_channel_pingpong \
     test_unbounded_channel_pingpong \
@@ -144,7 +143,8 @@ TESTS= \
     test_multi_channel \
     test_bounded_mpmc_channel \
     test_bounded_mpmc_channel2 \
-    
+
+#    test_channel \
 #    test_pthread_cond \
 
 CC ?= /usr/bin/c99

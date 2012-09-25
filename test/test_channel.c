@@ -3,7 +3,7 @@
 #include "test_helper.h"
 
 fiber_bounded_channel_t* channel = NULL;
-int PER_FIBER_COUNT = 10000000;
+int PER_FIBER_COUNT = 100000;
 int NUM_FIBERS = 100;
 #define NUM_THREADS 4
 
@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
     fiber_signal_t signal;
     fiber_signal_init(&signal);
     //specifying an argument will make the channels spin
-    channel = fiber_bounded_channel_create(10, argc > 1 ? NULL : &signal);
+    channel = fiber_bounded_channel_create(10, argc > 3 ? NULL : &signal);
 
     fiber_t* send_fibers[NUM_FIBERS];
     int i;

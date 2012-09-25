@@ -13,6 +13,7 @@ struct fiber_manager;
 #define FIBER_STATE_READY (2)
 #define FIBER_STATE_WAITING (3)
 #define FIBER_STATE_DONE (4)
+#define FIBER_STATE_SAVING_STATE_TO_WAIT (5)
 
 #define FIBER_DETACH_NONE (0)
 #define FIBER_DETACH_WAIT_FOR_JOINER (1)

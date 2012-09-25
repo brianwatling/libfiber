@@ -1,9 +1,9 @@
 #include "fiber_manager.h"
 #include "test_helper.h"
 
-#define NUM_THREADS 2
-#define NUM_FIBERS 100
-#define PER_FIBER_COUNT 1000
+#define NUM_THREADS 4
+#define NUM_FIBERS 10000
+#define PER_FIBER_COUNT 10000
 
 mpsc_fifo_t fifo;
 

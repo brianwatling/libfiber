@@ -73,6 +73,7 @@ static inline void fiber_manager_switch_to(fiber_manager_t* manager, fiber_t* ol
         manager->to_schedule = old_fiber;
     }
     manager->current_fiber = new_fiber;
+    manager->old_fiber = old_fiber;
     new_fiber->state = FIBER_STATE_RUNNING;
     fiber_context_swap(&old_fiber->context, &new_fiber->context);
 
@@ -84,21 +85,24 @@ void fiber_manager_yield(fiber_manager_t* manager)
     assert(fiber_manager_state == FIBER_MANAGER_STATE_STARTED);
     assert(manager);
 
+    fiber_t* const current_fiber = manager->current_fiber;
     while(1) {
         manager->yield_count += 1;
+        const fiber_state_t state = current_fiber->state;
 
         fiber_t* const new_fiber = fiber_scheduler_next(manager->scheduler);
         if(new_fiber) {
-            fiber_manager_switch_to(manager, manager->current_fiber, new_fiber);
+            fiber_manager_switch_to(manager, current_fiber, new_fiber);
             break;
-        } else if(FIBER_STATE_WAITING == manager->current_fiber->state
-                  || FIBER_STATE_DONE == manager->current_fiber->state) {
+        } else if(FIBER_STATE_WAITING == state
+                  || FIBER_STATE_DONE == state
+                  || FIBER_STATE_SAVING_STATE_TO_WAIT == state) {
             if(!manager->maintenance_fiber) {
                 manager->maintenance_fiber = fiber_create_no_sched(102400, &fiber_manager_thread_func, manager);
                 fiber_detach(manager->maintenance_fiber);
             }
 
-            fiber_manager_switch_to(manager, manager->current_fiber, manager->maintenance_fiber);
+            fiber_manager_switch_to(manager, current_fiber, manager->maintenance_fiber);
             //re-grab the manager, since we could be on a different thread now
             manager = fiber_manager_get();
         } else {
@@ -182,7 +186,7 @@ static void* fiber_manager_thread_func(void* param)
         fiber_t* const new_fiber = fiber_scheduler_next(manager->scheduler);
         if(new_fiber) {
             //make this fiber wait so we aren't scheduled again until all work is done
-            manager->maintenance_fiber->state = FIBER_STATE_WAITING;
+            manager->maintenance_fiber->state = FIBER_STATE_SAVING_STATE_TO_WAIT;
             fiber_manager_switch_to(manager, manager->maintenance_fiber, new_fiber);
         } else {
             const int num_events = fiber_poll_events();
@@ -293,6 +297,12 @@ extern mpmc_lifo_t fiber_free_fibers;
 void fiber_manager_do_maintenance()
 {
     fiber_manager_t* const manager = fiber_manager_get();
+
+    fiber_t* const old_fiber = manager->old_fiber;
+    if(old_fiber->state == FIBER_STATE_SAVING_STATE_TO_WAIT) {
+        old_fiber->state = FIBER_STATE_WAITING;
+    }
+
     if(manager->done_fiber) {
         mpsc_fifo_node_t* const node = manager->done_fiber->mpsc_fifo_node;
         node->data = manager->done_fiber;
@@ -377,11 +387,11 @@ void fiber_manager_wait_in_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fif
     fiber_t* const this_fiber = manager->current_fiber;
     assert(this_fiber->state == FIBER_STATE_RUNNING);
     assert(this_fiber->mpsc_fifo_node);
-    this_fiber->state = FIBER_STATE_WAITING;
-    manager->mpsc_to_push.fifo = fifo;
-    manager->mpsc_to_push.node = this_fiber->mpsc_fifo_node;
-    manager->mpsc_to_push.node->data = this_fiber;
+    this_fiber->state = FIBER_STATE_SAVING_STATE_TO_WAIT;
+    mpsc_fifo_node_t* const node = this_fiber->mpsc_fifo_node;
+    node->data = this_fiber;
     this_fiber->mpsc_fifo_node = NULL;
+    mpsc_fifo_push(fifo, node);
     fiber_manager_yield(manager);
 }
 
@@ -399,15 +409,17 @@ int fiber_manager_wake_from_mpsc_queue(fiber_manager_t* manager, mpsc_fifo_t* fi
     do {
         if((out = mpsc_fifo_trypop(fifo))) {
             fiber_t* const to_schedule = (fiber_t*)out->data;
-            assert(to_schedule->state == FIBER_STATE_WAITING);
             assert(!to_schedule->mpsc_fifo_node);
             to_schedule->mpsc_fifo_node = out;
-            to_schedule->state = FIBER_STATE_READY;
+            if(to_schedule->state == FIBER_STATE_WAITING) {
+                to_schedule->state = FIBER_STATE_READY;
+            }
             fiber_manager_schedule(manager, to_schedule);
             wake_count += 1;
         } else if(count > 0) {
-            cpu_relax();//back off if we failed to pop something
             manager->wake_mpsc_spin_count += 1;
+            fiber_manager_yield(manager);
+            manager = fiber_manager_get();
         }
     } while(wake_count < count);
     return wake_count;

@@ -82,10 +82,14 @@ fiber_t* fiber_scheduler_next(fiber_scheduler_t* sched)
         scheduler->store_to = temp;
     }
 
-    if(wsd_work_stealing_deque_size(scheduler->schedule_from) > 0) {
+    while(wsd_work_stealing_deque_size(scheduler->schedule_from) > 0) {
         fiber_t* const new_fiber = (fiber_t*)wsd_work_stealing_deque_pop_bottom(scheduler->schedule_from);
         if(new_fiber != WSD_EMPTY && new_fiber != WSD_ABORT) {
-            return new_fiber;
+            if(new_fiber->state == FIBER_STATE_SAVING_STATE_TO_WAIT) {
+                wsd_work_stealing_deque_push_bottom(scheduler->store_to, new_fiber);
+            } else {
+                return new_fiber;
+            }
         }
     }
     return NULL;
@@ -114,7 +118,6 @@ void fiber_scheduler_load_balance(fiber_scheduler_t* sched)
                 ++scheduler->failed_steal_count;
                 break;
             }
-            assert(stolen->state == FIBER_STATE_READY);
             wsd_work_stealing_deque_push_bottom(scheduler->schedule_from, stolen);
             --remote_count;
             ++local_count;
