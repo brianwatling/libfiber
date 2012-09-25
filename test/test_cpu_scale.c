@@ -33,6 +33,16 @@ void test_increment(intptr_t thread_id, uint64_t count)
     }
 }
 
+void test_increment_flush(intptr_t thread_id, uint64_t count)
+{
+    volatile intptr_t integer = 0;
+    uint64_t i;
+    for(i = 0; i < count; ++i) {
+        integer += 1;
+        store_load_barrier();
+    }
+}
+
 void test_atomic_increment(intptr_t thread_id, uint64_t count)
 {
     volatile intptr_t integer = 0;
@@ -184,6 +194,7 @@ typedef struct
 test_function_info_t test_functions[] = {
     ADD_FUNCTION(warm_up),
     ADD_FUNCTION(test_increment),
+    ADD_FUNCTION(test_increment_flush),
     ADD_FUNCTION(test_atomic_increment),
     ADD_FUNCTION(test_atomic_increment_shared),
     ADD_FUNCTION(test_cas),
