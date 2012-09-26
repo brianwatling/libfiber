@@ -1,4 +1,4 @@
-#include "work_stealing_deque.h"
+#include "fifo_steal_buffer.h"
 #include <pthread.h>
 #include "test_helper.h"
 #include <stdlib.h>
@@ -34,7 +34,7 @@ typedef struct thread_data
     volatile intptr_t dummy;
 } __attribute__((__aligned__(CACHE_SIZE))) thread_data_t;
 
-wsd_work_stealing_deque_t** fifo = NULL;
+sharded_fifo_steal_buffer_t** fifo = NULL;
 thread_data_t* data = NULL;
 
 typedef struct node
@@ -50,7 +50,7 @@ void* run_function(void* param)
     unsigned int seed = thread_id;
 
     node_t* local_nodes = NULL;
-    wsd_work_stealing_deque_t* my_fifo = fifo[thread_id];
+    sharded_fifo_steal_buffer_t* my_fifo = fifo[thread_id];
     thread_data_t* my_data = &(data[thread_id]);
 
     intptr_t i;
@@ -58,16 +58,13 @@ void* run_function(void* param)
         const int action = rand_r(&seed) % 10;
 //printf("action: %d\n", action);
         if(action < 4) {
-            node_t* n;
-            do {
-                n = (node_t*)wsd_work_stealing_deque_pop_bottom(my_fifo);
-                if(n != WSD_EMPTY && n != WSD_ABORT) {
-                    n->next = local_nodes;
-                    local_nodes = n;
-                    ++my_data->pop_count;
-                    my_data->dummy = do_some_work(i);
-                }
-            } while(n == WSD_ABORT);
+            node_t* n = NULL;
+            if(sharded_fifo_steal_buffer_pop(my_fifo, (void**)&n)) {
+                n->next = local_nodes;
+                local_nodes = n;
+                ++my_data->pop_count;
+                my_data->dummy = do_some_work(i);
+            }
         } else if(action < 8) {
             node_t* n = NULL;
             if(local_nodes) {
@@ -77,20 +74,22 @@ void* run_function(void* param)
                 n = calloc(1, sizeof(*n));
             }
             n->data = (void*)i;
-            wsd_work_stealing_deque_push_bottom(my_fifo, n);
+            const int ret = sharded_fifo_steal_buffer_push(my_fifo, n);
+            assert(ret);
             ++my_data->push_count;
         } else {
             intptr_t j = thread_id + 1;
             intptr_t tries = NUM_THREADS - 1;//don't steal from yourself
             int stole = 0;
             while(tries > 0) {
-                wsd_work_stealing_deque_t* const steal_fifo = fifo[j % NUM_THREADS];
-                node_t* n;
+                sharded_fifo_steal_buffer_t* const steal_fifo = fifo[j % NUM_THREADS];
+                node_t* n = NULL;
+                int ret;
                 do {
-                    n = (node_t*)wsd_work_stealing_deque_steal(steal_fifo);
+                    ret = sharded_fifo_steal_buffer_steal(steal_fifo, thread_id, (void**)&n);
                     ++my_data->attempt_count;
-                } while(n == WSD_ABORT);
-                if(n != WSD_EMPTY) {
+                } while(ret == SHARDED_FIFO_STEAL_BUFFER_ABORT);
+                if(n) {
                     n->next = local_nodes;
                     local_nodes = n;
                     stole = 1;
@@ -127,7 +126,7 @@ int main(int argc, char* argv[])
 
     intptr_t i;
     for(i = 0; i < NUM_THREADS; ++i) {
-        fifo[i] = wsd_work_stealing_deque_create();
+        fifo[i] = sharded_fifo_steal_buffer_create(NUM_THREADS, 20);
     }
 
     pthread_t threads[NUM_THREADS];
@@ -147,7 +146,7 @@ int main(int argc, char* argv[])
 
     thread_data_t total = {};
     for(i = 0; i < NUM_THREADS; ++i) {
-        wsd_work_stealing_deque_destroy(fifo[i]);
+        sharded_fifo_steal_buffer_destroy(fifo[i]);
         printf("thread %d - push: %lld pop: %lld steal: %lld attempt: %lld empty: %lld\n", (int)i, data[i].push_count, data[i].pop_count, data[i].steal_count, data[i].attempt_count, data[i].empty_count);
         total.push_count += data[i].push_count;
         total.pop_count += data[i].pop_count;
