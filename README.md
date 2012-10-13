@@ -7,13 +7,53 @@
 - Supports native event backends on Linux and Solaris
 - Supports libev event backend
 
+## Motivation
+
+- Why Events Are A Bad Idea (for high-concurrency servers) - Rob von Behren, Jeremy Condit, and Eric Brewer
+    - Specifically, the following quote summarixes nicely:
+        We also reﬁne the duality argument of Lauer and Needham, which implies that
+        good implementations of thread systems and event systems will have similar performance.
+
+
 ## Building
 
 - Type 'make' to build the library and run the unit tests
 - Link your application to libfiber.so
-- Be sure to define the architecture when including libfiber's headers
+- Be sure to define the architecture when including libfiber's headers. You can specify the following gcc flags:
+    - For x86 64 bit: -m64 -DARCH_x86_64
+    - For x86 32 bit: -m32 -march=i686 -DARCH_x86
 - libfiber.so overrides many system calls so make sure you know what you're doing
-- Set USE_NATIVE_EVENTS=no to use libev for events (slower due to mutexes)
+- Set USE_NATIVE_EVENTS=no to use libev for events (slower due to mutexes). Default is 'yes' to use native event processing.
+    - make USE_NATIVE_EVENTS=no
+- The makefile will attempt to detect gcc split stack support (Go uses this). This requires gcc 4.7 or higher. I recommend using this.
+    - make CC=gcc-4.7
+
+## Example
+
+- See example/echo_server.c for an example.
+- The basic idea is that you write blocking code and libfiber makes it event driven for you.
+
+- Spawn a fiber running 'client_function' per client:
+
+    ...
+    while((sock = accept(server_socket, NULL, NULL)) >= 0) {
+        fiber_t* client_fiber = fiber_create(10240, &client_function, (void*)(intptr_t)sock);
+        fiber_detach(client_fiber);
+    }
+    ...
+
+- 'client_function' does a blocking read() and write() on the socket:
+
+    void* client_function(void* param)
+    {
+        ...
+        while((num_read = read(sock, buffer, sizeof(buffer))) > 0) {
+            if(num_read != write(sock, buffer, num_read)) {
+                break;
+            }
+        }
+        ...
+    }
 
 ## Usage
 
@@ -37,7 +77,12 @@
 
 ## Performance
 
-- TODO: real benchmarks
+- Anecdotally:
+    - libfiber's mutex objects significantly outperform pthread's mutex objects under contention. This is because a contended mutex requires context switches.
+    - libfiber's channels signifcantly outperform Go's channels. Both libfiber's  and Go's channels use a mutex internally - libfiber's fast mutex gives an advantage.
+        - See go/test_channel.go, go/test_channel2.go, test/test_bounded_mpmc_channel.c, and test/test_bounded_mpmc_channel2.c
+
+- TODO: automated benchmarks with real numbers
 
 ## Testing
 
@@ -46,6 +91,10 @@
     - Only extreme failure cases missing, such as NOMEM
 - Tested on x86 Linux, x86_64 Linux, x86 Solaris 10
 - Separate tests for lock free data structure and hazard pointers
+
+## TODO
+
+- Detect architecture automatically using known defines
 
 ## Contributors
 

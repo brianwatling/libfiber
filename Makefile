@@ -1,7 +1,7 @@
 
-all: libfiber.so runtests
+all: libfiber.so bin/echo_server runtests
 
-VPATH += src test submodules/libev
+VPATH += example src test submodules/libev
 
 CFILES = \
     fiber_context.c \
@@ -160,7 +160,13 @@ TESTINCLUDES = $(wildcard test/*.h)
 libfiber.so: $(PICOBJS)
 	$(CC) $(LINKER_SHARED_FLAG) $(LDFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGSAFTER)
 
+bin/libfiber.so: libfiber.so
+	cp $^ $@
+
 tests: $(TESTBINARIES)
+
+bin/echo_server: bin/echo_server.o bin/libfiber.so
+	$(CC) $(LDFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGSAFTER)
 
 runtests: tests
 	for cur in $(TESTS); do echo $$cur; LD_LIBRARY_PATH=..:$$LD_LIBRARY_PATH time ./bin/$$cur > /dev/null; if [ "$$?" -ne "0" ] ; then echo "ERROR $$cur - failed!"; fi; done
@@ -168,7 +174,7 @@ runtests: tests
 bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
 	$(CC) -Werror $(CFLAGS) -Isrc -c $< -o $@
 
-bin/test_%: bin/test_%.o libfiber.so
+bin/test_%: bin/test_%.o bin/libfiber.so
 	$(CC) -Werror $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@ -lpthread $(LDFLAGSAFTER)
 
 #no -Werror for ev.c
@@ -195,5 +201,5 @@ coveragereport: runtests
 	genhtml bin/app.info -o bin/lcov
 
 clean:
-	rm -rf bin/* libfiber.so libfiber_pthread.so
+	rm -rf bin/* libfiber.so
 
