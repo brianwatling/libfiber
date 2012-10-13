@@ -10,9 +10,8 @@
 ## Motivation
 
 - Why Events Are A Bad Idea (for high-concurrency servers) - Rob von Behren, Jeremy Condit, and Eric Brewer
-    - Specifically, the following quote summarixes nicely:
-        We also reﬁne the duality argument of Lauer and Needham, which implies that
-        good implementations of thread systems and event systems will have similar performance.
+    - Specifically, the following quote summarizes nicely:
+        "...the duality argument of Lauer and Needham ... implies that good implementations of thread systems and event systems will have similar performance."
 
 
 ## Building
@@ -33,7 +32,7 @@
 - See example/echo_server.c for an example.
 - The basic idea is that you write blocking code and libfiber makes it event driven for you.
 
-- Spawn a fiber running 'client_function' per client:
+Spawn a fiber running 'client_function' per client:
 
     ...
     while((sock = accept(server_socket, NULL, NULL)) >= 0) {
@@ -42,7 +41,7 @@
     }
     ...
 
-- 'client_function' does a blocking read() and write() on the socket:
+'client_function' does a blocking read() and write() on the socket:
 
     void* client_function(void* param)
     {
@@ -81,6 +80,7 @@
     - libfiber's mutex objects significantly outperform pthread's mutex objects under contention. This is because a contended mutex requires context switches.
     - libfiber's channels signifcantly outperform Go's channels. Both libfiber's  and Go's channels use a mutex internally - libfiber's fast mutex gives an advantage.
         - See go/test_channel.go, go/test_channel2.go, test/test_bounded_mpmc_channel.c, and test/test_bounded_mpmc_channel2.c
+
 
 - TODO: automated benchmarks with real numbers
 
