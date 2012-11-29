@@ -22,8 +22,6 @@
     - For x86 64 bit: -m64 -DARCH_x86_64
     - For x86 32 bit: -m32 -march=i686 -DARCH_x86
 - libfiber.so overrides many system calls so make sure you know what you're doing
-- Set USE_NATIVE_EVENTS=no to use libev for events (slower due to mutexes). Default is 'yes' to use native event processing.
-    - make USE_NATIVE_EVENTS=no
 - The makefile will attempt to detect gcc split stack support (Go uses this). This requires gcc 4.7 or higher. I recommend using this.
     - make CC=gcc-4.7
 
