@@ -53,18 +53,16 @@ int fiber_mutex_unlock_internal(fiber_mutex_t* mutex)
 {
     assert(mutex);
 
-    //assumption: the atomic operations below provide read/write ordering (ie. read and writes performed before unlocking actually occur before unlocking)
+    //assumption: the atomic operation below provides read/write ordering (ie. read and writes performed before unlocking actually occur before unlocking)
 
-    if(__sync_bool_compare_and_swap(&mutex->counter, 0, 1)) {
-        //there's no other fibers waiting
-        return 0;
+    //unlock and wake a waiting fiber if there is one
+    const int new_val = __sync_add_and_fetch(&mutex->counter, 1);
+    if (new_val != 1) {
+        fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &mutex->waiters, 1);
+        return 1;
     }
-
-    //some other fiber is waiting - pop and schedule another fiber
-    fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &mutex->waiters, 1);
-    //now we can unlock the mutex - before this we hold it since the mutex double-purposes as a lock on the consumer side of the fifo
-    __sync_add_and_fetch(&mutex->counter, 1);
-    return 1;
+    
+    return 0;
 }
 
 int fiber_mutex_unlock(fiber_mutex_t* mutex)
