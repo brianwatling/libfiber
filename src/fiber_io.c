@@ -136,9 +136,12 @@ selectFnType get_select_fn()
     return (selectFnType)dlsym(RTLD_NEXT, "select");
 }
 
+#define IO_FLAG_BLOCKING 1
+#define IO_FLAG_WAITABLE 2
+
 typedef struct fiber_fd_info
 {
-    volatile uint8_t blocking;
+    volatile uint8_t flags_;
 } fiber_fd_info_t;
 
 static fiber_fd_info_t* fd_info = NULL;
@@ -201,7 +204,7 @@ int fiber_io_unlock_thread()
 static inline int should_block(int fd)
 {
     assert(fd >= 0);
-    if(!thread_locked && fd_info && fd < max_fd && fd_info[fd].blocking) {
+    if(!thread_locked && fd_info && fd < max_fd && fd_info[fd].flags_ & (IO_FLAG_BLOCKING | IO_FLAG_WAITABLE)) {
         return 1;
     }
     return 0;
@@ -214,8 +217,9 @@ static int setup_socket(int sock)
     }
 
     assert(sock < max_fd);
-    __sync_bool_compare_and_swap(&fd_info[sock].blocking, fd_info[sock].blocking, 1);
-    assert(fd_info[sock].blocking);
+    __sync_fetch_and_or(&fd_info[sock].flags_, IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
+    assert(fd_info[sock].flags_ & IO_FLAG_BLOCKING);
+    assert(fd_info[sock].flags_ & IO_FLAG_WAITABLE);
 
     if(!fibershim_fcntl) {
         fibershim_fcntl = (fcntlFnType)dlsym(RTLD_NEXT, "fcntl");
@@ -581,11 +585,13 @@ int pipe(int pipefd[2])
         }
 
         assert(pipefd[0] < max_fd);
-        __sync_bool_compare_and_swap(&fd_info[pipefd[0]].blocking, fd_info[pipefd[0]].blocking, 1);
-        assert(fd_info[pipefd[0]].blocking);
+        __sync_fetch_and_or(&fd_info[pipefd[0]].flags_, IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
+        assert(fd_info[pipefd[0]].flags_ & IO_FLAG_BLOCKING);
+        assert(fd_info[pipefd[0]].flags_ & IO_FLAG_WAITABLE);
         assert(pipefd[1] < max_fd);
-        __sync_bool_compare_and_swap(&fd_info[pipefd[1]].blocking, fd_info[pipefd[1]].blocking, 1);
-        assert(fd_info[pipefd[1]].blocking);
+        __sync_fetch_and_or(&fd_info[pipefd[1]].flags_, IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
+        assert(fd_info[pipefd[1]].flags_ & IO_FLAG_BLOCKING);
+        assert(fd_info[pipefd[1]].flags_ & IO_FLAG_WAITABLE);
     }
 
     return ret;
@@ -613,8 +619,8 @@ int fcntl(int fd, int cmd, ...)
     if(!thread_locked) {
         if(cmd == F_SETFL && (val == O_NONBLOCK || val == O_NDELAY)) {
             assert(fd < max_fd);
-            __sync_bool_compare_and_swap(&fd_info[fd].blocking, fd_info[fd].blocking, 0);
-            assert(!fd_info[fd].blocking);
+            __sync_fetch_and_and(&fd_info[fd].flags_, ~IO_FLAG_BLOCKING);
+            assert(!(fd_info[fd].flags_ & IO_FLAG_BLOCKING));
             return 0;
         }
         //make sure O_NONBLOCK stays set
@@ -644,11 +650,11 @@ int ioctl(IOCTLPARAMS)
         }
         assert(d < max_fd);
         if(*(int*)val) {
-            __sync_bool_compare_and_swap(&fd_info[d].blocking, fd_info[d].blocking, 0);
-            assert(!fd_info[d].blocking);
+            __sync_fetch_and_and(&fd_info[d].flags_, ~IO_FLAG_BLOCKING);
+            assert(!(fd_info[d].flags_ & IO_FLAG_BLOCKING));
         } else {
-            __sync_bool_compare_and_swap(&fd_info[d].blocking, fd_info[d].blocking, 1);
-            assert(fd_info[d].blocking);
+            __sync_fetch_and_or(&fd_info[d].flags_, IO_FLAG_BLOCKING);
+            assert(fd_info[d].flags_ & IO_FLAG_BLOCKING);
         }
         return 0;
     }
@@ -667,6 +673,9 @@ int close(int fd)
     }
 
     fiber_fd_closed(fd);
+    if (fd_info && fd < max_fd) {
+        fd_info[fd].flags_ = 0;
+    }
     return fibershim_close(fd);
 }
 
