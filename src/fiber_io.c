@@ -259,7 +259,7 @@ int socketpair(int domain, int type, int protocol, int sv[2])
         fibershim_socketpair = (socketpairFnType)dlsym(RTLD_NEXT, "socketpair");
     }
 
-    const int ret = socketpair(domain, type, protocol, sv);
+    const int ret = fibershim_socketpair(domain, type, protocol, sv);
     if(!ret) {
         if(setup_socket(sv[0]) || setup_socket(sv[1])) {
             close(sv[0]);
