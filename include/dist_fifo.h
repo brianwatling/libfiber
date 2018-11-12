@@ -51,7 +51,7 @@ typedef union
 {
     dist_fifo_pointer_t pointer;
     pointer_pair_t blob;
-} __attribute__ ((__packed__)) dist_fifo_pointer_wrapper_t;
+} __attribute__ ((__packed__)) __attribute__((__aligned__(2 * sizeof(void *)))) dist_fifo_pointer_wrapper_t;
 
 typedef struct dist_fifo
 {

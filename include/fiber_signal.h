@@ -98,7 +98,7 @@ typedef union fiber_multi_signal
         mpsc_fifo_node_t* volatile head;
     } data;
     pointer_pair_t blob;
-} __attribute__ ((__packed__)) fiber_multi_signal_t;
+} __attribute__ ((__packed__)) __attribute__((__aligned__(2 * sizeof(void *)))) fiber_multi_signal_t;
 
 #define FIBER_MULTI_SIGNAL_RAISED ((mpsc_fifo_node_t*)(intptr_t)-1)
 

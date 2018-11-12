@@ -30,7 +30,7 @@ typedef union
         mpmc_lifo_node_t* volatile head;
     } data;
     pointer_pair_t blob;
-} __attribute__ ((__packed__)) mpmc_lifo_t;
+} __attribute__ ((__packed__)) __attribute__((__aligned__(2 * sizeof(void *)))) mpmc_lifo_t;
 
 #define MPMC_LIFO_INITIALIZER {}
 
