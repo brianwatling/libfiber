@@ -21,7 +21,7 @@
     "[go]": {
         "editor.defaultFormatter": "golang.go"
     },
-    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.default.compileCommands": "build/compile_commands.json",
     "cmake.loadCompileCommands": true,
     "C_Cpp.intelliSenseEngineFallback": "enabled"
 }

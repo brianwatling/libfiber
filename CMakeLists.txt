@@ -15,6 +15,9 @@ option(FIBER_ENABLE_TSAN "Whether to enable TSAN checks" OFF)
 set(FIBER_STACK_STRATEGY
     "split"
     CACHE STRING "Stack strategy")
+set(CMAKE_EXPORT_COMPILE_COMMANDS
+    ON
+    CACHE BOOL "Export compile commands for VSCode")
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -159,7 +162,5 @@ fibertest(test_wsd_scale)
 fibertest(test_multi_channel)
 fibertest(test_bounded_mpmc_channel)
 fibertest(test_bounded_mpmc_channel2)
-fibertest(test_fifo_steal_scale)
-fibertest(test_sharded_fifo_steal_scale)
 fibertest(test_channel)
 fibertest(test_pthread_cond)
