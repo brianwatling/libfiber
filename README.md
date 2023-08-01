@@ -3,10 +3,10 @@ SPDX-FileCopyrightText: 2012-2023 Brian Watling <brian@oxbo.dev>
 SPDX-License-Identifier: CC0-1.0
 -->
 
-![Ubuntu Release Build](https://github.com/brianwatling/batchsys/actions/workflows/release.yml/badge.svg)
-![Ubuntu Debug Build](https://github.com/brianwatling/batchsys/actions/workflows/debug.yml/badge.svg)
-![ASAN Build](https://github.com/brianwatling/batchsys/actions/workflows/asan.yml/badge.svg)
-![TSAN Build](https://github.com/brianwatling/batchsys/actions/workflows/tsan.yml/badge.svg)
+![Ubuntu Release Build](https://github.com/brianwatling/libfiber/actions/workflows/release.yml/badge.svg)
+![Ubuntu Debug Build](https://github.com/brianwatling/libfiber/actions/workflows/debug.yml/badge.svg)
+![ASAN Build](https://github.com/brianwatling/libfiber/actions/workflows/asan.yml/badge.svg)
+![TSAN Build](https://github.com/brianwatling/libfiber/actions/workflows/tsan.yml/badge.svg)
 [![REUSE compliant](https://api.reuse.software/badge/github.com/brianwatling/libfiber)](https://api.reuse.software/info/github.com/brianwatling/libfiber)
 
 # A User Space Threading Library Supporting Multi-Core Systems
