@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2012-2023 Brian Watling <brian@oxbo.dev>
+# SPDX-License-Identifier: CC0-1.0
+name: Ubuntu Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  BUILD_TYPE: Debug
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DFIBER_ENABLE_TSAN=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Test
+      run: cd ${{github.workspace}}/build && ctest .
