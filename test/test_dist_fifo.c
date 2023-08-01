@@ -145,9 +145,14 @@ int main(int argc, char* argv[]) {
 
   thread_data_t total = {};
   for (i = 0; i < NUM_THREADS; ++i) {
-    void* to_free = NULL;
-    while ((to_free = dist_fifo_trypop(&fifo[i]))) {
-      free(to_free);
+    while (1) {
+      dist_fifo_node_t* to_free = dist_fifo_trypop(&fifo[i]);
+      if (to_free == DIST_FIFO_EMPTY) {
+        break;
+      }
+      if (to_free != DIST_FIFO_RETRY) {
+        free(to_free);
+      }
     }
     dist_fifo_destroy(&(fifo[i]));
     printf(
@@ -164,7 +169,8 @@ int main(int argc, char* argv[]) {
   free(fifo);
   free(data);
   printf(
-      "\ntotal - push: %lld pop: %lld steal: %lld attempt: %lld empty: %lld\n",
+      "\ntotal - push: %lld pop: %lld steal: %lld attempt: %lld empty: "
+      "%lld\n",
       total.push_count, total.pop_count, total.steal_count, total.attempt_count,
       total.empty_count);
 
