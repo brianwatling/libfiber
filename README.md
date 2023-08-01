@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2012-2023 Brian Watling <brian@oxbo.dev>
+SPDX-License-Identifier: CC0-1.0
+-->
+[![REUSE compliant](https://api.reuse.software/badge/github.com/brianwatling/libfiber)](https://api.reuse.software/info/github.com/brianwatling/libfiber)
 # A User Space Threading Library Supporting Multi-Core Systems
 
 - Lightweight user threads with support for blocking IO and fast context switching (ie. similar to Erlang or Go but using C)
@@ -93,6 +98,12 @@ Spawn a fiber running 'client_function' per client:
 ## TODO
 
 - Detect architecture automatically using known defines
+
+## License
+
+MIT License
+
+Copyright (c) 2012-2023 Brian Watling and other contributors
 
 ## Contributors
 

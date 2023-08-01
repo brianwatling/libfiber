@@ -1,0 +1,14 @@
+// SPDX-FileCopyrightText: 2023 Brian Watling <brian@oxbo.dev>
+// SPDX-License-Identifier: CC0-1.0
+{
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-vscode.cpptools",
+    "C_Cpp.clang_format_fallbackStyle": "Google",
+    "files.associations": {},
+    "C_Cpp.default.systemIncludePath": [
+        "/usr/include",
+    ],
+    "C_Cpp.loggingLevel": "Information",
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc",
+    "editor.tabSize": 2
+}

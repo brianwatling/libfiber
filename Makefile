@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2012-2023 Brian Watling <brian@oxbo.dev>
+# SPDX-License-Identifier: CC0-1.0
 
 all: libfiber.so bin/echo_server runtests
 
