@@ -2,10 +2,13 @@
 SPDX-FileCopyrightText: 2012-2023 Brian Watling <brian@oxbo.dev>
 SPDX-License-Identifier: CC0-1.0
 -->
+
 [![REUSE compliant](https://api.reuse.software/badge/github.com/brianwatling/libfiber)](https://api.reuse.software/info/github.com/brianwatling/libfiber)
+
 # A User Space Threading Library Supporting Multi-Core Systems
 
 - Lightweight user threads with support for blocking IO and fast context switching (ie. similar to Erlang or Go but using C)
+- Native system calls are automatically shimmed / intercepted and converted to be fiber-compatible
 - Fast, scalable load balancing across multiple cores
 - Lock-free data structures
 - Supports x86 and x86_64. Further architectures can be added easily.
@@ -29,6 +32,14 @@ SPDX-License-Identifier: CC0-1.0
 - libfiber.so overrides many system calls so make sure you know what you're doing
 - The makefile will attempt to detect gcc split stack support (Go uses this). This requires gcc 4.7 or higher. I recommend using this.
     - make CC=gcc-4.7
+
+## Dependencies
+
+None for the native event engine. If using the libev event engine then libev is required:
+
+```bash
+sudo apt-get install libev-dev
+```
 
 ## Example
 

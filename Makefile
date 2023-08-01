@@ -25,7 +25,8 @@ USE_NATIVE_EVENTS ?= 1
 ifeq ($(USE_NATIVE_EVENTS),1)
 CFILES += fiber_event_native.c
 else
-CFILES += fiber_event_ev.c ev.c
+CFILES += fiber_event_ev.c
+LDFLAGSAFTER += -lev
 endif
 
 LDFLAGS += -lm
@@ -46,6 +47,7 @@ endif
 
 ifeq ($(ARCH),x86_64)
 CFLAGS += -m64 -DARCH_x86_64
+LDFLAGS += -L/usr/lib/x86_64-linux-gnu
 endif
 ifeq ($(ARCH),x86)
 CFLAGS += -m32 -march=i686 -DARCH_x86
@@ -178,14 +180,6 @@ bin/test_%.o: test_%.c $(INCLUDES) $(TESTINCLUDES)
 
 bin/test_%: bin/test_%.o bin/libfiber.so
 	$(CC) -Werror $(LDFLAGS) $(CFLAGS) -L. -Lbin $^ -o $@ -lpthread $(LDFLAGSAFTER)
-
-#no -Werror for ev.c
-bin/ev.o: ev.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-#no -Werror for ev.c
-bin/ev.pic.o: ev.c $(INCLUDES)
-	$(CC) $(CFLAGS) -DEV_STANDALONE -DSHARED_LIB -fPIC -c $< -o $@
 
 bin/%.o: %.c $(INCLUDES)
 	$(CC) -Werror -DEV_STANDALONE $(CFLAGS) -c $< -o $@
