@@ -19,10 +19,16 @@ wsd_circular_array_t* wsd_circular_array_create(size_t log_size) {
   a->log_size = log_size;
   a->size = data_size;
   a->size_minus_one = a->size - 1;
+  a->prev = NULL;
   return a;
 }
 
-void wsd_circular_array_destroy(wsd_circular_array_t* a) { free(a); }
+void wsd_circular_array_destroy(wsd_circular_array_t* a) {
+  if (a->prev) {
+    wsd_circular_array_destroy(a->prev);
+  }
+  free(a);
+}
 
 wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a,
                                               int64_t start, int64_t end) {
@@ -37,6 +43,7 @@ wsd_circular_array_t* wsd_circular_array_grow(wsd_circular_array_t* a,
   for (i = start; i < end; ++i) {
     wsd_circular_array_put(new_a, i, wsd_circular_array_get(a, i));
   }
+  new_a->prev = a;
   return new_a;
 }
 

@@ -77,6 +77,7 @@ int main(int argc, char* argv[]) {
   for (i = 1; i < NUM_THREADS; ++i) {
     pthread_join(reader[i], NULL);
   }
+  wsd_work_stealing_deque_destroy(wsd_d2);
 
   uint64_t expected_total = 0;
   for (i = 0; i < SHARED_COUNT; ++i) {

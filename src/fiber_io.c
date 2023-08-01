@@ -66,7 +66,7 @@ typedef ssize_t (*recvfromFnType)(int, void* _RESTRICT_KYWD, size_t, int,
 typedef int (*ioctlFnType)(int d, int request, ...);
 #define IOCTLPARAMS int d, int request, ...
 
-#elif defined(LINUX)
+#elif defined(__linux__)
 
 typedef int (*acceptFnType)(int, struct sockaddr*, socklen_t*);
 #define ACCEPTPARAMS int sockfd, struct sockaddr *addr, socklen_t *addrlen

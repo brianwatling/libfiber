@@ -27,7 +27,7 @@ typedef struct mpmc_fifo_node {
 
 typedef struct mpmc_fifo {
   mpmc_fifo_node_t* volatile head;  // consumer reads items from head
-  char _cache_padding[CACHE_SIZE - sizeof(mpmc_fifo_node_t*)];
+  char _cache_padding[FIBER_CACHELINE_SIZE - sizeof(mpmc_fifo_node_t*)];
   mpmc_fifo_node_t* volatile tail;  // producer pushes onto the tail
 } mpmc_fifo_t;
 

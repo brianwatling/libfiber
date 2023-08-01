@@ -33,7 +33,7 @@ typedef struct thread_data {
   long long empty_count;
   long long attempt_count;
   volatile intptr_t dummy;
-} __attribute__((__aligned__(CACHE_SIZE))) thread_data_t;
+} __attribute__((__aligned__(FIBER_CACHELINE_SIZE))) thread_data_t;
 
 wsd_work_stealing_deque_t** fifo = NULL;
 thread_data_t* data = NULL;
@@ -105,6 +105,11 @@ void* run_function(void* param) {
       }
     }
   }
+  while (local_nodes) {
+    void* to_free = local_nodes;
+    local_nodes = local_nodes->next;
+    free(to_free);
+  }
   return NULL;
 }
 
@@ -145,6 +150,10 @@ int main(int argc, char* argv[]) {
 
   thread_data_t total = {};
   for (i = 0; i < NUM_THREADS; ++i) {
+    void* to_free = NULL;
+    while ((to_free = wsd_work_stealing_deque_pop_bottom(fifo[i]))) {
+      free(to_free);
+    }
     wsd_work_stealing_deque_destroy(fifo[i]);
     printf(
         "thread %d - push: %lld pop: %lld steal: %lld attempt: %lld empty: "
@@ -157,6 +166,8 @@ int main(int argc, char* argv[]) {
     total.empty_count += data[i].empty_count;
     total.attempt_count += data[i].attempt_count;
   }
+  free(fifo);
+  free(data);
   printf(
       "\ntotal - push: %lld pop: %lld steal: %lld attempt: %lld empty: %lld\n",
       total.push_count, total.pop_count, total.steal_count, total.attempt_count,

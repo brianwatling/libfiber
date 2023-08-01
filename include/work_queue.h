@@ -9,7 +9,7 @@
 typedef struct work_queue {
   mpsc_fifo_t fifo;
   volatile int64_t in_count;
-  char _cache_padding1[CACHE_SIZE - sizeof(int64_t)];
+  char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(int64_t)];
   volatile int64_t out_count;
 } work_queue_t;
 

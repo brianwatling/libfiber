@@ -3,7 +3,7 @@
 
 all: libfiber.so bin/echo_server runtests
 
-VPATH += example src test submodules/libev
+VPATH += example src test
 
 CFILES = \
     fiber_context.c \
@@ -46,14 +46,14 @@ ARCH=x86
 endif
 
 ifeq ($(ARCH),x86_64)
-CFLAGS += -m64 -DARCH_x86_64
+CFLAGS += -m64
 LDFLAGS += -L/usr/lib/x86_64-linux-gnu
 endif
 ifeq ($(ARCH),x86)
-CFLAGS += -m32 -march=i686 -DARCH_x86
+CFLAGS += -m32 -march=i686
 endif
 
-CFLAGS += -pthread -Wall -Iinclude -Isubmodules/libev -D_REENTRANT -ggdb -O3
+CFLAGS += -pthread -Wall -Iinclude -D_REENTRANT -ggdb -O3
 
 #don't use split-stack on gcc 4.6 since it doesn't implement getcontext, setcontext, or makecontext
 GCC46 = $(shell $(CC) -v 2>&1 | grep "gcc.*4.6" > /dev/null; echo $$?)
@@ -97,7 +97,6 @@ LDFLAGSAFTER += -lrt -lsocket
 endif
 
 ifeq ($(OS),Linux)
-CFLAGS += -DLINUX
 LDFLAGSAFTER += -ldl -lm -lrt
 endif
 
@@ -106,9 +105,6 @@ LINKER_SHARED_FLAG ?= -shared
 FAST_SWITCHING ?= 1
 LDFLAGSAFTER ?= 
 
-ifeq ($(USE_COMPILER_THREAD_LOCAL),1)
-CFLAGS += -DUSE_COMPILER_THREAD_LOCAL
-endif
 ifeq ($(FAST_SWITCHING),1)
 CFLAGS += -DFIBER_FAST_SWITCHING
 endif

@@ -11,7 +11,7 @@
 #include "fiber_event.h"
 #include "fiber_manager.h"
 #include "fiber_spinlock.h"
-#if defined(LINUX)
+#if defined(__linux__)
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #elif defined(SOLARIS)
@@ -35,7 +35,7 @@ static int event_fd = -1;
 static fiber_spinlock_t sleep_spinlock = FIBER_SPINLOCK_INITIALIER;
 static uint64_t timer_trigger_count = 0;
 
-#if defined(LINUX)
+#if defined(__linux__)
 static int timer_fd = -1;
 typedef ssize_t (*readFnType)(int, void*, size_t);
 static readFnType fibershim_read = NULL;
@@ -110,7 +110,7 @@ int fiber_event_init() {
   wait_info = calloc(max_fd, sizeof(*wait_info));
   assert(wait_info);
 
-#if defined(LINUX)
+#if defined(__linux__)
   timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
   assert(timer_fd >= 0);
   struct itimerspec in = {};
@@ -167,7 +167,7 @@ void fiber_event_destroy() {
     return;
   }
 
-#if defined(LINUX)
+#if defined(__linux__)
   close(timer_fd);
   timer_fd = -1;
   close(event_fd);
@@ -217,7 +217,7 @@ static void fiber_event_wake_sleepers(fiber_manager_t* manager,
 }
 
 static int fiber_poll_events_internal(uint32_t seconds, uint32_t useconds) {
-#if defined(LINUX)
+#if defined(__linux__)
   struct epoll_event events[64];
   const int count =
       epoll_wait(event_fd, events, 64, seconds * 1000 + useconds / 1000);
@@ -329,7 +329,7 @@ int fiber_wait_for_event(int fd, uint32_t events) {
   fd_wait_info_t* const info = &wait_info[fd];
   fiber_spinlock_lock(&info->spinlock);
 
-#if defined(LINUX)
+#if defined(__linux__)
   if (events & FIBER_POLL_IN) {
     info->events |= EPOLLIN;
   }
@@ -407,7 +407,7 @@ void fiber_fd_closed(int fd) {
   assert(fd < max_fd);
   fd_wait_info_t* const info = &wait_info[fd];
   fiber_spinlock_lock(&info->spinlock);
-#if defined(LINUX)
+#if defined(__linux__)
   if (info->events || info->added) {
     epoll_ctl(event_fd, EPOLL_CTL_DEL, fd, NULL);
     info->events = 0;

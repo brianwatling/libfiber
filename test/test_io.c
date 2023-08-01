@@ -17,7 +17,7 @@
 #define NUM_THREADS 1
 #define NUM_FIBERS 200
 
-#ifdef LINUX
+#ifdef __linux__
 const char* LOCALHOST = "0.0.0.0";
 #else
 const char* LOCALHOST = "localhost";

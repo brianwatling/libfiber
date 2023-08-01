@@ -25,6 +25,7 @@ int main() {
 
   fiber_context_t ctx[2];
   expected = &ctx[0];
+  memset(&ctx[0], 0, sizeof(ctx[0]));
 
   test_assert(fiber_context_init_from_thread(&ctx[0]));
   test_assert(fiber_context_init(&ctx[1], 1024, &switch_to, ctx));

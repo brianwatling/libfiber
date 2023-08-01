@@ -21,9 +21,9 @@ typedef struct fiber_bounded_channel {
   // putting high and low on separate cache lines provides a slight performance
   // increase
   volatile uint64_t high;
-  char _cache_padding1[CACHE_SIZE - sizeof(uint64_t)];
+  char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(uint64_t)];
   volatile uint64_t low;
-  char _cache_padding2[CACHE_SIZE - sizeof(uint64_t)];
+  char _cache_padding2[FIBER_CACHELINE_SIZE - sizeof(uint64_t)];
   volatile uint64_t send_count;
   mpsc_fifo_t waiters;
   fiber_signal_t* ready_signal;

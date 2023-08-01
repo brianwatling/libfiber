@@ -437,8 +437,6 @@ void fiber_context_swap(fiber_context_t* from_context,
 
 int fiber_context_init(fiber_context_t* context, size_t stack_size,
                        fiber_run_function_t run_function, void* param) {
-  if (stack_size < MINSIGSTKSZ) stack_size = MINSIGSTKSZ;
-
   context->ctx_stack_pointer = malloc(sizeof(ucontext_t));
   if (!context->ctx_stack_pointer) {
     errno = ENOMEM;

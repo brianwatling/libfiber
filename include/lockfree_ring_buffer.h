@@ -15,9 +15,9 @@ typedef struct lockfree_ring_buffer {
   // high and low are generally used together; no point putting them on separate
   // cache lines
   volatile uint64_t high;
-  char _cache_padding1[CACHE_SIZE - sizeof(uint64_t)];
+  char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(uint64_t)];
   volatile uint64_t low;
-  char _cache_padding2[CACHE_SIZE - sizeof(uint64_t)];
+  char _cache_padding2[FIBER_CACHELINE_SIZE - sizeof(uint64_t)];
   uint32_t size;
   uint32_t power_of_2_mod;
   // buffer must be last - it spills outside of this struct

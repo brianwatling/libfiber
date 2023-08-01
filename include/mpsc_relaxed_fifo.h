@@ -23,9 +23,9 @@
 typedef struct mpscr_fifo {
   size_t counter;  // this increments on each read. (counter % num_producers)
                    // indicates which producer will be popped from next
-  char _cache_padding1[CACHE_SIZE - sizeof(size_t)];
+  char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(size_t)];
   size_t num_producers;
-  char _cache_padding2[CACHE_SIZE - sizeof(size_t)];
+  char _cache_padding2[FIBER_CACHELINE_SIZE - sizeof(size_t)];
   spsc_fifo_t fifos[];
 } mpscr_fifo_t;
 

@@ -26,12 +26,8 @@ SPDX-License-Identifier: CC0-1.0
 
 - Type 'make' to build the library and run the unit tests
 - Link your application to libfiber.so
-- Be sure to define the architecture when including libfiber's headers. You can specify the following gcc flags:
-    - For x86 64 bit: -m64 -DARCH_x86_64
-    - For x86 32 bit: -m32 -march=i686 -DARCH_x86
-- libfiber.so overrides many system calls so make sure you know what you're doing
-- The makefile will attempt to detect gcc split stack support (Go uses this). This requires gcc 4.7 or higher. I recommend using this.
-    - make CC=gcc-4.7
+- libfiber.so overrides many system calls. Be careful to link libfiber in the correct order (the io shims will either work or they won't!)
+- The build system will attempt to detect and use gcc split stack support (Golang uses this for their stacks). 
 
 ## Dependencies
 
@@ -73,6 +69,8 @@ Spawn a fiber running 'client_function' per client:
 - Call fiber_manager_init() at the beginning of your program
     - Specify the number of kernel threads (ie. CPUs) to use
     - This will initialize the event system and shim blocking IO calls
+    - Call fiber_shutdown() at exit if you'd like to clean up.
+    - TODO(bwatling): test fiber_manager_init after having called fiber_shutdown
 - Familiar threading concepts are available in include/
     - Mutexes
     - Semaphores

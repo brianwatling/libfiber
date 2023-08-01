@@ -4,11 +4,24 @@
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "ms-vscode.cpptools",
     "C_Cpp.clang_format_fallbackStyle": "Google",
-    "files.associations": {},
+    "files.associations": {
+        "fiber_context.h": "c",
+        "stddef.h": "c",
+        "epoll.h": "c",
+        "signal.h": "c"
+    },
     "C_Cpp.default.systemIncludePath": [
-        "/usr/include",
+        "${workspaceFolder}/**",
+        "/usr/lib/gcc/x86_64-linux-gnu/**",
+        "/usr/include/**"
     ],
     "C_Cpp.loggingLevel": "Information",
-    "C_Cpp.default.compilerPath": "/usr/bin/gcc",
-    "editor.tabSize": 2
+    "C_Cpp.default.compilerPath": "/usr/bin/g++",
+    "editor.tabSize": 2,
+    "[go]": {
+        "editor.defaultFormatter": "golang.go"
+    },
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "cmake.loadCompileCommands": true,
+    "C_Cpp.intelliSenseEngineFallback": "enabled"
 }

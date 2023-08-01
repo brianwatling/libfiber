@@ -42,9 +42,9 @@ typedef struct dist_fifo {
   volatile dist_fifo_pointer_wrapper_t __attribute__((
       __aligned__(2 * sizeof(void*))))
   head;  // volatile is required to prevent compiler optimizations. true story.
-  char _cache_padding1[CACHE_SIZE - sizeof(dist_fifo_pointer_wrapper_t)];
+  char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(dist_fifo_pointer_wrapper_t)];
   dist_fifo_node_t* tail;
-  char _cache_padding2[CACHE_SIZE - sizeof(dist_fifo_node_t*)];
+  char _cache_padding2[FIBER_CACHELINE_SIZE - sizeof(dist_fifo_node_t*)];
 } __attribute__((__packed__)) dist_fifo_t;
 
 static inline int dist_fifo_init(dist_fifo_t* fifo) {
@@ -54,7 +54,7 @@ static inline int dist_fifo_init(dist_fifo_t* fifo) {
   assert((uintptr_t)fifo % (2 * sizeof(void*)) ==
          0);  // alignment (TODO: need a better solution than this. perhaps
               // allocate the memory for the fifo here)
-  assert(sizeof(dist_fifo_t) == 2 * CACHE_SIZE);
+  assert(sizeof(dist_fifo_t) == 2 * FIBER_CACHELINE_SIZE);
   memset((void*)&fifo->head, 0, sizeof(fifo->head));
   fifo->tail = (dist_fifo_node_t*)calloc(1, sizeof(*fifo->tail));
   fifo->head.pointer.node = fifo->tail;

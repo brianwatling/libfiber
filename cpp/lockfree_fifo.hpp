@@ -204,12 +204,12 @@ struct tagged_pointer {
   }
 
   bool compare_and_swap(snapshot_type const& original, T updated) {
-#if defined(ARCH_x86)
+#if defined(__i386__)
     return __sync_bool_compare_and_swap(
         reinterpret_cast<uint64_t*>(&tag),
         *reinterpret_cast<const uint64_t*>(&original),
         *reinterpret_cast<uint64_t*>(&updated));
-#elif defined(ARCH_x86_64)
+#elif defined(__x86_64__)
     char result;
     __asm__ __volatile__(
         "lock cmpxchg16b %1\n\t"
@@ -289,7 +289,7 @@ struct spin {
 
 struct relax {
   void wait() {
-#if defined(ARCH_x86) || defined(ARCH_x86_64)
+#if defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("pause" : : : "memory");
 #else
 #warning no cpu_relax() defined for this architecture. please consider defining one if possible.

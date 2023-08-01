@@ -115,10 +115,10 @@ static inline int fifo_steal_buffer_steal(fifo_steal_buffer_t* fifo,
 typedef struct sharded_fifo_steal_buffer {
   uint32_t num_shards;
   uint32_t memory_per_shard;
-  char _padding1[CACHE_SIZE - 2 * sizeof(uint32_t)];
+  char _padding1[FIBER_CACHELINE_SIZE - 2 * sizeof(uint32_t)];
   uint32_t next_shard_push;
   uint32_t next_shard_pop;
-  char _padding2[CACHE_SIZE - 2 * sizeof(uint32_t)];
+  char _padding2[FIBER_CACHELINE_SIZE - 2 * sizeof(uint32_t)];
   fifo_steal_buffer_t shards[];
 } sharded_fifo_steal_buffer_t;
 

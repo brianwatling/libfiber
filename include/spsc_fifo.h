@@ -29,7 +29,7 @@ typedef struct spsc_node {
 
 typedef struct spsc_fifo {
   spsc_node_t* head;  // consumer read items from head
-  char _cache_padding1[CACHE_SIZE - sizeof(spsc_node_t*)];
+  char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(spsc_node_t*)];
   spsc_node_t* tail;  // producer pushes onto the tail
 } spsc_fifo_t;
 

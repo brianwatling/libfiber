@@ -127,48 +127,13 @@ void* fiber_load_symbol(const char* symbol) {
   return ret;
 }
 
-#ifdef USE_COMPILER_THREAD_LOCAL
 __thread fiber_manager_t* fiber_the_manager = NULL;
 
 fiber_manager_t* fiber_manager_get() { return fiber_the_manager; }
-#else
-static pthread_key_t fiber_manager_key;
-static pthread_once_t fiber_manager_key_once = PTHREAD_ONCE_INIT;
-
-static void fiber_manager_make_key() {
-  const int ret = pthread_key_create(&fiber_manager_key, NULL);
-  if (ret) {
-    assert(0 && "pthread_key_create() failed!");
-    abort();
-  }
-}
-
-fiber_manager_t* fiber_manager_get() {
-  fiber_manager_t* ret =
-      (fiber_manager_t*)pthread_getspecific(fiber_manager_key);
-  if (!ret) {
-    ret = fiber_manager_create();
-    assert(ret);
-    if (pthread_setspecific(fiber_manager_key, ret)) {
-      assert(0 && "pthread_setspecific() failed!");
-      abort();
-    }
-  }
-  return ret;
-}
-#endif
 
 static void* fiber_manager_thread_func(void* param) {
-  /* set the thread local, then start running fibers */
-#ifdef USE_COMPILER_THREAD_LOCAL
+  // set the thread local, then start running fibers
   fiber_the_manager = (fiber_manager_t*)param;
-#else
-  const int ret = pthread_setspecific(fiber_manager_key, param);
-  if (ret) {
-    assert(0 && "pthread_setspecific() failed!");
-    abort();
-  }
-#endif
 
   splitstack_disable_block_signals();
 
@@ -219,15 +184,7 @@ int fiber_manager_init(size_t num_threads) {
       fiber_manager_create(fiber_scheduler_for_thread(0));
   assert(main_manager);
 
-#ifdef USE_COMPILER_THREAD_LOCAL
   fiber_the_manager = main_manager;
-#else
-  const int ret = pthread_setspecific(fiber_manager_key, main_manager);
-  if (ret) {
-    assert(0 && "pthread_setspecific() failed!");
-    abort();
-  }
-#endif
 
   fiber_managers[0] = main_manager;
 
