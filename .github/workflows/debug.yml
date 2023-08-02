@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2012-2023 Brian Watling <brian@oxbo.dev>
 # SPDX-License-Identifier: CC0-1.0
-name: Ubuntu Debug Build
+name: Debug Build/Test
 
 on:
   push:
@@ -26,3 +26,6 @@ jobs:
 
     - name: Test
       run: cd ${{github.workspace}}/build && ctest .
+
+    - name: Print test details
+      run: cat /home/runner/work/libfiber/libfiber/build/Testing/Temporary/LastTest.log

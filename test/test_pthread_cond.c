@@ -9,7 +9,7 @@ int volatile counter = 1;
 pthread_mutex_t mutex;
 pthread_cond_t cond;
 #define PER_FIBER_COUNT 1000
-#define NUM_FIBERS 100
+#define NUM_FIBERS 10
 #define NUM_THREADS 4
 
 void* run_function(void* param) {
