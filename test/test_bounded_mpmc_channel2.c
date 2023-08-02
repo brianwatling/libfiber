@@ -32,7 +32,7 @@ void receiver(fiber_multi_channel_t* ch) {
 }
 
 void sender(fiber_multi_channel_t* ch) {
-  intptr_t n = 1;
+  intptr_t n = 0;
   int i;
   for (i = 0; i < send_count; ++i) {
     fiber_multi_channel_send(ch, (void*)n);
@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
   }
   fiber_manager_init(num_threads);
 
-  ch1 = fiber_multi_channel_create(10, 0);
+  ch1 = fiber_multi_channel_create(10);
 
   fiber_t** fibers = calloc(count, sizeof(fiber_t*));
   int i;

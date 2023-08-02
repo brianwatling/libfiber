@@ -10,6 +10,8 @@
 #include "fiber.h"
 #include "machine_specific.h"
 
+// A signal can be waited on by exactly one fiber. Any number of threads can
+// raise the signal.
 typedef struct fiber_signal {
   fiber_t* waiter;
 } fiber_signal_t;
@@ -72,6 +74,8 @@ static inline int fiber_signal_raise(fiber_signal_t* s) {
   return 0;
 }
 
+// A multi-signal allows any number of fibers to wait. Any number of fibers can
+// raise the signal.
 typedef union fiber_multi_signal {
   struct {
     uintptr_t volatile counter;
@@ -171,6 +175,10 @@ static inline int fiber_multi_signal_raise(fiber_multi_signal_t* s) {
       // there's a waiter -> try to wake him
       fiber_multi_signal_t new_value;
       new_value.data.counter = snapshot.data.counter + 1;
+      // TODO(bwatling): reading head->next here is unsafe because head could
+      // technically be consumed and freed in parallel. This is one of the
+      // reasons why keeping a free-list of fibers was nice - no fibers would
+      // ever be freed and hence this type of problem could be ignored.
       new_value.data.head = snapshot.data.head->next;
       if (compare_and_swap2(&s->blob, &snapshot.blob, &new_value.blob)) {
         // we successfully signalled a waiting fiber

@@ -15,8 +15,8 @@
 #include "mpsc_fifo.h"
 #include "spsc_fifo.h"
 
-// a bounded channel. send and receive will block. there can be many senders but
-// only one receiver
+// a bounded channel. send will spin-loop and receive will block. there can be
+// many senders but only one receiver
 typedef struct fiber_bounded_channel {
   // putting high and low on separate cache lines provides a slight performance
   // increase
@@ -24,7 +24,6 @@ typedef struct fiber_bounded_channel {
   char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(uint64_t)];
   volatile uint64_t low;
   char _cache_padding2[FIBER_CACHELINE_SIZE - sizeof(uint64_t)];
-  volatile uint64_t send_count;
   mpsc_fifo_t waiters;
   fiber_signal_t* ready_signal;
   uint32_t size;
@@ -69,8 +68,6 @@ static inline int fiber_bounded_channel_send(fiber_bounded_channel_t* channel,
   assert(message);  // can't store NULLs; we rely on a NULL to indicate a spot
                     // in the buffer has not been written yet
 
-  __sync_fetch_and_add(&channel->send_count, 1);
-
   while (1) {
     const uint64_t low = channel->low;
     load_load_barrier();  // read low first; this means the buffer will appear
@@ -85,7 +82,7 @@ static inline int fiber_bounded_channel_send(fiber_bounded_channel_t* channel,
       }
       return 0;
     }
-    fiber_manager_wait_in_mpsc_queue(fiber_manager_get(), &channel->waiters);
+    fiber_yield();
   }
   return 0;
 }
@@ -95,8 +92,6 @@ static inline void* fiber_bounded_channel_receive(
   assert(channel);
 
   while (1) {
-    const uint64_t send_count = channel->send_count;
-    load_load_barrier();
     const uint64_t high = channel->high;
     load_load_barrier();  // read high first; this means the buffer will appear
                           // smaller or equal to its actual size
@@ -107,14 +102,12 @@ static inline void* fiber_bounded_channel_receive(
       channel->buffer[index] = 0;
       write_barrier();
       channel->low = low + 1;
-      if (high < send_count) {
-        fiber_manager_wake_from_mpsc_queue(fiber_manager_get(),
-                                           &channel->waiters, 0);
-      }
       return ret;
     }
     if (channel->ready_signal) {
       fiber_signal_wait(channel->ready_signal);
+    } else {
+      fiber_yield();
     }
   }
   return NULL;
@@ -124,8 +117,6 @@ static inline int fiber_bounded_channel_try_receive(
     fiber_bounded_channel_t* channel, void** out) {
   assert(channel);
 
-  const uint64_t send_count = channel->send_count;
-  load_load_barrier();
   const uint64_t high = channel->high;
   load_load_barrier();  // read high first; this means the buffer will appear
                         // smaller or equal to its actual size
@@ -136,10 +127,6 @@ static inline int fiber_bounded_channel_try_receive(
     channel->buffer[index] = 0;
     write_barrier();
     channel->low = low + 1;
-    if (high < send_count) {
-      fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &channel->waiters,
-                                         0);
-    }
     *out = ret;
     return 1;
   }

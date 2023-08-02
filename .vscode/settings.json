@@ -8,7 +8,8 @@
         "fiber_context.h": "c",
         "stddef.h": "c",
         "epoll.h": "c",
-        "signal.h": "c"
+        "signal.h": "c",
+        "fiber_channel.h": "c"
     },
     "C_Cpp.default.systemIncludePath": [
         "${workspaceFolder}/**",

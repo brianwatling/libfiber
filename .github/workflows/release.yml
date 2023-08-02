@@ -27,5 +27,5 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
-    #- name: Test
-    #  run: cd ${{github.workspace}}/build && ctest .
+    - name: Test
+      run: cd ${{github.workspace}}/build && ctest .

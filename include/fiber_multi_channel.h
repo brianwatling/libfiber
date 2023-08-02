@@ -28,7 +28,7 @@ typedef struct fiber_multi_channel {
 } fiber_multi_channel_t;
 
 static inline fiber_multi_channel_t* fiber_multi_channel_create(
-    uint32_t power_of_2_size, void* sentinel) {
+    uint32_t power_of_2_size) {
   assert(power_of_2_size && power_of_2_size < 32);
   const size_t size = 1 << power_of_2_size;
   const size_t required_size =
