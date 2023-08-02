@@ -27,6 +27,9 @@ typedef struct fiber_context {
 #ifdef FIBER_STACK_SPLIT
   splitstack_context_t splitstack_context;
 #endif
+#if __SANITIZE_THREAD__
+  void* tsan_fiber;
+#endif
 } fiber_context_t;
 
 #ifdef __cplusplus

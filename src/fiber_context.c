@@ -36,6 +36,10 @@
   } while (0)
 #endif  // USE_VALGRIND
 
+#if __SANITIZE_THREAD__
+#include <sanitizer/tsan_interface.h>
+#endif
+
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
 #endif
@@ -291,6 +295,10 @@ int fiber_context_init(fiber_context_t* context, size_t stack_size,
 
   STACK_REGISTER(context, context->ctx_stack, context->ctx_stack_size);
 
+#if __SANITIZE_THREAD__
+  context->tsan_fiber = __tsan_create_fiber(0);
+#endif
+
   context->is_thread = 0;
   return FIBER_SUCCESS;
 }
@@ -302,6 +310,9 @@ int fiber_context_init_from_thread(fiber_context_t* context) {
   }
   memset(context, 0, sizeof(*context));
   context->is_thread = 1;
+#if __SANITIZE_THREAD__
+  context->tsan_fiber = __tsan_get_current_fiber();
+#endif
   return FIBER_SUCCESS;
 }
 
@@ -309,6 +320,9 @@ void fiber_context_destroy(fiber_context_t* context) {
   if (context && !context->is_thread) {
     STACK_DEREGISTER(context);
     fiber_free_stack(context);
+#if __SANITIZE_THREAD__
+    __tsan_destroy_fiber(context->tsan_fiber);
+#endif
   }
 }
 
@@ -318,6 +332,9 @@ void fiber_context_swap(fiber_context_t* from_context,
   assert(to_context);
   void*** const from_sp = &from_context->ctx_stack_pointer;
   void** const to_sp = to_context->ctx_stack_pointer;
+#if __SANITIZE_THREAD__
+  __tsan_switch_to_fiber(to_context->tsan_fiber, 0);
+#endif
 
   /*
       Here the machine context is saved on the stack.
