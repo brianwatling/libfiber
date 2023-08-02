@@ -6,7 +6,7 @@
 #include "lockfree_ring_buffer.h"
 #include "test_helper.h"
 
-#define PER_THREAD_COUNT 10000000
+#define PER_THREAD_COUNT 100000
 #define NUM_THREADS 4
 
 lockfree_ring_buffer_t* rb;

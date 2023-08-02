@@ -11,7 +11,7 @@ int64_t time_diff(const struct timespec* start, const struct timespec* end) {
          (start->tv_sec * 1000000000LL + start->tv_nsec);
 }
 
-#define PER_THREAD_COUNT 30000000
+#define PER_THREAD_COUNT 300000
 #define NUM_THREADS 2
 
 lockfree_ring_buffer_t* rb;

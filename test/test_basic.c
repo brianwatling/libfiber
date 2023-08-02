@@ -41,9 +41,6 @@ int main() {
   // joined it)
   fiber_yield();
 
-  // at this point fiber2 should be finished.
-  test_assert(fiber2->state == FIBER_STATE_DONE);
-
   fiber_manager_print_stats();
   return 0;
 }

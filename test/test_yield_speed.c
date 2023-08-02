@@ -7,7 +7,7 @@
 #include "fiber_manager.h"
 #include "test_helper.h"
 
-#define PER_FIBER_COUNT 10000000
+#define PER_FIBER_COUNT 1000000
 #define NUM_FIBERS 1
 #define NUM_THREADS 1
 

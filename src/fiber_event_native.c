@@ -107,6 +107,7 @@ int fiber_event_init() {
   }
   max_fd = file_lim.rlim_max;
 
+  assert(!wait_info);
   wait_info = calloc(max_fd, sizeof(*wait_info));
   assert(wait_info);
 
@@ -162,7 +163,7 @@ int fiber_event_init() {
   return FIBER_SUCCESS;
 }
 
-void fiber_event_destroy() {
+void fiber_event_shutdown() {
   if (event_fd < 0) {
     return;
   }

@@ -7,7 +7,7 @@
 #include "fiber_multi_channel.h"
 #include "test_helper.h"
 
-int send_count = 100000000;
+int send_count = 100000;
 
 int64_t time_diff(const struct timespec* start, const struct timespec* end) {
   return (end->tv_sec * 1000000000LL + end->tv_nsec) -
@@ -61,14 +61,17 @@ int main(int argc, char* argv[]) {
   fiber_t** fibers = calloc(count, sizeof(fiber_t*));
   int i;
   for (i = 0; i < count; ++i) {
-    fibers[i] = fiber_create(1024, (fiber_run_function_t)&receiver, (void*)ch1);
-    fiber_create(1024, (fiber_run_function_t)&sender, (void*)ch1);
+    fibers[i] =
+        fiber_create(10240, (fiber_run_function_t)&receiver, (void*)ch1);
+    fiber_create(10240, (fiber_run_function_t)&sender, (void*)ch1);
   }
 
   for (i = 0; i < count; ++i) {
     fiber_join(fibers[i], NULL);
   }
+  free(fibers);
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

@@ -42,7 +42,7 @@ int fiber_event_init() {
   return fiber_loop ? FIBER_SUCCESS : FIBER_ERROR;
 }
 
-void fiber_event_destroy() {
+void fiber_event_shutdown() {
   fiber_spinlock_lock(&fiber_loop_spinlock);
   if (fiber_loop) {
     ev_loop_destroy(fiber_loop);

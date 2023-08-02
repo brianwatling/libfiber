@@ -7,7 +7,7 @@
 
 fiber_bounded_channel_t* channel_one = NULL;
 fiber_bounded_channel_t* channel_two = NULL;
-#define PER_FIBER_COUNT 10000000
+#define PER_FIBER_COUNT 100000
 #define NUM_THREADS 2
 
 void* ping_function(void* param) {
@@ -54,5 +54,6 @@ int main(int argc, char* argv[]) {
   fiber_signal_destroy(&signal_two);
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

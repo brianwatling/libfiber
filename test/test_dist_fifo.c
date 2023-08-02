@@ -168,6 +168,7 @@ int main(int argc, char* argv[]) {
   }
   free(fifo);
   free(data);
+  free(threads);
   printf(
       "\ntotal - push: %lld pop: %lld steal: %lld attempt: %lld empty: "
       "%lld\n",

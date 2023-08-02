@@ -14,6 +14,8 @@ typedef void* fiber_scheduler_t;
 
 int fiber_scheduler_init(size_t num_threads);
 
+void fiber_scheduler_shutdown();
+
 fiber_scheduler_t* fiber_scheduler_for_thread(size_t thread_id);
 
 void fiber_scheduler_schedule(fiber_scheduler_t* scheduler, fiber_t* the_fiber);

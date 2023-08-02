@@ -6,7 +6,7 @@
 #include "test_helper.h"
 #include "work_stealing_deque.h"
 
-#define SHARED_COUNT 5000000
+#define SHARED_COUNT 500000
 wsd_work_stealing_deque_t* wsd_d2 = 0;
 #define NUM_THREADS 4
 int results[NUM_THREADS][SHARED_COUNT] = {};

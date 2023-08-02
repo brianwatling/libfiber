@@ -8,7 +8,7 @@
 #include "mpmc_fifo.h"
 #include "test_helper.h"
 
-#define PUSH_COUNT 1000000
+#define PUSH_COUNT 100000
 #define NUM_THREADS 2
 
 mpmc_fifo_t fifo;

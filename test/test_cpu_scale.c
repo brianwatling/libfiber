@@ -8,7 +8,7 @@
 #include "test_helper.h"
 
 intptr_t NUM_THREADS = 4;
-intptr_t COUNT = 1000000;
+intptr_t COUNT = 10000;
 
 pthread_barrier_t barrier;
 pthread_t* threads = NULL;

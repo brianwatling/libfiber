@@ -21,7 +21,7 @@ volatile int done_count = 0;
 
 void* sleep_function(void* param) {
   int i;
-  for (i = 0; i < 1000; ++i) {
+  for (i = 0; i < 100; ++i) {
     usleep(rand() % 1000 + 1000);
   }
   __sync_fetch_and_add(&done_count, 1);
@@ -40,16 +40,17 @@ int main() {
   int join_count = 0;
   while (join_count < NUM_FIBERS) {
     for (i = 0; i < NUM_FIBERS; ++i) {
-      if (fiber_tryjoin(fibers[i], NULL)) {
+      if (fibers[i] && fiber_tryjoin(fibers[i], NULL)) {
         ++join_count;
+        fibers[i] = NULL;
+        printf("tryjoin. joined: %d done %d\n", join_count, done_count);
       }
     }
     usleep(10000);
     printf("tryjoin. joined: %d done %d\n", join_count, done_count);
   }
 
-  fiber_event_destroy();
-
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

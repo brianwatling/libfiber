@@ -39,12 +39,19 @@ int fiber_scheduler_wsd_init(fiber_scheduler_wsd_t* scheduler, size_t id) {
   return 1;
 }
 
+void fiber_scheduler_wsd_destroy(fiber_scheduler_wsd_t* scheduler) {
+  wsd_work_stealing_deque_destroy(scheduler->queue_one);
+  wsd_work_stealing_deque_destroy(scheduler->queue_two);
+}
+
 int fiber_scheduler_init(size_t num_threads) {
   assert(num_threads > 0);
   fiber_scheduler_num_threads = num_threads;
 
+  assert(!fiber_schedulers);
   fiber_schedulers = calloc(num_threads, sizeof(*fiber_schedulers));
   assert(fiber_schedulers);
+  assert(!fiber_scheduler_thread_queues);
   fiber_scheduler_thread_queues =
       calloc(2 * num_threads, sizeof(*fiber_scheduler_thread_queues));
   assert(fiber_scheduler_thread_queues);
@@ -58,6 +65,17 @@ int fiber_scheduler_init(size_t num_threads) {
     fiber_scheduler_thread_queues[i * 2 + 1] = fiber_schedulers[i].queue_two;
   }
   return 1;
+}
+
+void fiber_scheduler_shutdown() {
+  size_t i;
+  for (i = 0; i < fiber_scheduler_num_threads; ++i) {
+    fiber_scheduler_wsd_destroy(&fiber_schedulers[i]);
+  }
+  free(fiber_schedulers);
+  fiber_schedulers = NULL;
+  free(fiber_scheduler_thread_queues);
+  fiber_scheduler_thread_queues = NULL;
 }
 
 fiber_scheduler_t* fiber_scheduler_for_thread(size_t thread_id) {

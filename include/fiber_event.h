@@ -20,7 +20,7 @@ extern "C" {
 
 extern int fiber_event_init();
 
-extern void fiber_event_destroy();
+extern void fiber_event_shutdown();
 
 #define FIBER_EVENT_NONE (0)
 #define FIBER_EVENT_NOTINIT (-1)

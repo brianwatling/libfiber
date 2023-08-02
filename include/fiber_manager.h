@@ -53,8 +53,6 @@ typedef struct fiber_manager {
 extern "C" {
 #endif
 
-extern fiber_manager_t* fiber_manager_create(fiber_scheduler_t* scheduler);
-
 static inline void fiber_manager_schedule(fiber_manager_t* manager,
                                           fiber_t* the_fiber) {
   assert(manager);

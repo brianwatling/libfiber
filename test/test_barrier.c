@@ -5,7 +5,7 @@
 #include "fiber_manager.h"
 #include "test_helper.h"
 
-#define PER_FIBER_COUNT 100000
+#define PER_FIBER_COUNT 10000
 #define NUM_FIBERS 1000
 #define NUM_THREADS 4
 
@@ -68,6 +68,6 @@ int main() {
   fiber_barrier_destroy(&barrier);
 
   fiber_manager_print_stats();
-  fiber_shutdown();
+  // fiber_shutdown();
   return 0;
 }

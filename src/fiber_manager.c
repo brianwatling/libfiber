@@ -33,16 +33,22 @@ void splitstack_disable_block_signals() {
 }
 #endif
 
+#define FIBER_MANAGER_MAX_HAZARDS MPMC_HAZARD_COUNT
+
 static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
 static int fiber_manager_num_threads = 0;
 static pthread_t* fiber_manager_threads = NULL;
 static fiber_manager_t** fiber_managers = NULL;
 static volatile int fiber_shutting_down = 0;
+static lockfree_ring_buffer_t* volatile fiber_free_mpmc_nodes = NULL;
+static hazard_pointer_thread_record_t* fiber_hazard_head = NULL;
 
 void fiber_destroy(fiber_t* f) {
   if (f) {
-    assert(f->state == FIBER_STATE_DONE);
+    assert(f->state == FIBER_STATE_DONE ||
+           (f->context.is_thread && fiber_shutting_down));
     fiber_context_destroy(&f->context);
+    free(f->mpsc_fifo_node);
     free(f);
   }
 }
@@ -64,6 +70,11 @@ fiber_manager_t* fiber_manager_create(fiber_scheduler_t* scheduler) {
     return NULL;
   }
   return manager;
+}
+
+static void fiber_manager_destroy(fiber_manager_t* manager) {
+  fiber_destroy(manager->thread_fiber);
+  free(manager);
 }
 
 static void* fiber_manager_thread_func(void* param);
@@ -101,7 +112,6 @@ void fiber_manager_yield(fiber_manager_t* manager) {
       if (!manager->maintenance_fiber) {
         manager->maintenance_fiber =
             fiber_create_no_sched(102400, &fiber_manager_thread_func, manager);
-        fiber_detach(manager->maintenance_fiber);
       }
 
       fiber_manager_switch_to(manager, current_fiber,
@@ -131,6 +141,8 @@ __thread fiber_manager_t* fiber_the_manager = NULL;
 
 fiber_manager_t* fiber_manager_get() { return fiber_the_manager; }
 
+extern void fiber_mark_completed(fiber_t* the_fiber, void* result);
+
 static void* fiber_manager_thread_func(void* param) {
   // set the thread local, then start running fibers
   fiber_the_manager = (fiber_manager_t*)param;
@@ -158,11 +170,18 @@ static void* fiber_manager_thread_func(void* param) {
       }
     }
   }
+  if (manager->maintenance_fiber != manager->thread_fiber) {
+    fiber_mark_completed(manager->maintenance_fiber, NULL);
+    while (1) {
+      fiber_manager_yield(fiber_manager_get());
+    }
+  }
   return NULL;
 }
 
 int fiber_manager_init(size_t num_threads) {
   splitstack_disable_block_signals();
+  fiber_shutting_down = 0;
 
   if (fiber_manager_get_state() != FIBER_MANAGER_STATE_NONE) {
     errno = EINVAL;
@@ -174,9 +193,11 @@ int fiber_manager_init(size_t num_threads) {
     return FIBER_ERROR;
   }
 
+  assert(!fiber_manager_threads);
   fiber_manager_threads = calloc(num_threads, sizeof(*fiber_manager_threads));
   assert(fiber_manager_threads);
   fiber_manager_num_threads = num_threads;
+  assert(!fiber_managers);
   fiber_managers = calloc(num_threads, sizeof(*fiber_managers));
   assert(fiber_managers);
 
@@ -187,6 +208,7 @@ int fiber_manager_init(size_t num_threads) {
   fiber_the_manager = main_manager;
 
   fiber_managers[0] = main_manager;
+  fiber_manager_threads[0] = pthread_self();
 
   fiber_manager_state = FIBER_MANAGER_STATE_STARTED;
 
@@ -203,6 +225,7 @@ int fiber_manager_init(size_t num_threads) {
   pthread_attr_init(&attr);
   pthread_attr_setstacksize(&attr, 1024000);
 
+  fiber_manager_threads[0] = pthread_self();
   for (i = 1; i < num_threads; ++i) {
     if (pthread_create(&fiber_manager_threads[i], &attr,
                        &fiber_manager_thread_func, fiber_managers[i])) {
@@ -227,13 +250,40 @@ int fiber_manager_init(size_t num_threads) {
 
 void fiber_shutdown() {
   fiber_shutting_down = 1;
-  pthread_t self = pthread_self();
   int i;
+  pthread_t self = pthread_self();
+  fiber_t* maintenance_fiber = NULL;
+  for (i = 0; i < fiber_manager_num_threads; ++i) {
+    if (pthread_equal(fiber_manager_threads[i], self)) {
+      maintenance_fiber = fiber_managers[i]->maintenance_fiber;
+      if (maintenance_fiber) {
+        void* result;
+        fiber_join(maintenance_fiber, &result);
+        assert(!result);
+      }
+    }
+  }
   for (i = 0; i < fiber_manager_num_threads; ++i) {
     if (!pthread_equal(fiber_manager_threads[i], self)) {
       pthread_join(fiber_manager_threads[i], NULL);
     }
   }
+  fiber_destroy(maintenance_fiber);
+
+  for (i = 0; i < fiber_manager_num_threads; ++i) {
+    fiber_manager_destroy(fiber_managers[i]);
+  }
+  free(fiber_managers);
+  fiber_managers = NULL;
+  free(fiber_manager_threads);
+  fiber_manager_threads = NULL;
+  lockfree_ring_buffer_destroy(fiber_free_mpmc_nodes);
+  fiber_free_mpmc_nodes = NULL;
+  hazard_pointer_thread_record_destroy_all(fiber_hazard_head);
+  fiber_hazard_head = NULL;
+
+  fiber_io_shutdown();
+  fiber_event_shutdown();
 }
 
 int fiber_manager_get_state() { return fiber_manager_state; }
@@ -244,8 +294,6 @@ int fiber_manager_get_kernel_thread_count() {
 
 extern int fiber_mutex_unlock_internal(fiber_mutex_t* mutex);
 
-extern mpmc_lifo_t fiber_free_fibers;
-
 void fiber_manager_do_maintenance() {
   fiber_manager_t* const manager = fiber_manager_get();
 
@@ -255,10 +303,8 @@ void fiber_manager_do_maintenance() {
   }
 
   if (manager->done_fiber) {
-    mpsc_fifo_node_t* const node = manager->done_fiber->mpsc_fifo_node;
-    node->data = manager->done_fiber;
+    fiber_destroy(manager->done_fiber);
     manager->done_fiber = NULL;
-    mpmc_lifo_push(&fiber_free_fibers, node);
   }
 
   if (manager->to_schedule) {
@@ -422,9 +468,6 @@ void fiber_do_real_sleep(uint32_t seconds, uint32_t useconds) {
   }
 }
 
-#define FIBER_MANAGER_MAX_HAZARDS MPMC_HAZARD_COUNT
-static hazard_pointer_thread_record_t* fiber_hazard_head = NULL;
-
 hazard_pointer_thread_record_t* fiber_manager_get_hazard_record(
     fiber_manager_t* manager) {
   assert(manager);
@@ -434,8 +477,6 @@ hazard_pointer_thread_record_t* fiber_manager_get_hazard_record(
   }
   return manager->mpmc_hptr;
 }
-
-static lockfree_ring_buffer_t* volatile fiber_free_mpmc_nodes = NULL;
 
 static void fiber_manager_return_mpmc_node_internal(void* user_data,
                                                     hazard_node_t* hazard) {

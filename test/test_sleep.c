@@ -21,7 +21,7 @@ volatile int done_count = 0;
 
 void* sleep_function(void* param) {
   int i;
-  for (i = 0; i < 1000; ++i) {
+  for (i = 0; i < 100; ++i) {
     usleep(rand() % 1000 + 1000);
   }
   __sync_fetch_and_add(&done_count, 1);
@@ -41,8 +41,7 @@ int main() {
     fiber_join(fibers[i], NULL);
   }
 
-  fiber_event_destroy();
-
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

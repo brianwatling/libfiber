@@ -17,7 +17,8 @@ typedef struct fiber_scheduler_dist {
 static size_t fiber_scheduler_num_threads = 0;
 static fiber_scheduler_dist_t* fiber_schedulers = NULL;
 
-int fiber_scheduler_dist_init(fiber_scheduler_dist_t* scheduler, size_t id) {
+static int fiber_scheduler_dist_init(fiber_scheduler_dist_t* scheduler,
+                                     size_t id) {
   assert(scheduler);
   scheduler->id = id;
   scheduler->steal_count = 0;
@@ -28,10 +29,15 @@ int fiber_scheduler_dist_init(fiber_scheduler_dist_t* scheduler, size_t id) {
   return 1;
 }
 
+static void fiber_scheduler_dist_destroy(fiber_scheduler_dist_t* scheduler) {
+  dist_fifo_destroy(&scheduler->queue);
+}
+
 int fiber_scheduler_init(size_t num_threads) {
   assert(num_threads > 0);
   fiber_scheduler_num_threads = num_threads;
 
+  assert(!fiber_schedulers);
   fiber_schedulers = calloc(num_threads, sizeof(*fiber_schedulers));
   assert(fiber_schedulers);
 
@@ -42,6 +48,15 @@ int fiber_scheduler_init(size_t num_threads) {
     assert(ret);
   }
   return 1;
+}
+
+void fiber_scheduler_shutdown() {
+  size_t i;
+  for (i = 0; i < fiber_scheduler_num_threads; ++i) {
+    fiber_scheduler_dist_destroy(&fiber_schedulers[i]);
+  }
+  free(fiber_schedulers);
+  fiber_schedulers = NULL;
 }
 
 fiber_scheduler_t* fiber_scheduler_for_thread(size_t thread_id) {

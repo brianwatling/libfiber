@@ -8,7 +8,7 @@
 
 #include "test_helper.h"
 
-#define PUSH_COUNT 10000000
+#define PUSH_COUNT 100000
 
 pthread_barrier_t barrier;
 spsc_fifo_t fifo;

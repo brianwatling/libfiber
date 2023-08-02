@@ -115,8 +115,7 @@ int main() {
 
   fiber_barrier_destroy(&barrier);
 
-  fiber_event_destroy();
-
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

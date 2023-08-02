@@ -12,7 +12,7 @@
 #include "fiber_manager.h"
 #include "mpmc_lifo.h"
 
-void fiber_join_routine(fiber_t* the_fiber, void* result) {
+void fiber_mark_completed(fiber_t* the_fiber, void* result) {
   the_fiber->result = result;
   write_barrier();  // make sure the result is available before changing the
                     // state
@@ -35,7 +35,10 @@ void fiber_join_routine(fiber_t* the_fiber, void* result) {
   }
 
   the_fiber->state = FIBER_STATE_DONE;
+}
 
+static void fiber_join_routine(fiber_t* the_fiber, void* result) {
+  fiber_mark_completed(the_fiber, result);
   fiber_manager_get()->done_fiber = the_fiber;
   fiber_manager_yield(fiber_manager_get());
   assert(0 && "should never get here");
@@ -59,32 +62,19 @@ fiber_go_function(void* param) {
   return NULL;
 }
 
-mpmc_lifo_t fiber_free_fibers = MPMC_LIFO_INITIALIZER;
-
 fiber_t* fiber_create_no_sched(size_t stack_size,
                                fiber_run_function_t run_function, void* param) {
-  mpsc_fifo_node_t* const node = mpmc_lifo_pop(&fiber_free_fibers);
-  fiber_t* ret = NULL;
-  if (!node) {
-    ret = calloc(1, sizeof(*ret));
-    if (!ret) {
-      errno = ENOMEM;
-      return NULL;
-    }
-    ret->mpsc_fifo_node = calloc(1, sizeof(*ret->mpsc_fifo_node));
-    if (!ret->mpsc_fifo_node) {
-      free(ret);
-      errno = ENOMEM;
-      return NULL;
-    }
-  } else {
-    ret = (fiber_t*)node->data;
-    ret->mpsc_fifo_node = node;
-    // we got an old fiber for re-use - destroy the old stack
-    fiber_context_destroy(&ret->context);
+  fiber_t* ret = calloc(1, sizeof(*ret));
+  if (!ret) {
+    errno = ENOMEM;
+    return NULL;
   }
-
-  assert(ret->mpsc_fifo_node);
+  ret->mpsc_fifo_node = calloc(1, sizeof(*ret->mpsc_fifo_node));
+  if (!ret->mpsc_fifo_node) {
+    free(ret);
+    errno = ENOMEM;
+    return NULL;
+  }
 
   ret->run_function = run_function;
   ret->param = param;

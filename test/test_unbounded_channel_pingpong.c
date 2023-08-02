@@ -7,7 +7,7 @@
 
 fiber_unbounded_channel_t channel_one;
 fiber_unbounded_channel_t channel_two;
-#define PER_FIBER_COUNT 10000000
+#define PER_FIBER_COUNT 100000
 #define NUM_THREADS 2
 
 void* ping_function(void* param) {
@@ -19,6 +19,7 @@ void* ping_function(void* param) {
     fiber_unbounded_channel_send(&channel_one, node);
     node = fiber_unbounded_channel_receive(&channel_two);
   }
+  free(node);
   return NULL;
 }
 

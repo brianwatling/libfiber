@@ -17,7 +17,7 @@ set(FIBER_STACK_STRATEGY
     CACHE STRING "Stack strategy")
 set(CMAKE_EXPORT_COMPILE_COMMANDS
     ON
-    CACHE BOOL "Export compile commands for VSCode")
+    CACHE BOOL "Export compile commands for VSCode" FORCE)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)

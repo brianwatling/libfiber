@@ -10,6 +10,8 @@ extern "C" {
 
 extern int fiber_io_init();
 
+extern void fiber_io_shutdown();
+
 extern int fiber_io_lock_thread();
 
 extern int fiber_io_unlock_thread();

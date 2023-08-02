@@ -195,6 +195,11 @@ int fiber_io_init() {
   return FIBER_SUCCESS;
 }
 
+void fiber_io_shutdown() {
+  free(fd_info);
+  fd_info = NULL;
+}
+
 static __thread int thread_locked = 0;
 
 int fiber_io_lock_thread() {

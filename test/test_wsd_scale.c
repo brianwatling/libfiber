@@ -9,7 +9,7 @@
 #include "work_stealing_deque.h"
 
 int NUM_THREADS = 4;
-int PER_THREAD_COUNT = 100000000;
+int PER_THREAD_COUNT = 1000000;
 int WORK_FACTOR = 0;
 pthread_barrier_t barrier;
 

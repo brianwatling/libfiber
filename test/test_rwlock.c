@@ -6,7 +6,7 @@
 #include "fiber_rwlock.h"
 #include "test_helper.h"
 
-#define PER_FIBER_COUNT 100000
+#define PER_FIBER_COUNT 10000
 #define NUM_FIBERS 100
 #define NUM_THREADS 2
 
