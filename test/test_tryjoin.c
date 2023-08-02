@@ -47,7 +47,6 @@ int main() {
       }
     }
     usleep(10000);
-    printf("tryjoin. joined: %d done %d\n", join_count, done_count);
   }
 
   fiber_manager_print_stats();
