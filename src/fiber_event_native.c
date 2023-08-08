@@ -156,9 +156,6 @@ int fiber_event_init() {
 #error OS not supported
 #endif
 
-  // set event_fd last, since it's used to check if the event system is
-  // initialized
-  write_barrier();
   event_fd = the_event_fd;
   return FIBER_SUCCESS;
 }

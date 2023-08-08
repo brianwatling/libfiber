@@ -150,7 +150,7 @@ selectFnType get_select_fn() {
 #define IO_FLAG_WAITABLE 2
 
 typedef struct fiber_fd_info {
-  volatile uint8_t flags_;
+  _Atomic uint8_t flags_;
 } fiber_fd_info_t;
 
 static fiber_fd_info_t* fd_info = NULL;
@@ -227,8 +227,7 @@ static int setup_socket(int sock) {
   }
 
   assert(sock < max_fd);
-  __sync_fetch_and_or(&fd_info[sock].flags_,
-                      IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
+  atomic_fetch_or(&fd_info[sock].flags_, IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
   assert(fd_info[sock].flags_ & IO_FLAG_BLOCKING);
   assert(fd_info[sock].flags_ & IO_FLAG_WAITABLE);
 
@@ -588,13 +587,13 @@ int pipe(int pipefd[2]) {
     }
 
     assert(pipefd[0] < max_fd);
-    __sync_fetch_and_or(&fd_info[pipefd[0]].flags_,
-                        IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
+    atomic_fetch_or(&fd_info[pipefd[0]].flags_,
+                    IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
     assert(fd_info[pipefd[0]].flags_ & IO_FLAG_BLOCKING);
     assert(fd_info[pipefd[0]].flags_ & IO_FLAG_WAITABLE);
     assert(pipefd[1] < max_fd);
-    __sync_fetch_and_or(&fd_info[pipefd[1]].flags_,
-                        IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
+    atomic_fetch_or(&fd_info[pipefd[1]].flags_,
+                    IO_FLAG_BLOCKING | IO_FLAG_WAITABLE);
     assert(fd_info[pipefd[1]].flags_ & IO_FLAG_BLOCKING);
     assert(fd_info[pipefd[1]].flags_ & IO_FLAG_WAITABLE);
   }
@@ -602,28 +601,17 @@ int pipe(int pipefd[2]) {
   return ret;
 }
 
-#ifdef __GNUC__
-#define STATIC_ASSERT_HELPER(expr, msg) \
-  (!!sizeof(struct { unsigned int STATIC_ASSERTION__##msg : (expr) ? 1 : -1; }))
-#define STATIC_ASSERT(expr, msg) \
-  extern int(*assert_function__(void))[STATIC_ASSERT_HELPER(expr, msg)]
-#else
-#define STATIC_ASSERT(expr, msg)          \
-  extern char STATIC_ASSERTION__##msg[1]; \
-  extern char STATIC_ASSERTION__##msg[(expr) ? 1 : 2]
-#endif /* #ifdef __GNUC__ */
-
 int fcntl(int fd, int cmd, ...) {
   va_list args;
   va_start(args, cmd);
-  STATIC_ASSERT(sizeof(long) == sizeof(void*), fcntl_param_sizes_must_match);
+  _Static_assert(sizeof(long) == sizeof(void*), "fcntl param sizes must match");
   long val = va_arg(args, long);
   va_end(args);
 
   if (!thread_locked) {
     if (cmd == F_SETFL && (val == O_NONBLOCK || val == O_NDELAY)) {
       assert(fd < max_fd);
-      __sync_fetch_and_and(&fd_info[fd].flags_, ~IO_FLAG_BLOCKING);
+      atomic_fetch_and(&fd_info[fd].flags_, ~IO_FLAG_BLOCKING);
       assert(!(fd_info[fd].flags_ & IO_FLAG_BLOCKING));
       return 0;
     }
@@ -653,10 +641,10 @@ int ioctl(IOCTLPARAMS) {
     }
     assert(d < max_fd);
     if (*(int*)val) {
-      __sync_fetch_and_and(&fd_info[d].flags_, ~IO_FLAG_BLOCKING);
+      atomic_fetch_and(&fd_info[d].flags_, ~IO_FLAG_BLOCKING);
       assert(!(fd_info[d].flags_ & IO_FLAG_BLOCKING));
     } else {
-      __sync_fetch_and_or(&fd_info[d].flags_, IO_FLAG_BLOCKING);
+      atomic_fetch_or(&fd_info[d].flags_, IO_FLAG_BLOCKING);
       assert(fd_info[d].flags_ & IO_FLAG_BLOCKING);
     }
     return 0;

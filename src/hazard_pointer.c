@@ -10,7 +10,8 @@
 #include <string.h>
 
 hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(
-    hazard_pointer_thread_record_t** head, size_t pointers_per_thread) {
+    _Atomic(hazard_pointer_thread_record_t*)* head,
+    size_t pointers_per_thread) {
   assert(head);
   assert(pointers_per_thread);
 
@@ -23,13 +24,11 @@ hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(
       (hazard_pointer_thread_record_t*)calloc(1, required_size);
   ret->head = head;
   ret->hazard_pointers_count = pointers_per_thread;
-  write_barrier();  // finish all writes before exposing the record to the other
-                    // threads
 
   // swap in the new record as the head
-  hazard_pointer_thread_record_t* cur_head;
+  hazard_pointer_thread_record_t* cur_head =
+      atomic_load_explicit(head, memory_order_acquire);
   do {
-    cur_head = *head;
     ret->next = cur_head;
 
     // determine the appropriate retire_threshold. head should always have the
@@ -43,12 +42,13 @@ hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(
       cur = cur->next;
     }
     ret->retire_threshold = 2 * threads * pointers_per_thread;
-  } while (!__sync_bool_compare_and_swap(head, cur_head, ret));
+  } while (!atomic_compare_exchange_weak_explicit(
+      head, &cur_head, ret, memory_order_release, memory_order_acquire));
 
   // update all other threads' retire thresholds
   hazard_pointer_thread_record_t* cur = ret->next;
   while (cur) {
-    __sync_add_and_fetch(
+    atomic_fetch_add(
         &cur->retire_threshold,
         2 * cur->hazard_pointers_count);  // we're increasing N by 1, so R
                                           // increases by 2 * K (remember R = 2
@@ -61,7 +61,7 @@ hazard_pointer_thread_record_t* hazard_pointer_thread_record_create_and_push(
 
 void hazard_pointer_thread_record_destroy_all(
     hazard_pointer_thread_record_t* head) {
-  hazard_pointer_thread_record_t* cur = head;
+  _Atomic(hazard_pointer_thread_record_t*) cur = head;
   while (cur) {
     cur->head = &cur;
     hazard_pointer_thread_record_t* const next = cur->next;

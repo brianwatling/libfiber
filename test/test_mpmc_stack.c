@@ -41,7 +41,7 @@ void* pop_func(void* p) {
   intptr_t counter = 0;
   while (!done[thr]) {
     mpmc_stack_node_t* head = NULL;
-    while (MPMC_RETRY == mpmc_stack_fifo_flush_timeout(&the_q, &head, 10)) {
+    while (!(head = mpmc_stack_fifo_flush(&the_q))) {
       sched_yield();
     }
     if (!head) {

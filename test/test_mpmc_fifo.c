@@ -12,9 +12,9 @@
 #define NUM_THREADS 2
 
 mpmc_fifo_t fifo;
-int results[PUSH_COUNT] = {};
+_Atomic int results[PUSH_COUNT] = {};
 pthread_barrier_t barrier;
-hazard_pointer_thread_record_t* hazard_head = NULL;
+_Atomic(hazard_pointer_thread_record_t*) hazard_head = NULL;
 
 void release_node(void* user_data, hazard_node_t* node) { free(node); }
 
@@ -46,7 +46,7 @@ void* pop_func(void* p) {
     };
     test_assert(value > 0);
     test_assert(value <= PUSH_COUNT);
-    __sync_fetch_and_add(&results[value - 1], 1);
+    atomic_fetch_add(&results[value - 1], 1);
   }
   return NULL;
 }

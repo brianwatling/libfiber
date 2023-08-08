@@ -8,7 +8,7 @@
 
 typedef struct fiber_barrier {
   uint32_t count;
-  volatile uint64_t counter;
+  _Atomic uint64_t counter;
   mpsc_fifo_t waiters;
 } fiber_barrier_t;
 

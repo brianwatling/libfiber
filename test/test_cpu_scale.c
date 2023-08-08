@@ -46,18 +46,18 @@ void test_increment_flush(intptr_t thread_id, uint64_t count) {
 }
 
 void test_atomic_increment(intptr_t thread_id, uint64_t count) {
-  volatile intptr_t integer = 0;
+  _Atomic intptr_t integer = 0;
   uint64_t i;
   for (i = 0; i < count; ++i) {
-    __sync_fetch_and_add(&integer, 1);
+    atomic_fetch_add(&integer, 1);
   }
 }
 
 void test_atomic_increment_shared(intptr_t thread_id, uint64_t count) {
-  static volatile intptr_t shared_integer = 0;
+  static _Atomic intptr_t shared_integer = 0;
   uint64_t i;
   for (i = 0; i < count; ++i) {
-    __sync_fetch_and_add(&shared_integer, 1);
+    atomic_fetch_add(&shared_integer, 1);
   }
 }
 
@@ -125,11 +125,11 @@ void test_read_shared_sync_none(intptr_t thread_id, uint64_t count) {
 }
 
 void test_read_shared_sync_writer(intptr_t thread_id, uint64_t count) {
-  static volatile intptr_t shared_integer = 0;
+  static _Atomic intptr_t shared_integer = 0;
   if (!thread_id) {
     uint64_t i;
     for (i = 0; i < count; ++i) {
-      __sync_fetch_and_add(&shared_integer, 1);
+      volatile atomic_fetch_add(&shared_integer, 1);
     }
   } else {
     uint64_t total = 0;
@@ -140,11 +140,11 @@ void test_read_shared_sync_writer(intptr_t thread_id, uint64_t count) {
 }
 
 void test_read_shared_sync_all(intptr_t thread_id, uint64_t count) {
-  static volatile intptr_t shared_integer = 0;
+  static _Atomic intptr_t shared_integer = 0;
   if (!thread_id) {
     uint64_t i;
     for (i = 0; i < count; ++i) {
-      __sync_fetch_and_add(&shared_integer, 1);
+      atomic_fetch_add(&shared_integer, 1);
     }
   } else {
     uint64_t total = 0;

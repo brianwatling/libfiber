@@ -20,7 +20,7 @@
 static struct ev_loop* volatile fiber_loop = NULL;
 static fiber_spinlock_t fiber_loop_spinlock = FIBER_SPINLOCK_INITIALIER;
 static volatile int num_events_triggered = 0;
-static volatile int active_threads = 0;
+static _Atomic int active_threads = 0;
 
 int fiber_event_init() {
   fiber_spinlock_lock(&fiber_loop_spinlock);
@@ -87,18 +87,18 @@ size_t fiber_poll_events_blocking(uint32_t seconds, uint32_t useconds) {
 
   // only allow the final thread to perform a blocking poll - this prevents the
   // thread from locking out other threads trying to register for events
-  const int local_count = __sync_sub_and_fetch(&active_threads, 1);
+  const int local_count = atomic_fetch_sub(&active_threads, 1) - 1;
   assert(local_count >= 0);
   if (local_count > 0) {
     fiber_do_real_sleep(seconds, useconds);
-    __sync_add_and_fetch(&active_threads, 1);
+    atomic_fetch_add(&active_threads, 1);
     return 0;
   }
 
   fiber_spinlock_lock(&fiber_loop_spinlock);
 
   if (!fiber_loop) {
-    __sync_add_and_fetch(&active_threads, 1);
+    atomic_fetch_add(&active_threads, 1);
     fiber_spinlock_unlock(&fiber_loop_spinlock);
     return 0;
   }
@@ -109,7 +109,7 @@ size_t fiber_poll_events_blocking(uint32_t seconds, uint32_t useconds) {
   const int local_copy = num_events_triggered;
   fiber_spinlock_unlock(&fiber_loop_spinlock);
 
-  __sync_add_and_fetch(&active_threads, 1);
+  atomic_fetch_add(&active_threads, 1);
   return local_copy;
 }
 

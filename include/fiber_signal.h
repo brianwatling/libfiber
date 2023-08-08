@@ -13,7 +13,7 @@
 // A signal can be waited on by exactly one fiber. Any number of threads can
 // raise the signal.
 typedef struct fiber_signal {
-  fiber_t* waiter;
+  _Atomic(fiber_t*) waiter;
 } fiber_signal_t;
 
 #define FIBER_SIGNAL_NO_WAITER ((fiber_t*)0)
@@ -36,8 +36,10 @@ static inline void fiber_signal_wait(fiber_signal_t* s) {
   fiber_t* const this_fiber = manager->current_fiber;
   this_fiber->scratch =
       NULL;  // clear scratch before marking this fiber to be signalled
-  if (__sync_bool_compare_and_swap(&s->waiter, FIBER_SIGNAL_NO_WAITER,
-                                   this_fiber)) {
+  fiber_t* expected = (fiber_t*)FIBER_SIGNAL_NO_WAITER;
+  if (atomic_compare_exchange_strong_explicit(&s->waiter, &expected, this_fiber,
+                                              memory_order_release,
+                                              memory_order_relaxed)) {
     // the signal is not raised, we're now waiting
     assert(this_fiber->state == FIBER_STATE_RUNNING);
     this_fiber->state = FIBER_STATE_WAITING;
@@ -57,8 +59,8 @@ static inline void fiber_signal_wait(fiber_signal_t* s) {
 static inline int fiber_signal_raise(fiber_signal_t* s) {
   assert(s);
 
-  fiber_t* const old = (fiber_t*)atomic_exchange_pointer((void**)&s->waiter,
-                                                         FIBER_SIGNAL_RAISED);
+  fiber_t* const old = (fiber_t*)atomic_exchange_explicit(
+      &s->waiter, FIBER_SIGNAL_RAISED, memory_order_release);
   if (old != FIBER_SIGNAL_NO_WAITER && old != FIBER_SIGNAL_RAISED) {
     // we successfully signalled while a fiber was waiting
     s->waiter = FIBER_SIGNAL_NO_WAITER;

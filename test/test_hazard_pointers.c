@@ -13,7 +13,7 @@
 #define NUM_THREADS 4
 #define POINTERS_PER_THREAD 4
 
-hazard_pointer_thread_record_t* head = 0;
+_Atomic(hazard_pointer_thread_record_t*) head = NULL;
 
 struct test_object {
   hazard_node_t hazard_node;
@@ -95,7 +95,7 @@ int main() {
   size_t count = 0;
   while (cur) {
     test_assert(cur->hazard_pointers_count == POINTERS_PER_THREAD);
-    test_assert(cur->retire_threshold = 2 * NUM_THREADS * POINTERS_PER_THREAD);
+    test_assert(cur->retire_threshold == 2 * NUM_THREADS * POINTERS_PER_THREAD);
     hazard_pointer_scan(cur);
 
     cur = cur->next;

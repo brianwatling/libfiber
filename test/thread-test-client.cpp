@@ -20,7 +20,7 @@ long long getusecs(struct timeval* tv) {
   return (long long)tv->tv_sec * 1000000 + tv->tv_usec;
 }
 
-int reqsPerSec = 0;
+_Atomic int reqsPerSec = 0;
 
 void* runFunc(void* param) {
   struct addrinfo hints, *res;
@@ -54,7 +54,7 @@ void* runFunc(void* param) {
     long long diff = getusecs(&buffer[1]) - getusecs(&buffer[0]);
     // printf("diff: %lf\n", (double)diff * 0.000001);
 
-    __sync_fetch_and_add(&reqsPerSec, 1);
+    atomic_fetch_add(&reqsPerSec, 1);
   }
 
   close(sockfd);

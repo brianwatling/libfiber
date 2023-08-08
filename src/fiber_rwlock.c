@@ -28,7 +28,6 @@ int fiber_rwlock_init(fiber_rwlock_t* rwlock) {
     return FIBER_ERROR;
   }
   rwlock->state.blob = 0;
-  write_barrier();
   return FIBER_SUCCESS;
 }
 

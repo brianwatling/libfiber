@@ -17,14 +17,14 @@
 #define NUM_THREADS 2
 #define NUM_FIBERS 10000
 
-volatile int done_count = 0;
+_Atomic int done_count = 0;
 
 void* sleep_function(void* param) {
   int i;
   for (i = 0; i < 100; ++i) {
     usleep(rand() % 1000 + 1000);
   }
-  __sync_fetch_and_add(&done_count, 1);
+  atomic_fetch_add(&done_count, 1);
   return NULL;
 }
 

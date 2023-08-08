@@ -31,10 +31,10 @@ typedef struct fiber {
   uint64_t volatile id; /* not unique globally, only within this fiber instance.
                            used for joining */
   fiber_context_t context;
-  void* volatile result;
+  _Atomic(void*) result;
   mpsc_fifo_node_t* volatile mpsc_fifo_node;
-  int volatile detach_state;
-  struct fiber* volatile join_info;
+  _Atomic int detach_state;
+  _Atomic(struct fiber*) join_info;
   void* volatile scratch;  // to be used by internal fiber mechanisms. be sure
                            // mechanisms do not conflict! (ie. only use scratch
                            // while a fiber is sleeping/waiting)

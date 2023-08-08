@@ -12,7 +12,19 @@
 #endif
 #endif
 
+#include <stdatomic.h>
 #include <stdint.h>
+
+_Static_assert(ATOMIC_BOOL_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_CHAR_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_CHAR16_T_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_CHAR32_T_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_WCHAR_T_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_SHORT_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_INT_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_LONG_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "");
+_Static_assert(ATOMIC_POINTER_LOCK_FREE == 2, "");
 
 /* this barrier orders writes against other writes */
 static inline void write_barrier() {
@@ -42,30 +54,6 @@ static inline void load_load_barrier() {
 #error please define a load_load_barrier
 #endif
 }
-
-#if defined(__i386__) || defined(__x86_64__)
-#define FIBER_XCHG_POINTER
-static inline void* atomic_exchange_pointer(void** location, void* value) {
-  void* result = value;
-  __asm__ __volatile__("lock xchg %1,%0"
-                       : "+r"(result), "+m"(*location)
-                       : /* no input-only operands */
-  );
-  return result;
-}
-
-static inline int atomic_exchange_int(int* location, int value) {
-  int result = value;
-  __asm__ __volatile__("lock xchg %1,%0"
-                       : "+r"(result), "+m"(*location)
-                       : /* no input-only operands */
-  );
-  return result;
-}
-#else
-#warning no atomic_exchange_pointer() defined for this architecture. please consider defining one if possible.
-#define FIBER_NO_XCHG_POINTER
-#endif
 
 static inline void cpu_relax() {
 #if defined(__i386__) || defined(__x86_64__)

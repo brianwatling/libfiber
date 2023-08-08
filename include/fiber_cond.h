@@ -16,7 +16,7 @@
 
 typedef struct fiber_cond {
   fiber_mutex_t* caller_mutex;
-  volatile intptr_t waiter_count;
+  _Atomic intptr_t waiter_count;
   mpsc_fifo_t waiters;
   fiber_mutex_t internal_mutex;
 } fiber_cond_t;

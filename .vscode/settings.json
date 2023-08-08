@@ -9,7 +9,9 @@
         "stddef.h": "c",
         "epoll.h": "c",
         "signal.h": "c",
-        "fiber_channel.h": "c"
+        "fiber_channel.h": "c",
+        "machine_specific.h": "c",
+        "atomic": "c"
     },
     "C_Cpp.default.systemIncludePath": [
         "${workspaceFolder}/**",

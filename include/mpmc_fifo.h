@@ -26,9 +26,9 @@ typedef struct mpmc_fifo_node {
 } mpmc_fifo_node_t;
 
 typedef struct mpmc_fifo {
-  mpmc_fifo_node_t* volatile head;  // consumer reads items from head
+  _Atomic(mpmc_fifo_node_t*) volatile head;  // consumer reads items from head
   char _cache_padding[FIBER_CACHELINE_SIZE - sizeof(mpmc_fifo_node_t*)];
-  mpmc_fifo_node_t* volatile tail;  // producer pushes onto the tail
+  _Atomic(mpmc_fifo_node_t*) tail;           // producer pushes onto the tail
 } mpmc_fifo_t;
 
 static inline int mpmc_fifo_init(mpmc_fifo_t* fifo,
@@ -66,14 +66,17 @@ static inline void mpmc_fifo_push(hazard_pointer_thread_record_t* hptr,
   assert(new_node->value);
   new_node->prev = NULL;
   while (1) {
-    mpmc_fifo_node_t* const tail = fifo->tail;
+    mpmc_fifo_node_t* tail =
+        atomic_load_explicit(&fifo->tail, memory_order_acquire);
     hazard_pointer_using(hptr, &tail->hazard, 0);
-    if (tail != fifo->tail) {
+    if (tail != atomic_load_explicit(&fifo->tail, memory_order_acquire)) {
       continue;  // tail switched while we were 'using' it
     }
 
     new_node->next = tail;
-    if (__sync_bool_compare_and_swap(&fifo->tail, tail, new_node)) {
+    if (atomic_compare_exchange_weak_explicit(&fifo->tail, &tail, new_node,
+                                              memory_order_release,
+                                              memory_order_relaxed)) {
       tail->prev = new_node;
       hazard_pointer_done_using(hptr, 0);
       return;
@@ -88,9 +91,10 @@ static inline void* mpmc_fifo_trypop(hazard_pointer_thread_record_t* hptr,
   void* ret = NULL;
 
   while (1) {
-    mpmc_fifo_node_t* const head = fifo->head;
+    mpmc_fifo_node_t* head =
+        atomic_load_explicit(&fifo->head, memory_order_acquire);
     hazard_pointer_using(hptr, &head->hazard, 0);
-    if (head != fifo->head) {
+    if (head != atomic_load_explicit(&fifo->head, memory_order_acquire)) {
       continue;  // head switched while we were 'using' it
     }
 
@@ -102,13 +106,15 @@ static inline void* mpmc_fifo_trypop(hazard_pointer_thread_record_t* hptr,
     }
 
     hazard_pointer_using(hptr, &prev->hazard, 1);
-    if (head != fifo->head) {
+    if (head != atomic_load_explicit(&fifo->head, memory_order_acquire)) {
       continue;  // head switched while we were 'using' head->prev
     }
 
     // push thread has successfully updated prev
     ret = prev->value;
-    if (__sync_bool_compare_and_swap(&fifo->head, head, prev)) {
+    if (atomic_compare_exchange_weak_explicit(&fifo->head, &head, prev,
+                                              memory_order_release,
+                                              memory_order_relaxed)) {
       hazard_pointer_done_using(hptr, 0);
       hazard_pointer_done_using(hptr, 1);
       hazard_pointer_free(hptr, &head->hazard);

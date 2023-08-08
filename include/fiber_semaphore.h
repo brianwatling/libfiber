@@ -7,7 +7,7 @@
 #include "mpmc_fifo.h"
 
 typedef struct fiber_semaphore {
-  volatile int counter;
+  _Atomic int counter;
   mpmc_fifo_t waiters;
 } fiber_semaphore_t;
 

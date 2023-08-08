@@ -20,9 +20,9 @@
 typedef struct fiber_bounded_channel {
   // putting high and low on separate cache lines provides a slight performance
   // increase
-  volatile uint64_t high;
+  _Atomic uint64_t high;
   char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(uint64_t)];
-  volatile uint64_t low;
+  _Atomic uint64_t low;
   char _cache_padding2[FIBER_CACHELINE_SIZE - sizeof(uint64_t)];
   mpsc_fifo_t waiters;
   fiber_signal_t* ready_signal;
@@ -69,13 +69,17 @@ static inline int fiber_bounded_channel_send(fiber_bounded_channel_t* channel,
                     // in the buffer has not been written yet
 
   while (1) {
-    const uint64_t low = channel->low;
-    load_load_barrier();  // read low first; this means the buffer will appear
-                          // larger or equal to its actual size
-    const uint64_t high = channel->high;
+    // read low first; this means the buffer will appear
+    // larger or equal to its actual size
+    const uint64_t low =
+        atomic_load_explicit(&channel->low, memory_order_acquire);
+
+    uint64_t high = atomic_load_explicit(&channel->high, memory_order_acquire);
     const uint64_t index = high & channel->power_of_2_mod;
     if (!channel->buffer[index] && high - low < channel->size &&
-        __sync_bool_compare_and_swap(&channel->high, high, high + 1)) {
+        atomic_compare_exchange_weak_explicit(&channel->high, &high, high + 1,
+                                              memory_order_release,
+                                              memory_order_relaxed)) {
       channel->buffer[index] = message;
       if (channel->ready_signal) {
         return fiber_signal_raise(channel->ready_signal);

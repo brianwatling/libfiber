@@ -11,7 +11,6 @@ int fiber_mutex_init(fiber_mutex_t* mutex) {
   if (!mpsc_fifo_init(&mutex->waiters)) {
     return FIBER_ERROR;
   }
-  write_barrier();
   return FIBER_SUCCESS;
 }
 
@@ -25,7 +24,7 @@ int fiber_mutex_destroy(fiber_mutex_t* mutex) {
 int fiber_mutex_lock(fiber_mutex_t* mutex) {
   assert(mutex);
 
-  const int val = __sync_sub_and_fetch(&mutex->counter, 1);
+  const int val = atomic_fetch_sub(&mutex->counter, 1) - 1;
   if (val == 0) {
     // we just got the lock, there was no contention
     return FIBER_SUCCESS;
@@ -41,8 +40,10 @@ int fiber_mutex_lock(fiber_mutex_t* mutex) {
 
 int fiber_mutex_trylock(fiber_mutex_t* mutex) {
   assert(mutex);
-
-  if (__sync_bool_compare_and_swap(&mutex->counter, 1, 0)) {
+  int old = 1;
+  if (atomic_compare_exchange_weak_explicit(&mutex->counter, &old, 0,
+                                            memory_order_acquire,
+                                            memory_order_relaxed)) {
     // we just got the lock, there was no contention
     return FIBER_SUCCESS;
   }
@@ -56,7 +57,7 @@ int fiber_mutex_unlock_internal(fiber_mutex_t* mutex) {
   // read and writes performed before unlocking actually occur before unlocking)
 
   // unlock and wake a waiting fiber if there is one
-  const int new_val = __sync_add_and_fetch(&mutex->counter, 1);
+  const int new_val = atomic_fetch_add(&mutex->counter, 1) + 1;
   if (new_val != 1) {
     fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &mutex->waiters, 1);
     return 1;

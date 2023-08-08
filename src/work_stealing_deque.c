@@ -60,7 +60,6 @@ wsd_work_stealing_deque_t* wsd_work_stealing_deque_create() {
     free(d);
     return NULL;
   }
-  write_barrier();
   return d;
 }
 
@@ -74,31 +73,31 @@ void wsd_work_stealing_deque_destroy(wsd_work_stealing_deque_t* d) {
 void wsd_work_stealing_deque_push_bottom(wsd_work_stealing_deque_t* d,
                                          void* p) {
   assert(d);
-  const int64_t b = d->bottom;
-  const int64_t t = d->top;
+  const int64_t b = atomic_load_explicit(&d->bottom, memory_order_acquire);
+  const int64_t t = atomic_load_explicit(&d->top, memory_order_acquire);
   wsd_circular_array_t* a = d->underlying_array;
   const int64_t size = b - t;
   if (size >= a->size_minus_one) {
     /* top is actually < bottom. the circular array API expects start < end */
+    assert(t <= b);
     a = wsd_circular_array_grow(a, t, b);
     /* NOTE: d->underlying_array is lost. memory leak. */
     d->underlying_array = a;
   }
   wsd_circular_array_put(a, b, p);
-  write_barrier();
-  d->bottom = b + 1;
+  atomic_store_explicit(&d->bottom, b + 1, memory_order_release);
 }
 
 void* wsd_work_stealing_deque_pop_bottom(wsd_work_stealing_deque_t* d) {
   assert(d);
-  const int64_t b = d->bottom - 1;
+  const int64_t b = atomic_load_explicit(&d->bottom, memory_order_acquire) - 1;
   wsd_circular_array_t* const a = d->underlying_array;
-  d->bottom = b;
-  store_load_barrier();
-  const int64_t t = d->top;
+  atomic_store_explicit(&d->bottom, b, memory_order_seq_cst);
+
+  int64_t t = atomic_load_explicit(&d->top, memory_order_seq_cst);
   const int64_t size = b - t;
   if (size < 0) {
-    d->bottom = t;
+    atomic_store_explicit(&d->bottom, t, memory_order_release);
     return WSD_EMPTY;
   }
   void* const ret = wsd_circular_array_get(a, b);
@@ -106,26 +105,26 @@ void* wsd_work_stealing_deque_pop_bottom(wsd_work_stealing_deque_t* d) {
     return ret;
   }
   const int64_t t_plus_one = t + 1;
-  if (!__sync_bool_compare_and_swap(&d->top, t, t_plus_one)) {
-    d->bottom = t_plus_one;
+  if (!atomic_compare_exchange_weak(&d->top, &t, t_plus_one)) {
+    atomic_store_explicit(&d->bottom, t_plus_one, memory_order_release);
     return WSD_ABORT;
   }
-  d->bottom = t_plus_one;
+  atomic_store_explicit(&d->bottom, t_plus_one, memory_order_release);
   return ret;
 }
 
 void* wsd_work_stealing_deque_steal(wsd_work_stealing_deque_t* d) {
   assert(d);
-  const int64_t t = d->top;
-  load_load_barrier();
-  const int64_t b = d->bottom;
+  int64_t t = atomic_load_explicit(&d->top, memory_order_acquire);
+
+  const int64_t b = atomic_load_explicit(&d->bottom, memory_order_acquire);
   wsd_circular_array_t* const a = d->underlying_array;
   const int64_t size = b - t;
   if (size <= 0) {
     return WSD_EMPTY;
   }
   void* const ret = wsd_circular_array_get(a, t);
-  if (!__sync_bool_compare_and_swap(&d->top, t, t + 1)) {
+  if (!atomic_compare_exchange_weak(&d->top, &t, t + 1)) {
     return WSD_ABORT;
   }
   return ret;

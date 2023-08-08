@@ -13,8 +13,8 @@ void* run_function(void* param) {
 }
 
 int main() {
-  int y = 1;
-  int z = atomic_exchange_int(&y, 2);
+  _Atomic int y = 1;
+  int z = atomic_exchange(&y, 2);
   test_assert(z == 1);
   test_assert(y == 2);
 

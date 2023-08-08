@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 #include "machine_specific.h"
 
@@ -21,7 +22,7 @@ typedef struct wsd_circular_array_elem {
 typedef struct wsd_circular_array {
   size_t log_size;
   size_t size;
-  size_t size_minus_one; /* if we limit size to a power of 2,
+  ssize_t size_minus_one; /* if we limit size to a power of 2,
                             i & size_minus_one can be used to index
                             instead of i % size */
   // If 'prev' is not null, this array was created to transparently grow 'prev'.
@@ -34,11 +35,11 @@ typedef struct wsd_circular_array {
 #define WSD_ABORT ((void*)-2)
 
 typedef struct wsd_work_stealing_deque {
-  volatile int64_t top;
+  _Atomic int64_t top;
   char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(int64_t)];
-  volatile int64_t bottom;
+  _Atomic int64_t bottom;
   char _cache_padding2[FIBER_CACHELINE_SIZE - sizeof(int64_t)];
-  wsd_circular_array_t* volatile underlying_array;
+  _Atomic(wsd_circular_array_t*) underlying_array;
   char _cache_padding3[FIBER_CACHELINE_SIZE - sizeof(wsd_circular_array_t*)];
 } wsd_work_stealing_deque_t;
 

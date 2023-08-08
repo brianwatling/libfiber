@@ -98,7 +98,7 @@ extern void fiber_manager_set_and_wait(fiber_manager_t* manager,
                                        void** location, void* value);
 
 extern void* fiber_manager_clear_or_wait(fiber_manager_t* manager,
-                                         void** location);
+                                         _Atomic(void*)* location);
 
 extern void* fiber_load_symbol(const char* symbol);
 

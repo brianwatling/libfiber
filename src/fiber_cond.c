@@ -15,7 +15,6 @@ int fiber_cond_init(fiber_cond_t* cond) {
     mpsc_fifo_destroy(&cond->waiters);
     return FIBER_ERROR;
   }
-  write_barrier();
   return FIBER_SUCCESS;
 }
 
@@ -30,11 +29,11 @@ int fiber_cond_signal(fiber_cond_t* cond) {
   assert(cond);
 
   fiber_mutex_lock(&cond->internal_mutex);
-  intptr_t new_val = __sync_sub_and_fetch(&cond->waiter_count, 1);
+  intptr_t new_val = atomic_fetch_sub(&cond->waiter_count, 1) - 1;
   if (new_val >= 0) {
     fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &cond->waiters, 1);
   } else {
-    new_val = __sync_add_and_fetch(&cond->waiter_count, 1);
+    new_val = atomic_fetch_add(&cond->waiter_count, 1) + 1;
     assert(new_val >= 0);
   }
   fiber_mutex_unlock(&cond->internal_mutex);
@@ -47,7 +46,7 @@ int fiber_cond_broadcast(fiber_cond_t* cond) {
 
   fiber_mutex_lock(&cond->internal_mutex);
   const intptr_t original =
-      (intptr_t)atomic_exchange_pointer((void**)&cond->waiter_count, 0);
+      atomic_exchange_explicit(&cond->waiter_count, 0, memory_order_acquire);
   if (original) {
     fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &cond->waiters,
                                        original);
@@ -63,7 +62,7 @@ int fiber_cond_wait(fiber_cond_t* cond, fiber_mutex_t* mutex) {
 
   assert(!cond->caller_mutex || cond->caller_mutex == mutex);
   cond->caller_mutex = mutex;
-  __sync_fetch_and_add(&cond->waiter_count, 1);
+  atomic_fetch_add_explicit(&cond->waiter_count, 1, memory_order_release);
 
   fiber_manager_wait_in_mpsc_queue_and_unlock(fiber_manager_get(),
                                               &cond->waiters, mutex);

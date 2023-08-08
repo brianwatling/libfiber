@@ -15,7 +15,7 @@ typedef struct mpmc_stack_node {
 } mpmc_stack_node_t;
 
 typedef struct mpmc_stack {
-  mpmc_stack_node_t* volatile head;
+  _Atomic(mpmc_stack_node_t*) head;
 } mpmc_stack_t;
 
 static inline void mpmc_stack_init(mpmc_stack_t* q) {
@@ -36,12 +36,12 @@ static inline void* mpmc_stack_node_get_data(mpmc_stack_node_t* n) {
 static inline void mpmc_stack_push(mpmc_stack_t* q, mpmc_stack_node_t* n) {
   assert(q);
   assert(n);
-  mpmc_stack_node_t* head;
+  mpmc_stack_node_t* head =
+      atomic_load_explicit(&q->head, memory_order_acquire);
   do {
-    head = q->head;
-    load_load_barrier();
     n->next = head;
-  } while (!__sync_bool_compare_and_swap(&q->head, head, n));
+  } while (!atomic_compare_exchange_weak_explicit(
+      &q->head, &head, n, memory_order_release, memory_order_acquire));
 }
 
 #define MPMC_RETRY (0)
@@ -51,12 +51,12 @@ static inline int mpmc_stack_push_timeout(mpmc_stack_t* q, mpmc_stack_node_t* n,
                                           size_t tries) {
   assert(q);
   assert(n);
-  mpmc_stack_node_t* head;
+  mpmc_stack_node_t* head =
+      atomic_load_explicit(&q->head, memory_order_acquire);
   do {
-    head = q->head;
-    load_load_barrier();
     n->next = head;
-    if (__sync_bool_compare_and_swap(&q->head, head, n)) {
+    if (atomic_compare_exchange_weak_explicit(
+            &q->head, &head, n, memory_order_release, memory_order_acquire)) {
       return MPMC_SUCCESS;
     }
     tries -= 1;
@@ -66,38 +66,7 @@ static inline int mpmc_stack_push_timeout(mpmc_stack_t* q, mpmc_stack_node_t* n,
 
 static inline mpmc_stack_node_t* mpmc_stack_lifo_flush(mpmc_stack_t* q) {
   assert(q);
-#ifdef FIBER_XCHG_POINTER
-  return atomic_exchange_pointer((void**)&q->head, NULL);
-#else
-  mpmc_stack_node_t* head = q->head;
-  while (!__sync_bool_compare_and_swap(&q->head, head, 0)) {
-    head = q->head;
-  }
-  return head;
-#endif
-}
-
-static inline int mpmc_stack_lifo_flush_timeout(mpmc_stack_t* q,
-                                                mpmc_stack_node_t** out,
-                                                size_t tries) {
-  assert(q);
-  assert(out);
-#ifdef FIBER_XCHG_POINTER
-  if (tries > 0) {
-    *out = mpmc_stack_lifo_flush(q);
-    return MPMC_SUCCESS;
-  }
-  return MPMC_RETRY;
-#else
-  while (tries > 0) {
-    *out = q->head;
-    if (__sync_bool_compare_and_swap(&q->head, *out, 0)) {
-      return MPMC_SUCCESS;
-    }
-    tries -= 1;
-  }
-  return MPMC_RETRY;
-#endif
+  return atomic_exchange_explicit(&q->head, NULL, memory_order_acq_rel);
 }
 
 static inline mpmc_stack_node_t* mpmc_stack_reverse(mpmc_stack_node_t* head) {
@@ -113,17 +82,6 @@ static inline mpmc_stack_node_t* mpmc_stack_reverse(mpmc_stack_node_t* head) {
 
 static inline mpmc_stack_node_t* mpmc_stack_fifo_flush(mpmc_stack_t* q) {
   return mpmc_stack_reverse(mpmc_stack_lifo_flush(q));
-}
-
-static inline int mpmc_stack_fifo_flush_timeout(mpmc_stack_t* q,
-                                                mpmc_stack_node_t** out,
-                                                size_t tries) {
-  assert(out);
-  const int ret = mpmc_stack_lifo_flush_timeout(q, out, tries);
-  if (ret == MPMC_SUCCESS) {
-    *out = mpmc_stack_reverse(*out);
-  }
-  return ret;
 }
 
 #endif

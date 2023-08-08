@@ -13,13 +13,11 @@
 #include "mpmc_lifo.h"
 
 void fiber_mark_completed(fiber_t* the_fiber, void* result) {
-  the_fiber->result = result;
-  write_barrier();  // make sure the result is available before changing the
-                    // state
+  atomic_store_explicit(&the_fiber->result, result, memory_order_release);
 
   if (the_fiber->detach_state != FIBER_DETACH_DETACHED) {
-    const int old_state = atomic_exchange_int((int*)&the_fiber->detach_state,
-                                              FIBER_DETACH_WAIT_FOR_JOINER);
+    const int old_state =
+        atomic_exchange(&the_fiber->detach_state, FIBER_DETACH_WAIT_FOR_JOINER);
     if (old_state == FIBER_DETACH_NONE) {
       // need to wait until another fiber joins this one
       fiber_manager_set_and_wait(fiber_manager_get(),
@@ -27,7 +25,7 @@ void fiber_mark_completed(fiber_t* the_fiber, void* result) {
     } else if (old_state == FIBER_DETACH_WAIT_TO_JOIN) {
       // the joining fiber is waiting for us to finish
       fiber_t* const to_schedule = fiber_manager_clear_or_wait(
-          fiber_manager_get(), (void**)&the_fiber->join_info);
+          fiber_manager_get(), (_Atomic(void*)*)&the_fiber->join_info);
       to_schedule->result = the_fiber->result;
       to_schedule->state = FIBER_STATE_READY;
       fiber_manager_schedule(fiber_manager_get(), to_schedule);
@@ -138,7 +136,7 @@ int fiber_join(fiber_t* f, void** result) {
   }
 
   const int old_state =
-      atomic_exchange_int((int*)&f->detach_state, FIBER_DETACH_WAIT_TO_JOIN);
+      atomic_exchange(&f->detach_state, FIBER_DETACH_WAIT_TO_JOIN);
   if (old_state == FIBER_DETACH_NONE) {
     // need to wait till the fiber finishes
     fiber_manager_t* const manager = fiber_manager_get();
@@ -153,8 +151,8 @@ int fiber_join(fiber_t* f, void** result) {
     if (result) {
       *result = f->result;
     }
-    fiber_t* const to_schedule =
-        fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&f->join_info);
+    fiber_t* const to_schedule = fiber_manager_clear_or_wait(
+        fiber_manager_get(), (_Atomic(void*)*)&f->join_info);
     to_schedule->state = FIBER_STATE_READY;
     fiber_manager_schedule(fiber_manager_get(), to_schedule);
   } else {
@@ -181,14 +179,14 @@ int fiber_tryjoin(fiber_t* f, void** result) {
     // changed, we can assume the fiber has been detached or has be joined by
     // some other fiber
     const int old_state =
-        atomic_exchange_int((int*)&f->detach_state, FIBER_DETACH_WAIT_TO_JOIN);
+        atomic_exchange(&f->detach_state, FIBER_DETACH_WAIT_TO_JOIN);
     if (old_state == FIBER_DETACH_WAIT_FOR_JOINER) {
       // the other fiber is waiting for us to join
       if (result) {
         *result = f->result;
       }
       fiber_t* const to_schedule = fiber_manager_clear_or_wait(
-          fiber_manager_get(), (void**)&f->join_info);
+          fiber_manager_get(), (_Atomic(void*)*)&f->join_info);
       to_schedule->state = FIBER_STATE_READY;
       fiber_manager_schedule(fiber_manager_get(), to_schedule);
       return FIBER_SUCCESS;
@@ -208,13 +206,13 @@ int fiber_detach(fiber_t* f) {
     return FIBER_ERROR;
   }
   const int old_state =
-      atomic_exchange_int((int*)&f->detach_state, FIBER_DETACH_DETACHED);
+      atomic_exchange(&f->detach_state, FIBER_DETACH_DETACHED);
   if (old_state == FIBER_DETACH_WAIT_FOR_JOINER ||
       old_state == FIBER_DETACH_WAIT_TO_JOIN) {
     // wake up the fiber or the fiber trying to join it (this second case is a
     // convenience, pthreads specifies undefined behaviour in that case)
-    fiber_t* const to_schedule =
-        fiber_manager_clear_or_wait(fiber_manager_get(), (void**)&f->join_info);
+    fiber_t* const to_schedule = fiber_manager_clear_or_wait(
+        fiber_manager_get(), (_Atomic(void*)*)&f->join_info);
     to_schedule->state = FIBER_STATE_READY;
     fiber_manager_schedule(fiber_manager_get(), to_schedule);
   } else if (old_state == FIBER_DETACH_DETACHED) {

@@ -16,10 +16,10 @@
 
 typedef union {
   struct {
-    uint32_t ticket;
-    uint32_t users;
+    _Atomic uint32_t ticket;
+    _Atomic uint32_t users;
   } counters;
-  uint64_t blob;
+  _Atomic uint64_t blob;
 } fiber_spinlock_internal_t;
 
 _Static_assert(sizeof(fiber_spinlock_internal_t) == sizeof(uint64_t),

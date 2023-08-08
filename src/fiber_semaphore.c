@@ -13,7 +13,6 @@ int fiber_semaphore_init(fiber_semaphore_t* semaphore, int value) {
     fiber_manager_return_mpmc_node(initial_node);
     return FIBER_ERROR;
   }
-  write_barrier();
   return FIBER_SUCCESS;
 }
 
@@ -28,7 +27,7 @@ int fiber_semaphore_destroy(fiber_semaphore_t* semaphore) {
 int fiber_semaphore_wait(fiber_semaphore_t* semaphore) {
   assert(semaphore);
 
-  const int val = __sync_sub_and_fetch(&semaphore->counter, 1);
+  const int val = atomic_fetch_sub(&semaphore->counter, 1) - 1;
   if (val >= 0) {
     // we just got in, there was no contention
     return FIBER_SUCCESS;
@@ -44,9 +43,11 @@ int fiber_semaphore_trywait(fiber_semaphore_t* semaphore) {
   assert(semaphore);
 
   int counter;
-  while ((counter = semaphore->counter) > 0) {
-    if (__sync_bool_compare_and_swap(&semaphore->counter, counter,
-                                     counter - 1)) {
+  while ((counter = atomic_load_explicit(&semaphore->counter,
+                                         memory_order_acquire)) > 0) {
+    if (atomic_compare_exchange_weak_explicit(&semaphore->counter, &counter,
+                                              counter - 1, memory_order_release,
+                                              memory_order_relaxed)) {
       return FIBER_SUCCESS;
     }
   }
@@ -63,17 +64,19 @@ int fiber_semaphore_post_internal(fiber_semaphore_t* semaphore) {
 
   int prev_counter;
   do {
-    while ((prev_counter = semaphore->counter) < 0) {
+    while ((prev_counter = atomic_load_explicit(&semaphore->counter,
+                                                memory_order_acquire)) < 0) {
       // another fiber is waiting; attempt to schedule it to take this fiber's
       // place
       if (fiber_manager_wake_from_mpmc_queue(fiber_manager_get(),
                                              &semaphore->waiters, 0)) {
-        __sync_add_and_fetch(&semaphore->counter, 1);
+        atomic_fetch_add(&semaphore->counter, 1);
         return 1;
       }
     }
-  } while (!__sync_bool_compare_and_swap(&semaphore->counter, prev_counter,
-                                         prev_counter + 1));
+  } while (!atomic_compare_exchange_weak_explicit(
+      &semaphore->counter, &prev_counter, prev_counter + 1,
+      memory_order_release, memory_order_relaxed));
 
   return 0;
 }

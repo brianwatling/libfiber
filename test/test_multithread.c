@@ -7,8 +7,8 @@
 #define PER_FIBER_COUNT 100
 #define NUM_FIBERS 100
 #define NUM_THREADS 10
-int per_thread_count[NUM_THREADS];
-int switch_count = 0;
+_Atomic int per_thread_count[NUM_THREADS];
+_Atomic int switch_count = 0;
 
 void* run_function(void* param) {
   fiber_manager_t* const original_manager = fiber_manager_get();
@@ -16,9 +16,9 @@ void* run_function(void* param) {
   for (i = 0; i < PER_FIBER_COUNT; ++i) {
     fiber_manager_t* const current_manager = fiber_manager_get();
     if (current_manager != original_manager) {
-      __sync_fetch_and_add(&switch_count, 1);
+      atomic_fetch_add(&switch_count, 1);
     }
-    __sync_fetch_and_add(&per_thread_count[current_manager->id], 1);
+    atomic_fetch_add(&per_thread_count[current_manager->id], 1);
     fiber_yield();
   }
   return NULL;

@@ -13,7 +13,6 @@ int fiber_barrier_init(fiber_barrier_t* barrier, uint32_t count) {
   if (!mpsc_fifo_init(&barrier->waiters)) {
     return FIBER_ERROR;
   }
-  write_barrier();
   return FIBER_SUCCESS;
 }
 
@@ -25,7 +24,7 @@ void fiber_barrier_destroy(fiber_barrier_t* barrier) {
 int fiber_barrier_wait(fiber_barrier_t* barrier) {
   assert(barrier);
 
-  uint64_t const new_value = __sync_add_and_fetch(&barrier->counter, 1);
+  uint64_t const new_value = atomic_fetch_add(&barrier->counter, 1) + 1;
   if (new_value % barrier->count == 0) {
     fiber_manager_wake_from_mpsc_queue(fiber_manager_get(), &barrier->waiters,
                                        barrier->count - 1);

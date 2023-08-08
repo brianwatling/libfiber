@@ -43,9 +43,9 @@ typedef struct hazard_node {
 } hazard_node_t;
 
 typedef struct hazard_pointer_thread_record {
-  struct hazard_pointer_thread_record* volatile* head;
+  _Atomic(struct hazard_pointer_thread_record*)* head;
   struct hazard_pointer_thread_record* next;
-  size_t retire_threshold;
+  _Atomic size_t retire_threshold;
   size_t retired_count;
   hazard_node_t* retired_list;
   size_t plist_size;
@@ -62,7 +62,7 @@ extern "C" {
 // create a new record and fuse it into the list of records at 'head'
 extern hazard_pointer_thread_record_t*
 hazard_pointer_thread_record_create_and_push(
-    hazard_pointer_thread_record_t** head, size_t pointers_per_thread);
+    _Atomic(hazard_pointer_thread_record_t*)* head, size_t pointers_per_thread);
 
 extern void hazard_pointer_thread_record_destroy_all(
     hazard_pointer_thread_record_t* head);

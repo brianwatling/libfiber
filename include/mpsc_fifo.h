@@ -19,7 +19,7 @@ typedef struct mpsc_fifo_node {
 typedef struct mpsc_fifo {
   mpsc_fifo_node_t* volatile head;  // consumer read items from head
   char _cache_padding1[FIBER_CACHELINE_SIZE - sizeof(mpsc_fifo_node_t*)];
-  mpsc_fifo_node_t* tail;           // producer pushes onto the tail
+  _Atomic(mpsc_fifo_node_t*) tail;  // producer pushes onto the tail
 } mpsc_fifo_t;
 
 static inline int mpsc_fifo_init(mpsc_fifo_t* f) {
@@ -47,10 +47,10 @@ static inline void mpsc_fifo_push(mpsc_fifo_t* f, mpsc_fifo_node_t* new_node) {
   assert(f);
   assert(new_node);
   new_node->next = NULL;
-  write_barrier();  // the node must be terminated before it's visible to the
-                    // reader as the new tail
+  // the node must be terminated before it's visible to the
+  // reader as the new tail
   mpsc_fifo_node_t* const prev_tail =
-      (mpsc_fifo_node_t*)atomic_exchange_pointer((void**)&f->tail, new_node);
+      atomic_exchange_explicit(&f->tail, new_node, memory_order_release);
   prev_tail->next = new_node;
 }
 

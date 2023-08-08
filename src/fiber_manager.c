@@ -42,8 +42,8 @@ static pthread_t* fiber_manager_threads = NULL;
 static __thread volatile pthread_t this_thread;
 static fiber_manager_t** fiber_managers = NULL;
 static volatile int fiber_shutting_down = 0;
-static lockfree_ring_buffer_t* volatile fiber_free_mpmc_nodes = NULL;
-static hazard_pointer_thread_record_t* fiber_hazard_head = NULL;
+static _Atomic(lockfree_ring_buffer_t*) fiber_free_mpmc_nodes = NULL;
+static _Atomic(hazard_pointer_thread_record_t*) fiber_hazard_head = NULL;
 
 void fiber_destroy(fiber_t* f) {
   if (f) {
@@ -455,11 +455,12 @@ void fiber_manager_set_and_wait(fiber_manager_t* manager, void** location,
   fiber_manager_yield(manager);
 }
 
-void* fiber_manager_clear_or_wait(fiber_manager_t* manager, void** location) {
+void* fiber_manager_clear_or_wait(fiber_manager_t* manager,
+                                  _Atomic(void*)* location) {
   assert(manager);
   assert(location);
   while (1) {
-    void* const ret = atomic_exchange_pointer(location, NULL);
+    void* const ret = atomic_exchange(location, NULL);
     if (ret) {
       return ret;
     }
@@ -497,7 +498,8 @@ hazard_pointer_thread_record_t* fiber_manager_get_hazard_record(
 
 static void fiber_manager_return_mpmc_node_internal(void* user_data,
                                                     hazard_node_t* hazard) {
-  lockfree_ring_buffer_t* const free_nodes = fiber_free_mpmc_nodes;
+  lockfree_ring_buffer_t* const free_nodes =
+      atomic_load_explicit(&fiber_free_mpmc_nodes, memory_order_acquire);
   if (!free_nodes || !lockfree_ring_buffer_trypush(free_nodes, hazard)) {
     free(hazard);
   }
@@ -508,13 +510,18 @@ void fiber_manager_return_mpmc_node(mpmc_fifo_node_t* node) {
 }
 
 mpmc_fifo_node_t* fiber_manager_get_mpmc_node() {
-  lockfree_ring_buffer_t* free_nodes = fiber_free_mpmc_nodes;
+  lockfree_ring_buffer_t* free_nodes =
+      atomic_load_explicit(&fiber_free_mpmc_nodes, memory_order_acquire);
   if (!free_nodes) {
-    free_nodes = lockfree_ring_buffer_create(10);
-    if (!__sync_bool_compare_and_swap(&fiber_free_mpmc_nodes, NULL,
-                                      free_nodes)) {
-      lockfree_ring_buffer_destroy(free_nodes);
-      free_nodes = fiber_free_mpmc_nodes;
+    lockfree_ring_buffer_t* new_nodes = lockfree_ring_buffer_create(10);
+    if (!atomic_compare_exchange_strong(&fiber_free_mpmc_nodes, &free_nodes,
+                                        new_nodes)) {
+      lockfree_ring_buffer_destroy(new_nodes);
+      free_nodes =
+          atomic_load_explicit(&fiber_free_mpmc_nodes, memory_order_acquire);
+      assert(free_nodes);
+    } else {
+      free_nodes = new_nodes;
     }
   }
   mpmc_fifo_node_t* ret = lockfree_ring_buffer_trypop(free_nodes);

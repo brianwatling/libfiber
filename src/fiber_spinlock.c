@@ -24,7 +24,6 @@ STATIC_ASSERT(sizeof(fiber_spinlock_internal_t) == sizeof(uint64_t),
 int fiber_spinlock_init(fiber_spinlock_t* spinlock) {
   assert(spinlock);
   spinlock->state.blob = 0;
-  write_barrier();
   return FIBER_SUCCESS;
 }
 
@@ -36,14 +35,13 @@ int fiber_spinlock_destroy(fiber_spinlock_t* spinlock) {
 int fiber_spinlock_lock(fiber_spinlock_t* spinlock) {
   assert(spinlock);
 
-  const uint32_t my_ticket =
-      __sync_fetch_and_add(&spinlock->state.counters.users, 1);
-  while (spinlock->state.counters.ticket != my_ticket) {
+  const uint32_t my_ticket = atomic_fetch_add_explicit(
+      &spinlock->state.counters.users, 1, memory_order_acquire);
+  while (atomic_load_explicit(&spinlock->state.counters.ticket,
+                              memory_order_acquire) != my_ticket) {
     cpu_relax();
     fiber_manager_get()->spin_count += 1;
   }
-  load_load_barrier();  // any future reads should happen after reading the new
-                        // ticket
 
   return FIBER_SUCCESS;
 }
@@ -57,8 +55,9 @@ int fiber_spinlock_trylock(fiber_spinlock_t* spinlock) {
   fiber_spinlock_internal_t new;
   new.blob = old.blob;
   new.counters.users += 1;
-  if (!__sync_bool_compare_and_swap(&spinlock->state.blob, old.blob,
-                                    new.blob)) {
+  if (!atomic_compare_exchange_weak_explicit(
+          &spinlock->state.blob, (uint64_t*)&old.blob, new.blob,
+          memory_order_acquire, memory_order_relaxed)) {
     return FIBER_ERROR;
   }
 
@@ -68,10 +67,10 @@ int fiber_spinlock_trylock(fiber_spinlock_t* spinlock) {
 int fiber_spinlock_unlock(fiber_spinlock_t* spinlock) {
   assert(spinlock);
 
-  write_barrier();  // flush this fiber's writes before incrementing the ticket
-  spinlock->state.counters.ticket = spinlock->state.counters.ticket + 1;
-  load_load_barrier();  // any future read should happen after reading the
-                        // ticket as part of the increment
+  const uint32_t old_ticket = atomic_load_explicit(
+      &spinlock->state.counters.ticket, memory_order_acquire);
+  atomic_store_explicit(&spinlock->state.counters.ticket, old_ticket + 1,
+                        memory_order_release);
 
   return FIBER_SUCCESS;
 }

@@ -15,12 +15,12 @@ volatile int counter = 0;
 #define READING 1
 #define WRITING -1
 #define NONE 0
-int state = NONE;
+_Atomic int state = NONE;
 fiber_barrier_t barrier;
-volatile int try_wr = 0;
-volatile int try_rd = 0;
-volatile int count_rd = 0;
-volatile int count_wr = 0;
+_Atomic int try_wr = 0;
+_Atomic int try_rd = 0;
+_Atomic int count_rd = 0;
+_Atomic int count_wr = 0;
 
 void* run_function(void* param) {
   fiber_barrier_wait(&barrier);
@@ -28,32 +28,32 @@ void* run_function(void* param) {
   for (i = 0; i < PER_FIBER_COUNT || (!try_wr || !try_rd); ++i) {
     if (i % 10 == 0) {
       fiber_rwlock_wrlock(&mutex);
-      __sync_fetch_and_add(&count_wr, 1);
-      int old_state = atomic_exchange_int(&state, WRITING);
+      atomic_fetch_add(&count_wr, 1);
+      int old_state = atomic_exchange(&state, WRITING);
       test_assert(old_state == NONE);
-      old_state = atomic_exchange_int(&state, NONE);
+      old_state = atomic_exchange(&state, NONE);
       test_assert(old_state == WRITING);
       fiber_rwlock_wrunlock(&mutex);
     } else if (i % 10 == 1 && fiber_rwlock_trywrlock(&mutex)) {
-      __sync_fetch_and_add(&try_wr, 1);
-      int old_state = atomic_exchange_int(&state, WRITING);
+      atomic_fetch_add(&try_wr, 1);
+      int old_state = atomic_exchange(&state, WRITING);
       test_assert(old_state == NONE);
-      old_state = atomic_exchange_int(&state, NONE);
+      old_state = atomic_exchange(&state, NONE);
       test_assert(old_state == WRITING);
       fiber_rwlock_wrunlock(&mutex);
     } else if (i % 10 == 2 && fiber_rwlock_tryrdlock(&mutex)) {
-      __sync_fetch_and_add(&try_rd, 1);
-      int old_state = atomic_exchange_int(&state, READING);
+      atomic_fetch_add(&try_rd, 1);
+      int old_state = atomic_exchange(&state, READING);
       test_assert(old_state == NONE || old_state == READING);
-      old_state = atomic_exchange_int(&state, NONE);
+      old_state = atomic_exchange(&state, NONE);
       test_assert(old_state == NONE || old_state == READING);
       fiber_rwlock_rdunlock(&mutex);
     } else {
       fiber_rwlock_rdlock(&mutex);
-      __sync_fetch_and_add(&count_rd, 1);
-      int old_state = atomic_exchange_int(&state, READING);
+      atomic_fetch_add(&count_rd, 1);
+      int old_state = atomic_exchange(&state, READING);
       test_assert(old_state == NONE || old_state == READING);
-      old_state = atomic_exchange_int(&state, NONE);
+      old_state = atomic_exchange(&state, NONE);
       test_assert(old_state == NONE || old_state == READING);
       fiber_rwlock_rdunlock(&mutex);
     }

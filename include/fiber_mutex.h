@@ -17,7 +17,7 @@
 #include "mpsc_fifo.h"
 
 typedef struct fiber_mutex {
-  volatile int counter;
+  _Atomic int counter;
   mpsc_fifo_t waiters;
 } fiber_mutex_t;
 
