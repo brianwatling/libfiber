@@ -53,5 +53,6 @@ int main() {
   fflush(stdout);
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

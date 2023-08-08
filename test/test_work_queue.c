@@ -61,5 +61,6 @@ int main() {
   work_queue_destroy(&work_queue);
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

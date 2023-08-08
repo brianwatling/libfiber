@@ -59,5 +59,6 @@ int main(int argc, char* argv[]) {
   fiber_signal_destroy(&signal);
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

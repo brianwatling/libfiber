@@ -65,5 +65,6 @@ int main() {
   fiber_semaphore_destroy(&semaphore);
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

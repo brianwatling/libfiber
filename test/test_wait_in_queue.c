@@ -41,5 +41,6 @@ int main() {
   mpsc_fifo_destroy(&fifo);
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

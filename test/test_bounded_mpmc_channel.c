@@ -50,10 +50,10 @@ int main(int argc, char* argv[]) {
   fiber_multi_channel_t* ch1 = fiber_multi_channel_create(10);
   fiber_multi_channel_t* ch2 = fiber_multi_channel_create(10);
   fiber_t* r1 =
-      fiber_create(10240, (fiber_run_function_t)&receiver, (void*)ch1);
+      fiber_create(102400, (fiber_run_function_t)&receiver, (void*)ch1);
   fiber_t* r2 =
-      fiber_create(10240, (fiber_run_function_t)&receiver, (void*)ch2);
-  fiber_create(10240, (fiber_run_function_t)&sender, (void*)ch2);
+      fiber_create(102400, (fiber_run_function_t)&receiver, (void*)ch2);
+  fiber_create(102400, (fiber_run_function_t)&sender, (void*)ch2);
   sender(ch1);
 
   fiber_join(r1, NULL);

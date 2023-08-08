@@ -84,5 +84,6 @@ int main() {
          count_rd, count_wr);
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

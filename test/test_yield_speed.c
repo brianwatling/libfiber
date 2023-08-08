@@ -62,5 +62,6 @@ int main() {
       total_switches / ((double)diff / 1000000000.0));
 
   fiber_manager_print_stats();
+  fiber_shutdown();
   return 0;
 }

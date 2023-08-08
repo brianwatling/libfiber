@@ -62,8 +62,8 @@ int main(int argc, char* argv[]) {
   int i;
   for (i = 0; i < count; ++i) {
     fibers[i] =
-        fiber_create(10240, (fiber_run_function_t)&receiver, (void*)ch1);
-    fiber_create(10240, (fiber_run_function_t)&sender, (void*)ch1);
+        fiber_create(102400, (fiber_run_function_t)&receiver, (void*)ch1);
+    fiber_create(102400, (fiber_run_function_t)&sender, (void*)ch1);
   }
 
   for (i = 0; i < count; ++i) {
