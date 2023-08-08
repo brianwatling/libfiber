@@ -112,8 +112,9 @@ macro(fibertest test_name)
     )
   endif()
   if(FIBER_ENABLE_TSAN)
-    set_property(TEST fibertest_${test_name}
-                 PROPERTY ENVIRONMENT "TSAN_OPTIONS=second_deadlock_stack=1")
+    set_property(
+      TEST fibertest_${test_name}
+      PROPERTY ENVIRONMENT "TSAN_OPTIONS=symbolize=1:second_deadlock_stack=1")
   endif()
   if(FIBER_RUN_TESTS_WITH_BUILD)
     add_custom_command(

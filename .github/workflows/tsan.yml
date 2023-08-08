@@ -19,7 +19,7 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Configure CMake
-      run: CC=clang cmake -B ${{github.workspace}}/build -DFIBER_ENABLE_TSAN=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DFIBER_RUN_TESTS_WITH_BUILD=OFF -DFIBER_STACK_STRATEGY=malloc -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
+      run: CC=clang cmake -B ${{github.workspace}}/build -DFIBER_ENABLE_TSAN=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DFIBER_RUN_TESTS_WITH_BUILD=OFF -DFIBER_STACK_STRATEGY=mmap
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}

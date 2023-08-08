@@ -16,7 +16,7 @@
   do {                                                                       \
     if (!(expr)) {                                                           \
       fprintf(stderr, "%s:%d TEST FAILED: %s\n", __FILE__, __LINE__, #expr); \
-      *(int*)0 = 0;                                                          \
+      abort();                                                               \
     }                                                                        \
   } while (0)
 

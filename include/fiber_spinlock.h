@@ -18,13 +18,19 @@ typedef union {
   struct {
     uint32_t ticket;
     uint32_t users;
-  } __attribute__((packed)) counters;
+  } counters;
   uint64_t blob;
-} __attribute__((packed)) fiber_spinlock_internal_t;
+} fiber_spinlock_internal_t;
+
+_Static_assert(sizeof(fiber_spinlock_internal_t) == sizeof(uint64_t),
+               "expected fiber_spinlock_internal_t to be 8 bytes");
 
 typedef struct fiber_spinlock {
   fiber_spinlock_internal_t state;
 } fiber_spinlock_t;
+
+_Static_assert(sizeof(fiber_spinlock_t) == sizeof(uint64_t),
+               "expected fiber_spinlock_t to be 8 bytes");
 
 #ifdef __cplusplus
 extern "C" {
