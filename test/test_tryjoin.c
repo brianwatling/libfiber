@@ -15,7 +15,7 @@
 #include "test_helper.h"
 
 #define NUM_THREADS 2
-#define NUM_FIBERS 1000
+#define NUM_FIBERS 10000
 
 volatile int done_count = 0;
 

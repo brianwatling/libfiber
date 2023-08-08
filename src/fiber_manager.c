@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -38,6 +39,7 @@ void splitstack_disable_block_signals() {
 static int fiber_manager_state = FIBER_MANAGER_STATE_NONE;
 static int fiber_manager_num_threads = 0;
 static pthread_t* fiber_manager_threads = NULL;
+static __thread volatile pthread_t this_thread;
 static fiber_manager_t** fiber_managers = NULL;
 static volatile int fiber_shutting_down = 0;
 static lockfree_ring_buffer_t* volatile fiber_free_mpmc_nodes = NULL;
@@ -137,7 +139,9 @@ void* fiber_load_symbol(const char* symbol) {
   return ret;
 }
 
-__thread fiber_manager_t* fiber_the_manager = NULL;
+static __thread fiber_manager_t* fiber_the_manager = NULL;
+
+static __thread bool should_check_events = true;
 
 fiber_manager_t* fiber_manager_get() { return fiber_the_manager; }
 
@@ -152,6 +156,8 @@ static void* fiber_manager_thread_func(void* param) {
   fiber_manager_t* manager = (fiber_manager_t*)param;
   if (!manager->maintenance_fiber) {
     manager->maintenance_fiber = manager->thread_fiber;
+    should_check_events = true;
+    this_thread = pthread_self();
   }
 
   while (!fiber_shutting_down) {
@@ -163,11 +169,13 @@ static void* fiber_manager_thread_func(void* param) {
       // done
       manager->maintenance_fiber->state = FIBER_STATE_SAVING_STATE_TO_WAIT;
       fiber_manager_switch_to(manager, manager->maintenance_fiber, new_fiber);
-    } else {
+    } else if (should_check_events) {
       const int num_events = fiber_poll_events();
       if (num_events == 0) {
         fiber_poll_events_blocking(0, FIBER_TIME_RESOLUTION_MS * 1000);
       }
+    } else {
+      fiber_do_real_sleep(/*seconds=*/0, /*useconds=*/10000);
     }
   }
   fiber_mark_completed(manager->maintenance_fiber, NULL);
@@ -189,6 +197,8 @@ static void* fiber_manager_thread_func(void* param) {
 int fiber_manager_init(size_t num_threads) {
   splitstack_disable_block_signals();
   fiber_shutting_down = 0;
+  should_check_events = true;
+  this_thread = pthread_self();
 
   if (fiber_manager_get_state() != FIBER_MANAGER_STATE_NONE) {
     errno = EINVAL;
@@ -256,7 +266,11 @@ int fiber_manager_init(size_t num_threads) {
 }
 
 void fiber_shutdown() {
-  while (!pthread_equal(pthread_self(), fiber_manager_threads[0])) {
+  // Note: 'this_thread' is used instead of simply calling pthread_self()
+  // because gcc will hoist the call to pthread_self() out of the loop and we'll
+  // never terminate.
+  while (!pthread_equal(this_thread, fiber_manager_threads[0])) {
+    should_check_events = false;
     fiber_yield();
     usleep(1000);
   }
