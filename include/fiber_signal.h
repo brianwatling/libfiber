@@ -80,8 +80,8 @@ static inline int fiber_signal_raise(fiber_signal_t* s) {
 // raise the signal.
 typedef union fiber_multi_signal {
   struct {
-    uintptr_t volatile counter;
-    mpsc_fifo_node_t* volatile head;
+    _Atomic uintptr_t counter;
+    _Atomic(mpsc_fifo_node_t*) volatile head;
   } data;
   pointer_pair_t blob;
 } __attribute__((__packed__)) __attribute__((__aligned__(2 * sizeof(void*))))
@@ -112,10 +112,13 @@ static inline void fiber_multi_signal_wait(fiber_multi_signal_t* s) {
 
   fiber_multi_signal_t snapshot;
   while (1) {
-    snapshot.data.counter = s->data.counter;
-    load_load_barrier();  // read the counter first - this ensures nothing
-                          // changes while we're working
-    snapshot.data.head = s->data.head;
+    // read the counter first - this ensures nothing
+    // changes while we're working
+    snapshot.data.counter =
+        atomic_load_explicit(&s->data.counter, memory_order_acquire);
+
+    snapshot.data.head =
+        atomic_load_explicit(&s->data.head, memory_order_acquire);
 
     if (snapshot.data.head == FIBER_MULTI_SIGNAL_RAISED) {
       // try to switch from raised to no waiter -> on success we wake up since
@@ -158,10 +161,13 @@ static inline int fiber_multi_signal_raise(fiber_multi_signal_t* s) {
 
   fiber_multi_signal_t snapshot;
   while (1) {
-    snapshot.data.counter = s->data.counter;
-    load_load_barrier();  // read the counter first - this ensures nothing
-                          // changes while we're working
-    snapshot.data.head = s->data.head;
+    // read the counter first - this ensures nothing
+    // changes while we're working
+    snapshot.data.counter =
+        atomic_load_explicit(&s->data.counter, memory_order_acquire);
+
+    snapshot.data.head =
+        atomic_load_explicit(&s->data.head, memory_order_acquire);
 
     if (!snapshot.data.head ||
         snapshot.data.head == FIBER_MULTI_SIGNAL_RAISED) {
@@ -208,10 +214,13 @@ static inline void fiber_multi_signal_raise_strict(fiber_multi_signal_t* s) {
 
   fiber_multi_signal_t snapshot;
   while (1) {
-    snapshot.data.counter = s->data.counter;
-    load_load_barrier();  // read the counter first - this ensures nothing
-                          // changes while we're working
-    snapshot.data.head = s->data.head;
+    // read the counter first - this ensures nothing
+    // changes while we're working
+    snapshot.data.counter =
+        atomic_load_explicit(&s->data.counter, memory_order_acquire);
+
+    snapshot.data.head =
+        atomic_load_explicit(&s->data.head, memory_order_acquire);
 
     if (snapshot.data.head && snapshot.data.head != FIBER_MULTI_SIGNAL_RAISED) {
       // there's a waiter -> try to wake him

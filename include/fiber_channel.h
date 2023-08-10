@@ -96,16 +96,18 @@ static inline void* fiber_bounded_channel_receive(
   assert(channel);
 
   while (1) {
-    const uint64_t high = channel->high;
-    load_load_barrier();  // read high first; this means the buffer will appear
-                          // smaller or equal to its actual size
-    const uint64_t low = channel->low;
+    // read high first; this means the buffer will appear
+    // smaller or equal to its actual size
+    const uint64_t high =
+        atomic_load_explicit(&channel->high, memory_order_acquire);
+
+    const uint64_t low =
+        atomic_load_explicit(&channel->low, memory_order_acquire);
     const uint64_t index = low & channel->power_of_2_mod;
     void* const ret = channel->buffer[index];
     if (ret && high > low) {
       channel->buffer[index] = 0;
-      write_barrier();
-      channel->low = low + 1;
+      atomic_store_explicit(&channel->low, low + 1, memory_order_release);
       return ret;
     }
     if (channel->ready_signal) {
@@ -121,16 +123,18 @@ static inline int fiber_bounded_channel_try_receive(
     fiber_bounded_channel_t* channel, void** out) {
   assert(channel);
 
-  const uint64_t high = channel->high;
-  load_load_barrier();  // read high first; this means the buffer will appear
-                        // smaller or equal to its actual size
-  const uint64_t low = channel->low;
+  // read high first; this means the buffer will appear
+  // smaller or equal to its actual size
+  const uint64_t high =
+      atomic_load_explicit(&channel->high, memory_order_acquire);
+
+  const uint64_t low =
+      atomic_load_explicit(&channel->low, memory_order_acquire);
   const uint64_t index = low & channel->power_of_2_mod;
   void* const ret = channel->buffer[index];
   if (ret && high > low) {
     channel->buffer[index] = 0;
-    write_barrier();
-    channel->low = low + 1;
+    atomic_store_explicit(&channel->low, low + 1, memory_order_release);
     *out = ret;
     return 1;
   }
